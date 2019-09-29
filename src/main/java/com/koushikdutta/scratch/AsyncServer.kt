@@ -9,7 +9,6 @@ import java.nio.channels.spi.SelectorProvider
 import java.util.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.collections.HashSet
 import kotlin.coroutines.*
 
 private suspend fun Executor.await() {
@@ -86,12 +85,12 @@ class AsyncServerSocket internal constructor(val localPort: Int, selector: Selec
         return iter.next()
     }
 
-    internal fun accepted(selector: SelectorWrapper, channel: SocketChannel) {
-        queue.add(AsyncNetworkSocket(selector, channel, channel.register(selector.selector, SelectionKey.OP_READ)))
+    internal fun accepted(server: AsyncServer, selector: SelectorWrapper, channel: SocketChannel) {
+        queue.add(AsyncNetworkSocket(server, channel, channel.register(selector.selector, SelectionKey.OP_READ)))
     }
 }
 
-class AsyncNetworkSocket internal constructor(selector: SelectorWrapper, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
+class AsyncNetworkSocket internal constructor(val server: AsyncServer, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
     val localPort = channel.socket().localPort
     val remoteAddress: SocketAddress? = channel.socket().remoteSocketAddress
     private val inputBuffer = ByteBufferList()
@@ -114,6 +113,10 @@ class AsyncNetworkSocket internal constructor(selector: SelectorWrapper, private
 
     init {
         key.attach(this)
+    }
+
+    override suspend fun await() {
+        server.await()
     }
 
     fun closeInternal() {
@@ -225,38 +228,7 @@ class AsyncServer constructor(name: String? = null) {
         stop(false)
     }
 
-    inner class AsyncServerHandler {
-        val queue = AsyncDequeueIterator<suspend() -> Unit>()
-
-        init {
-            async {
-                val iter = queue.iterator()
-                while (iter.hasNext()) {
-                    await()
-                    iter.next()()
-                }
-            }
-        }
-
-        fun post(block: suspend() -> Unit) {
-            queue.add(block)
-        }
-
-        suspend fun run(block: suspend() -> Unit) {
-            suspendCoroutine<Unit> {
-                post {
-                    block()
-                    it.resume(Unit)
-                }
-            }
-        }
-    }
-
-    fun createHandler(): AsyncServerHandler {
-        return AsyncServerHandler()
-    }
-
-    fun postDelayed(runnable: AsyncServerRunnable, delay: Long): Cancellable {
+    fun postDelayed(delay: Long, runnable: AsyncServerRunnable): Cancellable {
         val s: Scheduled
         synchronized(this) {
             if (killed)
@@ -296,11 +268,11 @@ class AsyncServer constructor(name: String? = null) {
             runnable()
             return null
         }
-        return postDelayed(runnable, -1)
+        return postDelayed(-1, runnable)
     }
 
     fun post(runnable: AsyncServerRunnable): Cancellable {
-        return postDelayed(runnable, 0)
+        return postDelayed(0, runnable)
     }
 
     fun run(runnable: AsyncServerRunnable) {
@@ -456,7 +428,7 @@ class AsyncServer constructor(name: String? = null) {
             if (!socket.finishConnect())
                 throw IOException("socket failed to connect")
 
-            return AsyncNetworkSocket(mSelector!!, socket, ckey)
+            return AsyncNetworkSocket(this, socket, ckey)
         }
         catch (e: Throwable) {
             ckey?.cancel()
@@ -476,7 +448,17 @@ class AsyncServer constructor(name: String? = null) {
         return ret
     }
 
+    suspend fun sleep(milliseconds: Long) {
+        suspendCoroutine<Unit> {
+            postDelayed(milliseconds) {
+                it.resume(Unit)
+            }
+        }
+    }
+
     suspend fun await() {
+        if (isAffinityThread)
+            return
         suspendCoroutine<Unit> {
             post {
                 it.resume(Unit)
@@ -640,7 +622,7 @@ class AsyncServer constructor(name: String? = null) {
                         if (sc == null)
                             continue
                         sc.configureBlocking(false)
-                        socket.accepted(selector, sc)
+                        socket.accepted(this, selector, sc)
                     } catch (e: IOException) {
                         closeQuietly(sc)
                     }

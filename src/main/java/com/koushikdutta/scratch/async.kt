@@ -72,3 +72,60 @@ class Cooperator {
         }
     }
 }
+
+/**
+ * Create a coroutine executor that runs on a specific thread.
+ */
+class AwaitHandler(private val await: suspend() -> Unit) {
+    private val queue = AsyncDequeueIterator<suspend() -> Unit>()
+    private var blocked = false
+
+    init {
+        async {
+            val iter = queue.iterator()
+            while (iter.hasNext()) {
+                await()
+                runBlock(iter.next())
+            }
+        }
+    }
+
+    fun post(block: suspend() -> Unit) {
+        queue.add(block)
+    }
+
+    // run a block. requires that the call is on the affinity thread.
+    private suspend fun runBlock(block: suspend() -> Unit) {
+        blocked = true
+        try {
+            block()
+        }
+        finally {
+            blocked = false
+        }
+    }
+
+    suspend fun run(block: suspend() -> Unit) {
+        await()
+
+        // fast(?) path in case there's nothing in the queue
+        // unsure the cost of coroutines, but this prevents a queue/iterator/suspend hit.
+        if (!blocked) {
+            runBlock(block)
+            return
+        }
+
+        suspendCoroutine<Unit> post@{
+            post {
+                try {
+                    block()
+                }
+                catch (t: Throwable) {
+                    it.resumeWithException(t)
+                    return@post
+                }
+                it.resume(Unit)
+            }
+        }
+    }
+}

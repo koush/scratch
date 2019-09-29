@@ -9,6 +9,7 @@ typealias AsyncWrite = suspend (buffer: ReadableBuffers) -> Unit
 typealias AsyncPipe = (read: AsyncRead) -> AsyncRead
 
 interface AsyncSocket {
+    suspend fun await()
     suspend fun read(buffer: WritableBuffers): Boolean
     suspend fun write(buffer: ReadableBuffers): Unit
     suspend fun close()
@@ -187,15 +188,16 @@ class Main {
                 val socket = connect(addr)
                 val interruptibleRead = InterruptibleRead(socket::read)
                 while (true) {
-                    postDelayed({
-                        interruptibleRead.interrupt()
-                        println("wakupe")
-                    }, 1000)
+//                    postDelayed(1000) {
+//                        println("wakeup")
+//                        interruptibleRead.interrupt()
+//                    }
                     interruptibleRead.read(buffer)
                     if (buffer.hasRemaining())
                         println(buffer.string)
                     else
-                        println("got an empty")
+                        println("got an empty buffer")
+//                    sleep(5000)
                 }
 
 
@@ -203,7 +205,7 @@ class Main {
 //                    val buffer = ByteBufferList()
 //                    buffer.putString("GET / HTTP/1.1\r\n\r\n")
 //
-//                    val addr = InetSocketAddress("173.192.176.174", 443)
+//                    val addr = InetSocketAddress("172.217.14.206", 443)
 //                    val socket = connect(addr)
 //                    val context = SSLContext.getInstance("Default")
 ////                    context.init(null, null, null)
