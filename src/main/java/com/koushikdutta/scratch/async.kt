@@ -50,12 +50,6 @@ internal fun <T> async(block: suspend() -> T): AsyncResult<T> {
     return ret
 }
 
-internal suspend fun <T> await(block: (continuation: Continuation<T>) -> Unit): T {
-    return suspendCoroutine { continuation ->
-        block(continuation)
-    }
-}
-
 class Cooperator {
     private var waiting: Continuation<Unit>? = null
     fun resume() {
@@ -74,7 +68,8 @@ class Cooperator {
 }
 
 /**
- * Create a coroutine executor that runs on a specific thread.
+ * Create a coroutine executor that can be used to serialize
+ * suspending calls.
  */
 class AwaitHandler(private val await: suspend() -> Unit) {
     private val queue = AsyncDequeueIterator<suspend() -> Unit>()

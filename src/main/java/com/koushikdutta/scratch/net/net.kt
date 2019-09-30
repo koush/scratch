@@ -1,6 +1,9 @@
-package com.koushikdutta.scratch
+package com.koushikdutta.scratch.net
 
 
+import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.buffers.*
+import com.koushikdutta.scratch.external.Log
 import java.io.Closeable
 import java.io.IOException
 import java.net.*
@@ -85,12 +88,12 @@ class AsyncServerSocket internal constructor(val localPort: Int, selector: Selec
         return iter.next()
     }
 
-    internal fun accepted(server: AsyncServer, selector: SelectorWrapper, channel: SocketChannel) {
+    internal fun accepted(server: AsyncNetworkContext, selector: SelectorWrapper, channel: SocketChannel) {
         queue.add(AsyncNetworkSocket(server, channel, channel.register(selector.selector, SelectionKey.OP_READ)))
     }
 }
 
-class AsyncNetworkSocket internal constructor(val server: AsyncServer, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
+class AsyncNetworkSocket internal constructor(val server: AsyncNetworkContext, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
     val localPort = channel.socket().localPort
     val remoteAddress: SocketAddress? = channel.socket().remoteSocketAddress
     private val inputBuffer = ByteBufferList()
@@ -125,6 +128,11 @@ class AsyncNetworkSocket internal constructor(val server: AsyncServer, private v
             key.cancel()
         }
         catch (e: Exception) {
+        }
+
+        if (!closed) {
+            closed = true
+            input.end()
         }
     }
 
@@ -189,7 +197,7 @@ class AsyncNetworkSocket internal constructor(val server: AsyncServer, private v
 }
 
 
-class AsyncServer constructor(name: String? = null) {
+class AsyncNetworkContext constructor(name: String? = null) {
     private var mSelector: SelectorWrapper? = null
 
     val isRunning: Boolean
@@ -299,7 +307,7 @@ class AsyncServer constructor(name: String? = null) {
         }
     }
 
-    private class Scheduled(var server: AsyncServer, var runnable: AsyncServerRunnable, var time: Long) : Cancellable, Runnable {
+    private class Scheduled(var server: AsyncNetworkContext, var runnable: AsyncServerRunnable, var time: Long) : Cancellable, Runnable {
 
         internal var cancelled: Boolean = false
 
@@ -438,7 +446,7 @@ class AsyncServer constructor(name: String? = null) {
     }
 
 
-    fun <T> async(block: suspend AsyncServer.() -> T): AsyncResult<T> {
+    fun <T> async(block: suspend AsyncNetworkContext.() -> T): AsyncResult<T> {
         val ret = AsyncResult<T>()
         postImmediate {
             block.startCoroutine(this, Continuation(EmptyCoroutineContext) { result ->
@@ -496,8 +504,8 @@ class AsyncServer constructor(name: String? = null) {
                 affinity = object : Thread(mName) {
                     override fun run() {
                         try {
-                            threadServer.set(this@AsyncServer)
-                            AsyncServer.run(this@AsyncServer, selector, queue)
+                            threadServer.set(this@AsyncNetworkContext)
+                            run(this@AsyncNetworkContext, selector, queue)
                         } finally {
                             threadServer.remove()
                         }
@@ -657,7 +665,7 @@ class AsyncServer constructor(name: String? = null) {
     companion object {
         val LOGTAG = "NIO"
 
-        var default = AsyncServer()
+        var default = AsyncNetworkContext()
             internal set
 
         private val synchronousWorkers = newSynchronousWorkers("AsyncServer-worker-")
@@ -687,12 +695,12 @@ class AsyncServer constructor(name: String? = null) {
 
         private val synchronousResolverWorkers = newSynchronousWorkers("AsyncServer-resolver-")
 
-        private val threadServer = ThreadLocal<AsyncServer>()
+        private val threadServer = ThreadLocal<AsyncNetworkContext>()
 
-        val currentThreadServer: AsyncServer?
+        val currentThreadServer: AsyncNetworkContext?
             get() = threadServer.get()
 
-        private fun run(server: AsyncServer, selector: SelectorWrapper, queue: PriorityQueue<Scheduled>) {
+        private fun run(server: AsyncNetworkContext, selector: SelectorWrapper, queue: PriorityQueue<Scheduled>) {
             // at this point, this local queue and selector are owned
             // by this thread.
             // if a stop is called, the instance queue and selector
@@ -747,7 +755,7 @@ class AsyncServer constructor(name: String? = null) {
         }
 
         private val QUEUE_EMPTY = java.lang.Long.MAX_VALUE
-        private fun lockAndRunQueue(server: AsyncServer, queue: PriorityQueue<Scheduled>): Long {
+        private fun lockAndRunQueue(server: AsyncNetworkContext, queue: PriorityQueue<Scheduled>): Long {
             var wait = QUEUE_EMPTY
 
             // find the first item we can actually run

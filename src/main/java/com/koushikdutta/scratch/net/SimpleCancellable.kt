@@ -1,4 +1,4 @@
-package com.koushikdutta.scratch
+package com.koushikdutta.scratch.net
 
 open class SimpleCancellable : Cancellable {
     internal var complete: Boolean = false
@@ -28,7 +28,6 @@ open class SimpleCancellable : Cancellable {
     }
 
     override fun cancel(): Boolean {
-        val parent: Cancellable
         synchronized(this) {
             if (complete)
                 return false

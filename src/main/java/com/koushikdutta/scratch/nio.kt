@@ -1,5 +1,9 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.buffers.Buffers
+import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.resume
@@ -44,21 +48,31 @@ abstract class NonBlockingWritePipe {
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
+        // rethrow errors downstream
         result.rethrow()
 
-        if (pending.isEmpty && !eos) {
+        // check if we have something to read
+        if (pending.isEmpty) {
+            // eos?
+            if (eos)
+                return false
+
+            // wait for something to come down
             yielder.yield()
             result.rethrow()
+
+            // still empty? bail. empty data but not eos is valid.
+            if (pending.isEmpty)
+                return eos
         }
 
+        // at this point the buffer must have something
         pending.get(buffer)
-
         if (needsWritable) {
             needsWritable = false
             writable()
         }
-
-        return !eos
+        return true
     }
 }
 

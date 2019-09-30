@@ -1,4 +1,4 @@
-package com.koushikdutta.scratch;
+package com.koushikdutta.scratch.buffers;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -42,7 +42,13 @@ public interface ReadableBuffers {
     void get(byte[] bytes);
     void get(byte[] bytes, int offset, int length);
     void get(WritableBuffers into, int length);
-    void get(WritableBuffers into);
+
+    /**
+     * Read the buffer. Returns false if nothing was read due to the buffer being empty.
+     * @param into
+     * @return
+     */
+    boolean get(WritableBuffers into);
 
     /**
      * Fill the given buffer.
@@ -68,6 +74,18 @@ public interface ReadableBuffers {
         free();
         return ret;
     }
+
+    /**
+     * Fill the given buffer with data, until the given sequence of bytes is found.
+     * @param into
+     * @param scan The byte sequence to find.
+     * @return Returns true if the byte sequence was found, false if the buffer ends
+     * before the sequence was found.
+     * For example, if the this buffer ends on a partial byte sequence match, the partial sequence
+     * will be left in the this buffer, and all data prior to that sequence will be filled into
+     * the given buffer.
+     */
+    boolean getScan(WritableBuffers into, byte[] scan);
 
     default void spewString() {
         System.out.println(peekString());

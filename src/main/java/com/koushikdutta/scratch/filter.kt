@@ -1,41 +1,82 @@
 package com.koushikdutta.scratch
 
-import com.sun.org.apache.xpath.internal.operations.Bool
-import java.lang.IllegalStateException
+import com.koushikdutta.scratch.buffers.Buffers
+import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
+/**
+ * Manages filtering and buffering of data through a pipe.
+ */
 abstract class AsyncFilter {
     internal val unfiltered = ByteBufferList()
+    // need separate buffers for filtered and outgoing as filtering may take place during
+    // read/write operations
     internal val filtered = ByteBufferList()
     internal val outgoing = ByteBufferList()
 
     protected abstract fun filter(unfiltered: Buffers, filtered: Buffers)
+
+    // invoke a filter on the pending data, even if it is empty.
+    protected fun invokeFilter() {
+        filter(unfiltered, filtered)
+    }
 }
 
 abstract class AsyncWriteFilter(private val output: AsyncWrite): AsyncFilter() {
     suspend fun write(buffer: ReadableBuffers) {
         buffer.get(unfiltered)
-        filter(unfiltered, filtered)
-        filtered.get(outgoing)
-        output(outgoing)
+        invokeFilter()
+
+        while (filtered.hasRemaining()) {
+            filtered.get(outgoing)
+            output(outgoing)
+        }
+    }
+
+    /**
+     * Trigger an immediate filter and write. This is used in the event
+     * the filter needs to synthesize data with no corresponding input.
+     * The write must be able to handle concurrent invocations, such as using
+     * AsyncHandler to perform write serialization.
+     */
+    fun invokeWrite() = async {
+        write(ByteBufferList())
     }
 }
 
 abstract class AsyncReadFilter(private val input: AsyncRead) : AsyncFilter() {
     suspend fun read(buffer: WritableBuffers): Boolean {
-        val ret = input(unfiltered)
-        filter(unfiltered, filtered)
-        // add the queued data
-        outgoing.get(buffer)
-        // add the new filtered data
-        filtered.get(buffer)
+        var ret = input(unfiltered)
+        invokeFilter()
+        // end of stream is only reached if the input reached end of stream,
+        // and the outgoing and filtered buffers are empty.
+        ret = outgoing.get(buffer) or ret
+        ret = filtered.get(buffer) or ret
         return ret
+    }
+
+    /**
+     * Perform a read call, but do not consume any data. Can be used to trigger
+     * downstream reads.
+     */
+    suspend fun read(): Boolean {
+        val temp = ByteBufferList()
+        if (!read(temp))
+            return false
+        outgoing.add(temp)
+        return true
     }
 }
 
+/**
+ * Create an AsyncRead that can be interrupted.
+ * The interrupted read will return true to indicate more data is present,
+ * and the WritableBuffers will be unchanged.
+ */
 class InterruptibleRead(private val input: AsyncRead) {
     private var readResume: Continuation<ReadResult>? = null
     private val transient = ByteBufferList()

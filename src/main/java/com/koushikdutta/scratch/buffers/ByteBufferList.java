@@ -1,13 +1,13 @@
-package com.koushikdutta.scratch;
+package com.koushikdutta.scratch.buffers;
 
 
-import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.util.ArrayDeque;
 import java.util.PriorityQueue;
+
+import kotlin.text.Charsets;
 
 public class ByteBufferList implements Buffers {
     private static final Object LOCK = new Object();
@@ -20,7 +20,6 @@ public class ByteBufferList implements Buffers {
     private static int currentSize = 0;
     private static int maxItem = 0;
     private static int MAX_SIZE = 1024 * 1024;
-    private static Charset UTF_8 = Charset.forName("UTF-8");
     private ArrayDeque<ByteBuffer> mBuffers = new ArrayDeque<>();
     private ByteOrder order = ByteOrder.BIG_ENDIAN;
     private int remaining = 0;
@@ -128,23 +127,6 @@ public class ByteBufferList implements Buffers {
         if (copyOf == null)
             return null;
         return (ByteBuffer) obtain(copyOf.remaining()).put(copyOf.duplicate()).flip();
-    }
-
-    public static void writeOutputStream(OutputStream out, ByteBuffer b) throws IOException {
-        byte[] bytes;
-        int offset;
-        int length;
-        if (b.isDirect()) {
-            bytes = new byte[b.remaining()];
-            offset = 0;
-            length = b.remaining();
-            b.get(bytes);
-        } else {
-            bytes = b.array();
-            offset = b.arrayOffset() + b.position();
-            length = b.remaining();
-        }
-        out.write(bytes, offset, length);
     }
 
     public ByteOrder order() {
@@ -317,8 +299,10 @@ public class ByteBufferList implements Buffers {
         remaining -= length;
     }
 
-    public void get(WritableBuffers into) {
+    public boolean get(WritableBuffers into) {
+        boolean hadData = hasRemaining();
         get(into, remaining);
+        return hadData;
     }
 
     public ByteBufferList get(int length) {
@@ -326,6 +310,45 @@ public class ByteBufferList implements Buffers {
         get(ret, length);
         ret.order(order);
         return ret;
+    }
+
+    @Override
+    public boolean getScan(WritableBuffers into, byte[] scan) {
+        int bytesRead = 0;
+        int matchCount = 0;
+
+        ByteBuffer[] buffers = getAll();
+
+        for (int bufferPosition = 0; bufferPosition < buffers.length && matchCount < scan.length; bufferPosition++) {
+            // grab the next buffer for searching
+            ByteBuffer b = buffers[bufferPosition];
+
+            int scanPosition = b.position();
+            while (scanPosition < b.limit() && matchCount < scan.length) {
+                if (scan[matchCount] == b.get(scanPosition)) {
+                    matchCount++;
+                }
+                else {
+                    bytesRead++;
+                    // abort and account for any match sequence
+                    bytesRead += matchCount;
+                    // reset the match
+                    matchCount = 0;
+                }
+                scanPosition++;
+            }
+        }
+
+        // add everything back in.
+        addAll(buffers);
+
+        // if we had a match, we can read that too.
+        if (matchCount == scan.length)
+            bytesRead += scan.length;
+
+        get(into, bytesRead);
+
+        return matchCount == scan.length;
     }
 
     public ByteBuffer getByteBuffer() {
@@ -522,14 +545,14 @@ public class ByteBufferList implements Buffers {
     @Override
     public WritableBuffers putString(String s, Charset charset) {
         if (charset == null)
-            charset = UTF_8;
+            charset = Charsets.UTF_8;
         return add(charset.encode(s));
     }
 
     // not doing toString as this is really nasty in the debugger...
     public String peekString(Charset charset) {
         if (charset == null)
-            charset = UTF_8;
+            charset = Charsets.UTF_8;
         StringBuilder builder = new StringBuilder();
         for (ByteBuffer bb : mBuffers) {
             byte[] bytes;

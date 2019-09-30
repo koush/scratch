@@ -14,7 +14,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package com.koushikdutta.scratch
+package com.koushikdutta.scratch.external
 
 import java.security.cert.CertificateParsingException
 import java.security.cert.X509Certificate
