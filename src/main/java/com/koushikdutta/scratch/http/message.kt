@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch.http
 
+import com.koushikdutta.scratch.AsyncRead
 import java.net.URI
 
 abstract class AsyncHttpMessage(val headers: Headers = Headers()) {
@@ -7,40 +8,54 @@ abstract class AsyncHttpMessage(val headers: Headers = Headers()) {
     open var protocol: String = "HTTP/1.1"
         protected set
 
-    override fun toString(): String {
+    fun toMessageString(): String {
         return "${messageLine}\r\n${headers}\r\n"
+    }
+
+    override fun toString(): String {
+        return toMessageString()
     }
 }
 
-open class AsyncHttpRequest(val uri: URI, val method: String = "GET") : AsyncHttpMessage() {
+open class AsyncHttpRequest(val uri: URI, val method: String = "GET", private val body: AsyncRead? = null) : AsyncHttpMessage() {
     override val messageLine: String
+        get() = "$method $requestLinePathAndQuery $protocol"
+
+    val requestLinePathAndQuery: String
         get() {
-            var path = statusLinePath
-            val query = statusLineQuery
+            var path = requestLinePath
+            val query = requestLineQuery
             if (path == null || path.isEmpty())
                 path = "/"
             if (query == null || query.isEmpty())
-                return "$method $path $protocol"
-
-            return "$method $path?$query $protocol"
+                return path
+            return "$path?$query"
         }
 
-    protected open val statusLinePath: String?
+    protected open val requestLinePath: String?
         get() {
             return uri.rawPath
         }
 
-    protected open  val statusLineQuery: String?
+    protected open  val requestLineQuery: String?
         get() {
             return uri.rawQuery
         }
 
     override var protocol: String = "HTTP/1.1"
+    val properties = mutableMapOf<String, Any>()
+
+    init {
+        headers.add("Host", uri.host)
+        headers.add("User-Agent", "ion/1.0")
+    }
 }
 
-class AsyncHttpResponse(override val messageLine: String, headers: Headers = Headers()) : AsyncHttpMessage(headers) {
+class AsyncHttpResponse internal constructor(override val messageLine: String, headers: Headers = Headers(), body: AsyncRead? = null) : AsyncHttpMessage(headers) {
     val code: Int
     val message: String
+    var body: AsyncRead? = body
+        internal set
 
     init {
         val parts = messageLine.split(Regex(" "), 3)

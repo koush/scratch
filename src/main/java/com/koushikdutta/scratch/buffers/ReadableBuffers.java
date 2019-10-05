@@ -69,6 +69,9 @@ public interface ReadableBuffers {
     default String getString() {
         return getString(null);
     }
+    default String getString(int length, Charset charset) {
+        return new String(this.getBytes(length), charset);
+    }
     default String getString(Charset charset) {
         String ret = peekString(charset);
         free();

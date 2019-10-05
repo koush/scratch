@@ -83,9 +83,8 @@ class AsyncServerSocket internal constructor(val localPort: Int, selector: Selec
         }
     }
 
-    private val iter = queue.iterator()
     suspend fun accept(): AsyncNetworkSocket {
-        return iter.next()
+        return queue.iterator().next()
     }
 
     internal fun accepted(server: AsyncNetworkContext, selector: SelectorWrapper, channel: SocketChannel) {
@@ -420,6 +419,10 @@ class AsyncNetworkContext constructor(name: String? = null) {
         }
     }
 
+    suspend fun connect(host: String, port: Int): AsyncNetworkSocket {
+        return connect(InetSocketAddress(getByName(host), port))
+    }
+
     suspend fun connect(address: InetSocketAddress): AsyncNetworkSocket {
         await()
         var ckey: SelectionKey? = null
@@ -464,14 +467,18 @@ class AsyncNetworkContext constructor(name: String? = null) {
         }
     }
 
-    suspend fun await() {
-        if (isAffinityThread)
-            return
+    suspend fun post() {
         suspendCoroutine<Unit> {
             post {
                 it.resume(Unit)
             }
         }
+    }
+
+    suspend fun await() {
+        if (isAffinityThread)
+            return
+        post()
     }
 
     suspend fun getAllByName(host: String): Array<InetAddress> {

@@ -3,6 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import java.nio.charset.Charset
+import kotlin.math.min
 
 class AsyncReader(val input: AsyncRead) {
     private val pending = ByteBufferList()
@@ -19,10 +20,12 @@ class AsyncReader(val input: AsyncRead) {
     }
 
     /**
-     * Read any pending data in the reader.
+     * Read any buffered data in the reader.
+     * Returns true if there was data buffered in the reader, false otherwise.
      */
-    fun readPending(buffer: WritableBuffers) {
-        pending.get(buffer)
+    fun readPending(buffer: WritableBuffers): Boolean {
+        println("ok")
+        return pending.get(buffer)
     }
 
     /**
@@ -77,4 +80,27 @@ class AsyncReader(val input: AsyncRead) {
         pending.get(buffer, length)
         return true
     }
+
+    /**
+     * Perform a read for up to the given length of bytes.
+     * Follows the same return convention as AsyncRead:
+     * Returns true if more data can be read.
+     * Returns false if nothing was read, and no further data can be read.
+     */
+    suspend fun readChunk(buffer: WritableBuffers, length: Int): Boolean {
+        if (pending.isEmpty) {
+            if (!input(pending))
+                return false
+        }
+
+        val toRead = min(length, pending.remaining())
+        pending.get(buffer, toRead)
+        return true
+    }
+
+    fun pipe(pipe: AsyncReaderPipe): AsyncRead {
+        return pipe(this)
+    }
 }
+
+typealias AsyncReaderPipe = (reader: AsyncReader) -> AsyncRead

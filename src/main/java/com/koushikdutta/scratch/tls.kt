@@ -1,7 +1,11 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.buffers.*
+import com.koushikdutta.scratch.buffers.Allocator
+import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.external.OkHostnameVerifier
+import com.koushikdutta.scratch.net.AsyncNetworkContext
 import java.security.GeneralSecurityException
 import java.security.KeyStore
 import java.security.cert.X509Certificate
@@ -13,11 +17,15 @@ interface AsyncTlsTrustFailureCallback {
 
 class AsyncTlsOptions(internal val trustManagers: Array<TrustManager>? = null, internal val hostnameVerifier: HostnameVerifier? = null, internal val trustFailureCallback: AsyncTlsTrustFailureCallback?)
 
-class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?, private val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket {
+class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket {
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket::read)
-    private val decryptFilter = object : AsyncReadFilter(socketRead::read) {
-        override fun filter(unfiltered: Buffers, filtered: Buffers) {
+
+    val decryptedRead = (socketRead::read as AsyncRead).readPipe { read ->
+        val unfiltered = ByteBufferList();
+        { filtered ->
+            read(unfiltered)
+
             // SSLEngine.unwrap
             do {
                 // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
@@ -50,56 +58,71 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
                 else if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
                     break
                 }
+                else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
+                    encryptedWrite(ByteBufferList())
+                }
+                else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
+                    continue
+                }
 
                 handleHandshakeStatus(result.handshakeStatus)
             } while (bytesConsumed != 0 || bytesProduced != 0)
+
+            true
         }
     }
 
-    private val encryptFilter = object : AsyncWriteFilter(this::safeWrite) {
-        // SSLEngine.wrap
-        override fun filter(unfiltered: Buffers, filtered: Buffers) {
-            var alloced = calculateAlloc(unfiltered.remaining())
-            do {
-                // if the handshake is finished, don't attempt to wrap 0 bytes of data.
-                // this seems to terminate the ssl engine.
-                if (finishedHandshake && unfiltered.isEmpty)
-                    break
+    val unencryptedWriteBuffer = ByteBufferList()
+    val encryptedWriteBuffer = ByteBufferList()
+    val encryptedWrite: AsyncWrite = { buffer ->
+        buffer.get(unencryptedWriteBuffer)
 
-                // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
-                // take into account that wrap/unwrap in the context of a handshake may
-                // "produce" bytes that are only used for the handshake, and not actual application
-                // data.
-                val available = unfiltered.remaining()
+        var alloced = calculateAlloc(unencryptedWriteBuffer.remaining())
+        do {
+            // if the handshake is finished, don't attempt to wrap 0 bytes of data.
+            // this seems to terminate the ssl engine.
+            if (finishedHandshake && unencryptedWriteBuffer.isEmpty)
+                break
 
-                val encrypted = ByteBufferList.obtain(alloced)
-                alloced = encrypted.remaining()
-                val unencrypted = unfiltered.all
-                val result = engine.wrap(unencrypted, encrypted)
-                encrypted.flip()
-                var bytesProduced = encrypted.remaining()
-                // add unused unencrypted data back to the wrap buffer
-                unfiltered.addAll(*unencrypted)
-                val bytesConsumed = available - unfiltered.remaining()
-                // queue up the encrypted data for write
-                filtered.add(encrypted)
+            // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
+            // take into account that wrap/unwrap in the context of a handshake may
+            // "produce" bytes that are only used for the handshake, and not actual application
+            // data.
+            val available = unencryptedWriteBuffer.remaining()
 
-                if (result.status == SSLEngineResult.Status.BUFFER_OVERFLOW) {
-                    // allow the loop to continue
-                    bytesProduced = -1
-                    alloced *= 2
-                    continue
-                }
-                else if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
-                    // this should never happen, as it is not possible to underflow
-                    // with application data
-                    break
-                }
+            val encrypted = ByteBufferList.obtain(alloced)
+            alloced = encrypted.remaining()
+            val unencrypted = unencryptedWriteBuffer.all
+            val result = engine.wrap(unencrypted, encrypted)
+            encrypted.flip()
+            var bytesProduced = encrypted.remaining()
+            // add unused unencrypted data back to the wrap buffer
+            unencryptedWriteBuffer.addAll(*unencrypted)
+            val bytesConsumed = available - unencryptedWriteBuffer.remaining()
+            // queue up the encrypted data for write
+            encryptedWriteBuffer.add(encrypted)
+            socket.write(encryptedWriteBuffer)
 
-                // this may result in a recursive call
-                handleHandshakeStatus(result.handshakeStatus)
-            } while (bytesConsumed != 0 || bytesProduced != 0)
-        }
+            if (result.status == SSLEngineResult.Status.BUFFER_OVERFLOW) {
+                // allow the loop to continue
+                bytesProduced = -1
+                alloced *= 2
+                continue
+            }
+            else if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+                // this should never happen, as it is not possible to underflow
+                // with application data
+                break
+            }
+            else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
+                socketRead.interrupt()
+            }
+            else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
+                continue
+            }
+
+            handleHandshakeStatus(result.handshakeStatus)
+        } while (bytesConsumed != 0 || bytesProduced != 0)
     }
 
     fun calculateAlloc(remaining: Int): Int {
@@ -113,18 +136,10 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
     var peerCertificates: Array<X509Certificate>? = null
         private set
 
-    fun handleHandshakeStatus(status: SSLEngineResult.HandshakeStatus) {
+    suspend fun handleHandshakeStatus(status: SSLEngineResult.HandshakeStatus) {
         if (status == SSLEngineResult.HandshakeStatus.NEED_TASK) {
             val task = engine.delegatedTask
             task.run()
-        }
-
-        if (status == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
-            encryptFilter.invokeWrite()
-        }
-
-        if (status == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
-            socketRead.interrupt()
         }
 
         if (!finishedHandshake && (engine.handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING || engine.handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED)) {
@@ -173,47 +188,51 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
             // upon handshake completion, trigger a wrap/unwrap so that all pending input/output
             // gets flushed
             socketRead.interrupt()
-            encryptFilter.invokeWrite()
+            encryptedWrite(ByteBufferList())
         }
     }
 
     private val allocator = Allocator().setMinAlloc(8192)
 
     override suspend fun close() {
+        socket.close()
     }
 
     override suspend fun write(buffer: ReadableBuffers) {
-        encryptFilter.write(buffer)
+        encryptedWrite(buffer)
     }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
-        return decryptFilter.read(buffer)
+        return reader(buffer)
     }
 
     override suspend fun await() {
         socket.await()
     }
 
+    // need a reader to catch any overflow from the handshake
+    private var reader: AsyncRead = decryptedRead
+
     internal suspend fun awaitHandshake() {
+        val handshakeBuffer = ByteBufferList()
+        reader = {
+            reader = decryptedRead
+            handshakeBuffer.get(it)
+            true
+        }
+
         while (!finishedHandshake) {
             // the suspending read calls in awaitData will be interrupted when an
             // unwrap is necessary.
             // keep wrapping/unwrapping until the handshake finishes.
 
             // trigger a wrap call
-            encryptFilter.invokeWrite()
+            encryptedWrite(ByteBufferList())
             // trigger an unwrap call, wait for data
             // this will unsuspend once the handshake completes, even if no data is available.
             // an empty data set is still a valid
-            if (!decryptFilter.read() && !finishedHandshake)
+            if (!decryptedRead(handshakeBuffer) && !finishedHandshake)
                 throw SSLException("socket unexpectedly closed")
-        }
-    }
-
-    private val writeHandler = AwaitHandler(this::await)
-    private suspend fun safeWrite(buffer: ReadableBuffers) {
-        writeHandler.run {
-            socket.write(buffer)
         }
     }
 }
@@ -224,3 +243,8 @@ suspend fun tlsHandshake(socket: AsyncSocket, host: String, engine: SSLEngine, o
     return tlsSocket
 }
 
+suspend fun AsyncNetworkContext.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
+    val engine = context.createSSLEngine(host, port)
+    engine.useClientMode = true
+    return tlsHandshake(connect(host, port), host, engine, options)
+}

@@ -3,6 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import java.io.IOException
 
 
 /**
@@ -48,7 +49,7 @@ interface AsyncWrappingSocket : AsyncSocket {
     val socket: AsyncSocket
 }
 
-fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
+fun AsyncRead.readPipe(pipe: AsyncPipe): AsyncRead {
     return pipe(this)
 }
 
@@ -71,5 +72,47 @@ suspend fun AsyncRead.copy(asyncWrite: AsyncWrite) {
     val bytes = ByteBufferList()
     while (this(bytes)) {
         asyncWrite.drain(bytes)
+    }
+}
+
+fun AsyncWrite.writePipe(pipe: AsyncPipe): AsyncWrite {
+    val yielder = Cooperator()
+    var pending: ReadableBuffers? = null
+    var closed = false
+
+    val read: AsyncRead = {
+        // wait for a write
+        yielder.yield()
+        val ret = pending!!.get(it)
+        // finish the write
+        yielder.resume()
+        ret || !closed
+    }
+
+    val output = pipe(read)
+
+    val result: AsyncResult<Unit> = async {
+        val buffer = ByteBufferList()
+        while (output(buffer)) {
+            this(buffer)
+        }
+    }
+    .finally { closed = true }
+
+    val checkWriter = {
+        result.rethrow()
+        if (closed)
+            throw IOException("socket has been closed")
+    }
+
+    return {
+        checkWriter()
+
+        pending = it
+        // notify a read, and wait for the continuation
+        yielder.yield()
+        pending = null
+
+        checkWriter()
     }
 }

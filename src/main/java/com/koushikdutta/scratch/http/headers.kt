@@ -5,6 +5,10 @@ data class Header(val name: String, val value: String)
 class Headers {
     private val headers = mutableListOf<Header>()
 
+    operator fun iterator(): Iterator<Header> {
+        return headers.iterator()
+    }
+
     fun remove(name: String) {
         headers.removeIf {
             headerEquals(name, it.name)

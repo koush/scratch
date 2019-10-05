@@ -39,6 +39,11 @@ public class ByteBufferList implements Buffers {
     }
 
     private static PriorityQueue<ByteBuffer> getReclaimed() {
+        // android implementation used to prevent locks on main thread,
+        // but i'm unsure if that's better or worse than a GC pause on main thread.
+//        if (Thread.currentThread().getId() == 1)
+//            return null;
+
         return reclaimed;
     }
 
@@ -176,6 +181,8 @@ public class ByteBufferList implements Buffers {
     }
 
     public ByteBufferList skip(int length) {
+        if (length == 0)
+            return this;
         get(null, 0, length);
         return this;
     }
@@ -488,7 +495,7 @@ public class ByteBufferList implements Buffers {
         return ret;
     }
 
-    public int size() {
+    private int size() {
         return mBuffers.size();
     }
 

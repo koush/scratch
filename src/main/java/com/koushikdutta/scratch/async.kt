@@ -71,7 +71,7 @@ class Cooperator {
  * Create a coroutine executor that can be used to serialize
  * suspending calls.
  */
-class AwaitHandler(private val await: suspend() -> Unit) {
+class AsyncHandler(private val await: suspend() -> Unit) {
     private val queue = AsyncDequeueIterator<suspend() -> Unit>()
     private var blocked = false
 
@@ -90,28 +90,28 @@ class AwaitHandler(private val await: suspend() -> Unit) {
     }
 
     // run a block. requires that the call is on the affinity thread.
-    private suspend fun runBlock(block: suspend() -> Unit) {
+    private suspend fun <T> runBlock(block: suspend() -> T): T {
         blocked = true
         try {
-            block()
+            return block()
         }
         finally {
             blocked = false
         }
     }
 
-    suspend fun run(block: suspend() -> Unit) {
+    suspend fun <T> run(block: suspend() -> T): T {
         await()
 
         // fast(?) path in case there's nothing in the queue
         // unsure the cost of coroutines, but this prevents a queue/iterator/suspend hit.
         if (!blocked) {
-            runBlock(block)
-            return
+            return runBlock(block)
         }
 
-        suspendCoroutine<Unit> post@{
+        return suspendCoroutine post@{
             post {
+                val ret: T =
                 try {
                     block()
                 }
@@ -119,7 +119,7 @@ class AwaitHandler(private val await: suspend() -> Unit) {
                     it.resumeWithException(t)
                     return@post
                 }
-                it.resume(Unit)
+                it.resume(ret)
             }
         }
     }

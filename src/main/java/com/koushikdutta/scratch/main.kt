@@ -1,13 +1,17 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.filters.ChunkedInputPipe
-import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.AsyncHttpRequest
+import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.net.AsyncNetworkContext
+import org.conscrypt.Conscrypt
 import java.io.IOException
 import java.net.InetSocketAddress
-import javax.net.ssl.SSLContext
+import java.net.URI
+import java.security.Security
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 class Main {
     companion object {
@@ -71,14 +75,8 @@ class Main {
         }
 
         suspend fun AsyncNetworkContext.testTls() {
-            val addr = InetSocketAddress("172.217.14.206", 443)
-            val socket = connect(addr)
-            val context = SSLContext.getInstance("Default")
-//                    context.init(null, null, null)
-            val engine = context.createSSLEngine("google.com", 443)
-            engine.useClientMode = true
             val secureSocket = try {
-                tlsHandshake(socket, engine.peerHost, engine);
+                connectTls("google.com", 443)
             }
             catch (e: Exception) {
                 println("connect failed")
@@ -101,34 +99,24 @@ class Main {
         }
 
         suspend fun AsyncNetworkContext.testHttp() {
-            val addr = InetSocketAddress("172.217.14.206", 443)
-            val socket = connect(addr)
-            val context = SSLContext.getInstance("Default")
-//                    context.init(null, null, null)
-            val engine = context.createSSLEngine("google.com", 443)
-            engine.useClientMode = true
-            val secureSocket = tlsHandshake(socket, engine.peerHost, engine)
+            val client = AsyncHttpClient()
+            val conscrypt = ConscryptMiddleware()
+            conscrypt.install(client)
+            val request = AsyncHttpRequest(URI("https://google.com"))
+            println(request)
 
-            val buffer = ByteBufferList()
-            buffer.putString("GET / HTTP/1.1\r\n\r\n")
-            secureSocket.write(buffer)
+            for (i in 1..5) {
+                println(i)
+                val response = client.execute(request)
+                val buffer = ByteBufferList()
+                println(response)
 
-            val reader = AsyncReader(secureSocket::read)
-            val statusLine = reader.readScanString("\r\n").trim()
-            val headers = Headers()
-            while (true) {
-                val headerLine = reader.readScanString("\r\n").trim()
-                if (headerLine.isEmpty())
-                    break
-                headers.addLine(headerLine)
+                while (response.body!!(buffer)) {
+                    println(buffer.string)
+                }
             }
-            val response = AsyncHttpResponse(statusLine, headers)
-            println(response)
 
-            val chunked = (reader::read as AsyncRead).pipe(ChunkedInputPipe)
-            while (chunked(buffer)) {
-                println(buffer.string)
-            }
+            println("done")
         }
 
         suspend fun AsyncNetworkContext.testServer() {
@@ -141,10 +129,11 @@ class Main {
                     println("${socket.remoteAddress} ${socket.localPort}")
                     val buffer = ByteBufferList()
                     while (socket.read(buffer)) {
-                            val string = buffer.string
-                            println(string)
-                            buffer.putString(string.reversed())
-                        socket.write(buffer)
+//                            val string = buffer.string
+//                            println(string)
+//                            buffer.putString(string.reversed())
+//                        socket.write(buffer)
+                        buffer.free()
                     }
                     println("done")
                 }
@@ -182,10 +171,29 @@ class Main {
         }
 
         @JvmStatic fun main(args: Array<String>) {
+            val provider = Conscrypt.newProvider()
+            Security.insertProviderAt(provider, 1)
+
+//            Security.insertProviderAt(Conscrypt.newProvider(), 1)
+
+            val read: AsyncRead = {
+                it.putString("poops");
+                suspendCoroutine<Unit> {
+                    AsyncNetworkContext.default.async {
+                        sleep(1000)
+                        it.resume(Unit)
+                    }
+                }
+                true
+            }
+
+//            val discardServer = DiscardServer(5555)
+//            discardServer.run()
 
             AsyncNetworkContext.default.async {
                 testHttp()
 //                testServer()
+
             }
 
             Thread.sleep(10000000)
