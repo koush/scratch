@@ -16,7 +16,7 @@ import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
 import com.koushikdutta.scratch.http.http2.Protocol
-import com.koushikdutta.scratch.tlsHandshake
+import com.koushikdutta.scratch.tls.tlsHandshake
 import java.io.IOException
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
@@ -166,7 +166,7 @@ open class AsyncTlsSocketMiddleware(val context: SSLContext = SSLContext.getDefa
             val engine = context.createSSLEngine(host, port)
             engine.useClientMode = true
             configureEngine(engine)
-            return tlsHandshake(socket, host, engine)
+            return tlsHandshake(socket, engine)
         }
         catch (throwable: Throwable) {
             socket.close()

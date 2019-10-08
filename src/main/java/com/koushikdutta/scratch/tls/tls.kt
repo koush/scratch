@@ -1,13 +1,12 @@
-package com.koushikdutta.scratch
+package com.koushikdutta.scratch.tls
 
+import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.Allocator
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.external.OkHostnameVerifier
 import com.koushikdutta.scratch.net.AsyncNetworkContext
-import java.security.GeneralSecurityException
-import java.security.KeyStore
 import java.security.cert.X509Certificate
 import javax.net.ssl.*
 
@@ -15,16 +14,17 @@ interface AsyncTlsTrustFailureCallback {
     fun handleOrRethrow(throwable: Throwable)
 }
 
-class AsyncTlsOptions(internal val trustManagers: Array<TrustManager>? = null, internal val hostnameVerifier: HostnameVerifier? = null, internal val trustFailureCallback: AsyncTlsTrustFailureCallback?)
+class AsyncTlsOptions(internal val hostnameVerifier: HostnameVerifier? = null, internal val trustFailureCallback: AsyncTlsTrustFailureCallback?)
 
-class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket {
+class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket {
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket::read)
 
-    val decryptedRead = (socketRead::read as AsyncRead).pipe { read ->
+    private val decryptedRead = (socketRead::read as AsyncRead).pipe { read ->
         val unfiltered = ByteBufferList();
-        { filtered ->
-            read(unfiltered)
+        decrypt@{ filtered ->
+            if (!read(unfiltered) && unfiltered.isEmpty)
+                return@decrypt false
 
             // SSLEngine.unwrap
             do {
@@ -72,9 +72,9 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
         }
     }
 
-    val unencryptedWriteBuffer = ByteBufferList()
-    val encryptedWriteBuffer = ByteBufferList()
-    val encryptedWrite: AsyncWrite = { buffer ->
+    private val unencryptedWriteBuffer = ByteBufferList()
+    private val encryptedWriteBuffer = ByteBufferList()
+    private val encryptedWrite: AsyncWrite = { buffer ->
         buffer.get(unencryptedWriteBuffer)
 
         var alloced = calculateAlloc(unencryptedWriteBuffer.remaining())
@@ -125,7 +125,7 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
         } while (bytesConsumed != 0 || bytesProduced != 0)
     }
 
-    fun calculateAlloc(remaining: Int): Int {
+    private fun calculateAlloc(remaining: Int): Int {
         // alloc 50% more than we need for writing
         var alloc = remaining * 3 / 2
         if (alloc == 0)
@@ -136,7 +136,7 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
     var peerCertificates: Array<X509Certificate>? = null
         private set
 
-    suspend fun handleHandshakeStatus(status: SSLEngineResult.HandshakeStatus) {
+    private suspend fun handleHandshakeStatus(status: SSLEngineResult.HandshakeStatus) {
         if (status == SSLEngineResult.HandshakeStatus.NEED_TASK) {
             val task = engine.delegatedTask
             task.run()
@@ -144,33 +144,19 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
 
         if (!finishedHandshake && (engine.handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING || engine.handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED)) {
             if (engine.useClientMode) {
-                var trustManagers: Array<TrustManager>? = this.options?.trustManagers
-                if (trustManagers == null) {
-                    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-                    tmf.init(null as KeyStore?)
-                    trustManagers = tmf.trustManagers
-                }
-                var trusted = false
-                var peerUnverifiedCause: Exception? = null
-                for (tm in trustManagers!!) {
-                    try {
-                        val xtm = tm as X509TrustManager
-                        peerCertificates = engine.session.peerCertificates as Array<X509Certificate>
-                        xtm.checkServerTrusted(peerCertificates, "DHE_DSS")
-                        if (engine.peerHost != null) {
-                            val verifier: HostnameVerifier = options?.hostnameVerifier
-                                    ?: OkHostnameVerifier
-                            if (!verifier.verify(host, engine.session)) {
-                                throw SSLException("hostname verification failed for <$host>")
-                            }
-                        }
-                        trusted = true
-                        break
-                    } catch (ex: GeneralSecurityException) {
-                        peerUnverifiedCause = ex
-                    } catch (ex: SSLException) {
-                        peerUnverifiedCause = ex
+                var trusted = true
+                var peerUnverifiedCause: Throwable? = null
+                try {
+                    trusted = false
+                    if (engine.peerHost != null) {
+                        val verifier: HostnameVerifier = options?.hostnameVerifier ?: OkHostnameVerifier
+                        if (!verifier.verify(engine.peerHost, engine.session))
+                            throw SSLException("hostname verification failed for <$engine.peerHost>")
                     }
+                    trusted = true
+                }
+                catch (exception: Exception) {
+                    peerUnverifiedCause = exception
                 }
 
                 finishedHandshake = true
@@ -237,8 +223,8 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
     }
 }
 
-suspend fun tlsHandshake(socket: AsyncSocket, host: String, engine: SSLEngine, options: AsyncTlsOptions? = null): AsyncTlsSocket {
-    val tlsSocket = AsyncTlsSocket(socket , host, engine, options)
+suspend fun tlsHandshake(socket: AsyncSocket, engine: SSLEngine, options: AsyncTlsOptions? = null): AsyncTlsSocket {
+    val tlsSocket = AsyncTlsSocket(socket, engine, options)
     tlsSocket.awaitHandshake()
     return tlsSocket
 }
@@ -246,5 +232,5 @@ suspend fun tlsHandshake(socket: AsyncSocket, host: String, engine: SSLEngine, o
 suspend fun AsyncNetworkContext.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
     val engine = context.createSSLEngine(host, port)
     engine.useClientMode = true
-    return tlsHandshake(connect(host, port), host, engine, options)
+    return tlsHandshake(connect(host, port), engine, options)
 }

@@ -31,6 +31,8 @@ fun createAsyncSocketPipe(): AsyncSocket {
         override suspend fun write(buffer: ReadableBuffers) {
             if (closed)
                 throw IOException("pipe closed")
+            if (buffer.isEmpty)
+                return
             pending = buffer
             yielder.yield()
             pending = null

@@ -1,10 +1,9 @@
 package com.koushikdutta.scratch.http.http2
 
-import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.Headers
-import com.koushikdutta.scratch.http.ResponseLine
+import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.http.*
 import java.net.ProtocolException
+import java.net.URI
 import java.util.*
 
 class Http2ExchangeCodec {
@@ -60,24 +59,57 @@ class Http2ExchangeCodec {
             return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, stream::read)
         }
 
-         fun createRequest(request: AsyncHttpRequest): List<Header> {
-             val headerList = mutableListOf<Header>()
-             headerList.add(Header(Header.TARGET_METHOD, request.method))
-             headerList.add(Header(Header.TARGET_PATH, request.requestLinePathAndQuery))
-             val host = request.headers.get("Host")
-             if (host != null) {
-                 headerList.add(Header(Header.TARGET_AUTHORITY, host)) // Optional.
-             }
-             headerList.add(Header(Header.TARGET_SCHEME, request.uri.scheme))
+        private fun createHeaders(message: AsyncHttpMessage, headerList: MutableList<Header>) {
+            for (header in message.headers) {
+                // header names must be lowercase.
+                val name = header.name.toLowerCase(Locale.US)
+                if (name !in HTTP_2_SKIPPED_REQUEST_HEADERS || name == TE && header.value == "trailers") {
+                    headerList.add(Header(name, header.value))
+                }
+            }
+        }
 
-             for (header in request.headers) {
-                 // header names must be lowercase.
-                 val name = header.name.toLowerCase(Locale.US)
-                 if (name !in HTTP_2_SKIPPED_REQUEST_HEADERS || name == TE && header.value == "trailers") {
-                     headerList.add(Header(name, header.value))
-                 }
-             }
-             return headerList
-         }
+        fun createRequestHeaders(request: AsyncHttpRequest): List<Header> {
+            val headerList = mutableListOf<Header>()
+            headerList.add(Header(Header.TARGET_METHOD, request.method))
+            headerList.add(Header(Header.TARGET_PATH, request.requestLinePathAndQuery))
+            val host = request.headers.get("Host")
+            if (host != null) {
+                headerList.add(Header(Header.TARGET_AUTHORITY, host)) // Optional.
+            }
+            headerList.add(Header(Header.TARGET_SCHEME, request.uri.scheme))
+
+            createHeaders(request, headerList)
+
+            return headerList
+        }
+
+        fun createResponseHeaders(response: AsyncHttpResponse): List<Header> {
+            val headerList = mutableListOf<Header>()
+            headerList.add(Header(Header.RESPONSE_STATUS, "${response.code} ${response.message}"))
+            createHeaders(response, headerList)
+            return headerList
+        }
+
+        fun createRequest(headerList: List<Header>, body: AsyncRead?): AsyncHttpRequest {
+            val headers = Headers()
+            for (header in headerList) {
+                headers.add(header.name.string, header.value.string)
+            }
+
+            val method = headers.get(Header.TARGET_METHOD_UTF8)
+            val path = headers.get(Header.TARGET_PATH_UTF8)
+            val host = headers.get(Header.TARGET_AUTHORITY_UTF8)
+            val scheme = headers.get(Header.TARGET_SCHEME_UTF8)
+
+            headers.set("Host", host)
+
+            headers.remove(Header.TARGET_METHOD_UTF8)
+            headers.remove(Header.TARGET_PATH_UTF8)
+            headers.remove(Header.TARGET_AUTHORITY_UTF8)
+            headers.remove(Header.TARGET_SCHEME_UTF8)
+
+            return AsyncHttpRequest(URI.create(path), method!!, headers = headers, body = body)
+        }
     }
 }

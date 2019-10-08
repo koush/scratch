@@ -12,12 +12,8 @@ import kotlin.coroutines.resumeWithException
 
 /**
  * This class pipes nonblocking write calls to AsyncRead.
- * The write call will return false when the high water mark is reached,
- * at which point the transport should be paused. The abstract writable method
- * will call writable once the reader has sufficiently drained the buffer.
  */
-abstract class NonBlockingWritePipe {
-    private var highWaterMark: Int = 65536
+abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     private var needsWritable = false
     private val yielder = Cooperator()
     private val pending = ByteBufferList()
@@ -37,6 +33,11 @@ abstract class NonBlockingWritePipe {
         completion.resume(Unit)
     }
 
+    /**
+     * The write call will return false when the high water mark is reached,
+     * at which point the transport should be paused. The abstract writable method
+     * will be called once the reader has sufficiently drained the buffer.
+     */
     fun write(buffer: ReadableBuffers): Boolean {
         buffer.get(pending)
         yielder.resume()

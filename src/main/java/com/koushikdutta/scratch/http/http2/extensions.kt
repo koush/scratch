@@ -38,6 +38,14 @@ class ByteString {
     companion object {
         val EMPTY = ByteString("", Charsets.US_ASCII)
     }
+
+    override fun equals(other: Any?): Boolean {
+        return (other as? ByteString)?.string == string
+    }
+
+    override fun hashCode(): Int {
+        return string.hashCode()
+    }
 }
 
 fun String.encodeUtf8() : ByteString {

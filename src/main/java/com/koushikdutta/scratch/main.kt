@@ -9,11 +9,14 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.net.AsyncNetworkContext
+import com.koushikdutta.scratch.tls.connectTls
+import com.koushikdutta.scratch.tls.tlsHandshake
 import org.conscrypt.Conscrypt
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.URI
 import java.security.Security
+import javax.net.ssl.SSLContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -87,6 +90,26 @@ class Main {
                 println(e)
                 return
             }
+            async {
+                while (true) {
+                    val buffer = ByteBufferList()
+                    buffer.putString("GET / HTTP/1.1\r\n\r\n")
+                    secureSocket.write(buffer)
+                    sleep(5000)
+                }
+            }
+
+            val buffer = ByteBufferList()
+            while (secureSocket.read(buffer)) {
+                println(buffer.string)
+            }
+        }
+
+        suspend fun AsyncNetworkContext.testTls2() {
+            val socket = connect("173.192.176.174", 443)
+            val engine = SSLContext.getDefault().createSSLEngine("clockworkmod.com", 443)
+            engine.useClientMode = true
+            val secureSocket = tlsHandshake(socket, engine)
             async {
                 while (true) {
                     val buffer = ByteBufferList()
@@ -202,8 +225,9 @@ class Main {
 //            discardServer.run()
 
             AsyncNetworkContext.default.async {
-                testHttpServer()
-//                testHttp()
+//                testHttpServer()
+//                testTls2()
+                testHttp()
 //                testServer()
 
 //                val pipe = object : NonBlockingWritePipe() {

@@ -1,7 +1,7 @@
 package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.AsyncTlsSocket
+import com.koushikdutta.scratch.tls.AsyncTlsSocket
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import org.conscrypt.Conscrypt

@@ -73,6 +73,8 @@ class Http2Reader(
       }
     } else {
       // The server reads the CONNECTION_PREFACE byte string.
+      if (!reader.readLength(source, Http2.CONNECTION_PREFACE.size))
+        throw IOException("Server expected connection preface.")
       val connectionPreface = source.readByteString(Http2.CONNECTION_PREFACE.size.toLong())
       if (logger.isLoggable(FINE)) logger.fine(format("<< CONNECTION ${connectionPreface.hex()}"))
       if (CONNECTION_PREFACE != connectionPreface) {

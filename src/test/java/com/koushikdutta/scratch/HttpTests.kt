@@ -1,7 +1,9 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.body.BinaryBody
+import com.koushikdutta.scratch.http.AsyncHttpRequest
+import com.koushikdutta.scratch.http.AsyncHttpResponse
+import com.koushikdutta.scratch.http.GET
+import com.koushikdutta.scratch.http.OK
 import com.koushikdutta.scratch.http.body.StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
