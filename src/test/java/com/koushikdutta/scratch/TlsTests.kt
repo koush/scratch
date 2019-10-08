@@ -135,22 +135,46 @@ class TlsTests {
             }
         }
 
-        async {
-            val clientContext = SSLContext.getInstance("TLS")
-            initializeSSLContext(clientContext, keypairCert.second)
+        for (i in 1..2) {
+            async {
+                val clientContext = SSLContext.getInstance("TLS")
+                initializeSSLContext(clientContext, keypairCert.second)
 
-            val client = server.connect().connectTls("TestServer", 80, clientContext)
-            client.write(ByteBufferList().putString("hello world"))
-            client.close()
+                val client = server.connect().connectTls("TestServer", 80, clientContext)
+                client.write(ByteBufferList().putString("hello world"))
+                client.close()
+            }
+        }
+
+        assert(data == "hello worldhello world")
+    }
+
+    @Test
+    fun testTlsServer2() {
+        val keypairCert = createSelfSignedCertificate("TestServer")
+        val serverContext = SSLContext.getInstance("TLS")
+        initializeSSLContext(serverContext, keypairCert.first, keypairCert.second)
+
+        val server = createAsyncPipeServerSocket()
+        val tlsServer = server.listenTls(serverContext)
+
+
+        var data = ""
+        tlsServer.accept().receive {
+            async {
+                data += readAllString(it::read)
+            }
         }
 
         async {
-            val clientContext = SSLContext.getInstance("TLS")
-            initializeSSLContext(clientContext, keypairCert.second)
+            for (i in 1..2) {
+                val clientContext = SSLContext.getInstance("TLS")
+                initializeSSLContext(clientContext, keypairCert.second)
 
-            val client = server.connect().connectTls("TestServer", 80, clientContext)
-            client.write(ByteBufferList().putString("hello world"))
-            client.close()
+                val client = server.connect().connectTls("TestServer", 80, clientContext)
+                client.write(ByteBufferList().putString("hello world"))
+                client.close()
+            }
         }
 
         assert(data == "hello worldhello world")
