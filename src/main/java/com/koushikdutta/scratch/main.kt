@@ -1,9 +1,13 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.AsyncHttpRequest
+import com.koushikdutta.scratch.http.AsyncHttpResponse
+import com.koushikdutta.scratch.http.OK
+import com.koushikdutta.scratch.http.body.StringBody
+import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
+import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.net.AsyncNetworkContext
 import org.conscrypt.Conscrypt
 import java.io.IOException
@@ -102,10 +106,10 @@ class Main {
             val client = AsyncHttpClient()
             val conscrypt = ConscryptMiddleware()
             conscrypt.install(client)
-            val request = AsyncHttpRequest(URI("https://google.com"))
-            println(request)
 
             for (i in 1..5) {
+                val request = AsyncHttpRequest(URI("https://google.com"))
+                println(request)
                 println(i)
                 val response = client.execute(request)
                 val buffer = ByteBufferList()
@@ -123,8 +127,7 @@ class Main {
             val server = listen()
             println(server.localPort)
 
-            while (true) {
-                val socket = server.accept()
+            for (socket in server.accept()) {
                 async {
                     println("${socket.remoteAddress} ${socket.localPort}")
                     val buffer = ByteBufferList()
@@ -138,6 +141,14 @@ class Main {
                     println("done")
                 }
             }
+        }
+
+        suspend fun AsyncNetworkContext.testHttpServer() {
+            val httpServer = AsyncHttpServer {
+                AsyncHttpResponse.OK(body = StringBody("ok ok ok!"))
+            }
+
+            httpServer.listen(listen(5555))
         }
 
         suspend fun AsyncNetworkContext.testConnect() {
@@ -191,8 +202,26 @@ class Main {
 //            discardServer.run()
 
             AsyncNetworkContext.default.async {
-                testHttp()
+                testHttpServer()
+//                testHttp()
 //                testServer()
+
+//                val pipe = object : NonBlockingWritePipe() {
+//                    override fun writable() {
+//                    }
+//                }
+//
+//                async {
+//                    val b = ByteBufferList()
+//                    pipe.read(b)
+//                    println("unblocked 1 with " + b.remaining())
+//                }
+//
+//                async {
+//                    val b = ByteBufferList()
+//                    pipe.read(b)
+//                    println("unblocked 2 with " + b.remaining())
+//                }
 
             }
 

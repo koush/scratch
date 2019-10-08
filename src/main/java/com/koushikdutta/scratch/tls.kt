@@ -21,7 +21,7 @@ class AsyncTlsSocket(override val socket: AsyncSocket, private val host: String?
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket::read)
 
-    val decryptedRead = (socketRead::read as AsyncRead).readPipe { read ->
+    val decryptedRead = (socketRead::read as AsyncRead).pipe { read ->
         val unfiltered = ByteBufferList();
         { filtered ->
             read(unfiltered)

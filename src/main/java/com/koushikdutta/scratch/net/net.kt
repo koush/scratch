@@ -42,15 +42,19 @@ private fun milliTime(): Long {
     return TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
 }
 
-class AsyncServerSocket internal constructor(val localPort: Int, selector: SelectorWrapper, private val channel: ServerSocketChannel) {
-    private val key: SelectionKey = channel.register(selector.selector, SelectionKey.OP_ACCEPT)
+class AsyncNetworkServerSocket internal constructor(val server: AsyncNetworkContext, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket {
+    private val key: SelectionKey = channel.register(server.mSelector!!.selector, SelectionKey.OP_ACCEPT)
 
     init {
         key.attach(this)
     }
 
+    override suspend fun await() {
+        server.await()
+    }
+
     private var closed = false
-    suspend fun close() {
+    override suspend fun close() {
         closeQuietly(channel)
         try {
             key.cancel()
@@ -83,8 +87,8 @@ class AsyncServerSocket internal constructor(val localPort: Int, selector: Selec
         }
     }
 
-    suspend fun accept(): AsyncNetworkSocket {
-        return queue.iterator().next()
+    override fun accept(): AsyncIterable<AsyncNetworkSocket> {
+        return queue
     }
 
     internal fun accepted(server: AsyncNetworkContext, selector: SelectorWrapper, channel: SocketChannel) {
@@ -197,7 +201,7 @@ class AsyncNetworkSocket internal constructor(val server: AsyncNetworkContext, p
 
 
 class AsyncNetworkContext constructor(name: String? = null) {
-    private var mSelector: SelectorWrapper? = null
+    internal var mSelector: SelectorWrapper? = null
 
     val isRunning: Boolean
         get() = mSelector != null
@@ -386,19 +390,19 @@ class AsyncNetworkContext constructor(name: String? = null) {
 
     protected fun onDataSent(transmitted: Int) {}
 
-    suspend fun listen(): AsyncServerSocket {
+    suspend fun listen(): AsyncNetworkServerSocket {
         return listen(null, 0)
     }
 
-    suspend fun listen(port: Int): AsyncServerSocket {
-        return listen(port)
+    suspend fun listen(port: Int): AsyncNetworkServerSocket {
+        return listen(null, port)
     }
 
-    suspend fun listen(host: InetAddress): AsyncServerSocket {
+    suspend fun listen(host: InetAddress): AsyncNetworkServerSocket {
         return listen(host, 0)
     }
 
-    suspend fun listen(host: InetAddress?, port: Int): AsyncServerSocket {
+    suspend fun listen(host: InetAddress?, port: Int): AsyncNetworkServerSocket {
         await()
         var closeableServer: ServerSocketChannel? = null
         try {
@@ -411,7 +415,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
                 InetSocketAddress(host, port)
             server!!.socket().bind(isa)
 
-            val ret = AsyncServerSocket(server.socket().localPort, mSelector!!, closeableServer!!)
+            val ret = AsyncNetworkServerSocket(this, server.socket().localPort, closeableServer!!)
             return ret
         } catch (e: IOException) {
             closeQuietly(closeableServer)
@@ -629,7 +633,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
             try {
                 if (key.isAcceptable) {
                     val channel = key.channel() as ServerSocketChannel
-                    val socket = key.attachment() as AsyncServerSocket
+                    val socket = key.attachment() as AsyncNetworkServerSocket
 
                     var sc: SocketChannel? = null
                     try {

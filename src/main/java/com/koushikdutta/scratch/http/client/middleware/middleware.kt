@@ -4,6 +4,8 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 
 
 open class AsyncHttpClientMiddleware {
+    open suspend fun prepare(session: AsyncHttpClientSession) {
+    }
     open suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
         return false
     }

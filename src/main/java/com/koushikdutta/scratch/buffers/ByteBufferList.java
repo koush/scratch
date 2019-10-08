@@ -128,6 +128,12 @@ public class ByteBufferList implements Buffers {
         return ret;
     }
 
+    public static ByteBuffer deepCopyIfDirect(ByteBuffer copyOf) {
+        if (copyOf.isDirect())
+            return deepCopy(copyOf);
+        return copyOf;
+    }
+
     public static ByteBuffer deepCopy(ByteBuffer copyOf) {
         if (copyOf == null)
             return null;
@@ -176,7 +182,10 @@ public class ByteBufferList implements Buffers {
 
     public byte[] peekBytes(int size) {
         byte[] ret = new byte[size];
-        read(size).get(ret, mBuffers.peekFirst().position(), ret.length);
+        ByteBuffer buffer = read(size);
+        buffer.mark();
+        buffer.get(ret);
+        buffer.reset();
         return ret;
     }
 
@@ -489,7 +498,7 @@ public class ByteBufferList implements Buffers {
         remaining = 0;
     }
 
-    private ByteBuffer remove() {
+    public ByteBuffer remove() {
         ByteBuffer ret = mBuffers.remove();
         remaining -= ret.remaining();
         return ret;
@@ -530,6 +539,11 @@ public class ByteBufferList implements Buffers {
         return this;
     }
 
+    public ByteBufferList putBytes(byte[] bytes) {
+        grow(bytes.length).put(bytes).reset();
+        return this;
+    }
+
     public ByteBufferList putShort(short s) {
         grow(2).putShort(s).reset();
         return this;
@@ -545,12 +559,16 @@ public class ByteBufferList implements Buffers {
         return this;
     }
 
-    public WritableBuffers putByteChar(char c) {
+    public ByteBufferList putByteChar(char c) {
         return put((byte) c);
     }
 
+    public ByteBufferList putString(String s) {
+        return putString(s, null);
+    }
+
     @Override
-    public WritableBuffers putString(String s, Charset charset) {
+    public ByteBufferList putString(String s, Charset charset) {
         if (charset == null)
             charset = Charsets.UTF_8;
         return add(charset.encode(s));

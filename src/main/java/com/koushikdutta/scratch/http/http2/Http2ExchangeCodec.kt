@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http.http2
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.ResponseLine
 import java.net.ProtocolException
 import java.util.*
 
@@ -56,7 +57,7 @@ class Http2ExchangeCodec {
             }
             if (statusLine == null) throw ProtocolException("Expected ':status' header not present")
 
-            return AsyncHttpResponse(statusLine, outHeaders, stream::read)
+            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, stream::read)
         }
 
          fun createRequest(request: AsyncHttpRequest): List<Header> {
@@ -78,12 +79,5 @@ class Http2ExchangeCodec {
              }
              return headerList
          }
-
-        const val DEFAULT_CLIENT_WINDOW_SIZE = 16 * 1024 * 1024
-        val DEFAULT_SETTINGS = Settings().apply {
-            set(Settings.INITIAL_WINDOW_SIZE, Settings.DEFAULT_INITIAL_WINDOW_SIZE)
-            set(Settings.MAX_FRAME_SIZE, Http2.INITIAL_MAX_FRAME_SIZE)
-        }
     }
-
 }

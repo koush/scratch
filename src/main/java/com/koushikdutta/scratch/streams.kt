@@ -26,10 +26,14 @@ typealias AsyncWrite = suspend (buffer: ReadableBuffers) -> Unit
  */
 typealias AsyncPipe = (read: AsyncRead) -> AsyncRead
 
+interface AsyncAffinity {
+    suspend fun await()
+}
+
 /**
- * Socket: provides an AsyncRead and AsyncWrite.
+ * AsyncSocket provides an AsyncRead and AsyncWrite.
  */
-interface AsyncSocket {
+interface AsyncSocket : AsyncAffinity {
     /**
      * If this socket has a i/o thread affinity, this will resume the coroutine onto it.
      * Can be used to perform "simultaneous" reads/writes, without managing serialization:
@@ -39,17 +43,29 @@ interface AsyncSocket {
      *   socket.write(buffer)
      * }
      */
-    suspend fun await()
     suspend fun read(buffer: WritableBuffers): Boolean
     suspend fun write(buffer: ReadableBuffers)
     suspend fun close()
+}
+
+/**
+ * AsyncServerSocket accepts incoming AsyncSocket clients.
+ */
+interface AsyncServerSocket : AsyncAffinity {
+    fun accept(): AsyncIterable<out AsyncSocket>
+    suspend fun close()
+
 }
 
 interface AsyncWrappingSocket : AsyncSocket {
     val socket: AsyncSocket
 }
 
-fun AsyncRead.readPipe(pipe: AsyncPipe): AsyncRead {
+/**
+ * Stream this data through a pipe.
+ * Returns the AsyncRead that outputs the filtered data.
+ */
+fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
     return pipe(this)
 }
 
@@ -65,6 +81,13 @@ fun ReadableBuffers.reader(): AsyncRead {
 suspend fun AsyncWrite.drain(buffer: ReadableBuffers) {
     while (buffer.hasRemaining()) {
         this(buffer)
+    }
+}
+
+suspend fun AsyncRead.drain() {
+    val temp = ByteBufferList()
+    while (this(temp)) {
+        temp.free()
     }
 }
 
@@ -114,5 +137,11 @@ fun AsyncWrite.writePipe(pipe: AsyncPipe): AsyncWrite {
         pending = null
 
         checkWriter()
+    }
+}
+
+operator fun AsyncRead.plus(other: AsyncRead): AsyncRead {
+    return {
+        this(it) || other(it)
     }
 }

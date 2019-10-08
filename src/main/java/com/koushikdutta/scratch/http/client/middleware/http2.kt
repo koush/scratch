@@ -1,17 +1,16 @@
-import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
+import com.koushikdutta.scratch.http.client.middleware.AsyncHttpTransportMiddleware
 import com.koushikdutta.scratch.http.http2.Http2ExchangeCodec
 import com.koushikdutta.scratch.http.http2.Http2Stream
+import com.koushikdutta.scratch.http.http2.Protocol
 
 
-class AsyncHttp2TransportMiddleware: AsyncHttpClientMiddleware() {
+class AsyncHttp2TransportMiddleware: AsyncHttpTransportMiddleware() {
     override suspend fun exchangeMessages(session: AsyncHttpClientSession): Boolean {
-        if ("h2" != session.protocol)
+        if (session.protocol!! != Protocol.HTTP_2.toString())
             return false
 
         session.response = Http2ExchangeCodec.createResponse(session.socket as Http2Stream)
-        session.socketReader = AsyncReader(session.socket!!::read)
         return true
     }
 }

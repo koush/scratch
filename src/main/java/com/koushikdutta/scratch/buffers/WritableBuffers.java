@@ -23,9 +23,8 @@ public interface WritableBuffers {
         return add(ByteBuffer.wrap(bytes, offset, length));
     }
 
-    // note that there is no put method for byte[], as put implies a copy, and the API does want
-    // to encourage copies. Explicitly ByteBuffer.wrap/add. Or use ByteBufferList.deepCopy.
     WritableBuffers put(byte b);
+    WritableBuffers putBytes(byte[] bytes);
     WritableBuffers putShort(short s);
     WritableBuffers putInt(int i);
     WritableBuffers putLong(long l);

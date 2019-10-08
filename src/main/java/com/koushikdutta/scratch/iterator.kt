@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.buffers.ByteBufferList
 import java.util.*
 import kotlin.NoSuchElementException
 import kotlin.coroutines.Continuation
@@ -66,11 +67,35 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
     }
 }
 
+interface AsyncIterable<T> {
+    operator fun iterator(): AsyncIterator<T>
+}
+
+
+fun <T> createAsyncIterable(iterable: Iterable<T>): AsyncIterable<T> {
+    return object : AsyncIterable<T> {
+        override fun iterator(): AsyncIterator<T> {
+            val iterator = iterable.iterator()
+            return asyncIterator {
+                while (iterator.hasNext()) {
+                    yield(iterator.next())
+                }
+            }
+        }
+    }
+}
+
+fun <T> AsyncIterable<T>.receive(receiver: (received: T) -> Unit) = async {
+    for (received in this) {
+        receiver(received)
+    }
+}
+
 /**
  * Feed an async iterator by queuing items into it.
  * TBD: for .. in loops will pop items from the queue. Remove iterator operator keyword?
  */
-open class AsyncDequeueIterator<T> {
+open class AsyncDequeueIterator<T> : AsyncIterable<T> {
     private val yielder = Cooperator()
     private val deque = ArrayDeque<T>()
 
@@ -87,7 +112,7 @@ open class AsyncDequeueIterator<T> {
         }
     }
 
-    operator fun iterator(): AsyncIterator<T> {
+    override operator fun iterator(): AsyncIterator<T> {
         return iter
     }
 
@@ -105,5 +130,21 @@ open class AsyncDequeueIterator<T> {
     open fun add(value: T) {
         deque.add(value)
         yielder.resume()
+    }
+}
+
+fun AsyncIterator<AsyncRead>.join(): AsyncRead {
+    var read: AsyncRead? = null
+    return read@{
+        if (read == null) {
+            if (!hasNext())
+                return@read false
+            read = next()
+        }
+
+        if (!read!!(it))
+            read = null
+
+        true
     }
 }

@@ -9,6 +9,7 @@ import java.security.Security
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
 
+// todo: move this into conscrypt specific library
 class ConscryptMiddleware : AsyncTlsSocketMiddleware(getConscryptSSLContext()) {
     private val protocols = arrayOf("http/1.1", "h2")
 

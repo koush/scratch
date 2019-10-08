@@ -1,7 +1,11 @@
 package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.client.*
+import com.koushikdutta.scratch.http.AsyncHttpRequestProperties
+import com.koushikdutta.scratch.http.client.AsyncHttpClientException
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.AsyncHttpRequestMethods
+import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 
@@ -12,8 +16,24 @@ private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: Str
         to.headers.set(header, value)
 }
 
+private const val REQUEST_PROPERTY_FOLLOW_REDIRECT = "follow-redirect"
+
+// follow by default
+var AsyncHttpRequestProperties.followRedirect: Boolean
+    get() = this[REQUEST_PROPERTY_FOLLOW_REDIRECT] != false
+    set(value) { this[REQUEST_PROPERTY_FOLLOW_REDIRECT] = value }
+
+
 class AsyncHttpRedirector : AsyncHttpClientMiddleware() {
     override suspend fun onBodyReady(session: AsyncHttpClientSession) {
+        val responseCode = session.response!!.code
+        // valid redirects
+        if (responseCode != HttpURLConnection.HTTP_MOVED_PERM && responseCode != HttpURLConnection.HTTP_MOVED_TEMP && responseCode != 307)
+            return
+
+        if (!session.request.properties.followRedirect)
+            return
+
         val location = session.response!!.headers.get("Location") ?: return
 
         var redirect = URI(location)
