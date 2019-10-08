@@ -2,9 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.parser.readAllString
-import com.koushikdutta.scratch.tls.createSelfSignedCertificate
-import com.koushikdutta.scratch.tls.initializeSSLContext
-import com.koushikdutta.scratch.tls.tlsHandshake
+import com.koushikdutta.scratch.tls.*
 import org.junit.Test
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
@@ -15,7 +13,7 @@ class TlsTests {
     fun testCertificate() {
         val keypairCert = createSelfSignedCertificate("TestServer")
 
-        val pair = createSocketPair()
+        val pair = createAsyncPipeSocketPair()
 
 
         async {
@@ -32,7 +30,6 @@ class TlsTests {
 
         var data = ""
         async {
-
             val clientContext = SSLContext.getInstance("TLS")
             initializeSSLContext(clientContext, keypairCert.second)
 
@@ -50,7 +47,7 @@ class TlsTests {
     fun testCertificateNameMismatch() {
         val keypairCert = createSelfSignedCertificate("TestServer")
 
-        val pair = createSocketPair()
+        val pair = createAsyncPipeSocketPair()
 
         try {
             async {
@@ -90,7 +87,7 @@ class TlsTests {
     fun testCertificateTrustFailure() {
         val keypairCert = createSelfSignedCertificate("TestServer")
 
-        val pair = createSocketPair()
+        val pair = createAsyncPipeSocketPair()
 
         try {
             async {
@@ -119,5 +116,43 @@ class TlsTests {
             return
         }
         assert(false)
+    }
+
+    @Test
+    fun testTlsServer() {
+        val keypairCert = createSelfSignedCertificate("TestServer")
+        val serverContext = SSLContext.getInstance("TLS")
+        initializeSSLContext(serverContext, keypairCert.first, keypairCert.second)
+
+        val server = createAsyncPipeServerSocket()
+        val tlsServer = server.listenTls(serverContext)
+
+
+        var data = ""
+        tlsServer.accept().receive {
+            async {
+                data += readAllString(it::read)
+            }
+        }
+
+        async {
+            val clientContext = SSLContext.getInstance("TLS")
+            initializeSSLContext(clientContext, keypairCert.second)
+
+            val client = server.connect().connectTls("TestServer", 80, clientContext)
+            client.write(ByteBufferList().putString("hello world"))
+            client.close()
+        }
+
+        async {
+            val clientContext = SSLContext.getInstance("TLS")
+            initializeSSLContext(clientContext, keypairCert.second)
+
+            val client = server.connect().connectTls("TestServer", 80, clientContext)
+            client.write(ByteBufferList().putString("hello world"))
+            client.close()
+        }
+
+        assert(data == "hello worldhello world")
     }
 }

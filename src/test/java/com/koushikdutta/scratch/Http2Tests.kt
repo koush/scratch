@@ -12,7 +12,7 @@ import org.junit.Test
 class Http2Tests {
     @Test
     fun testConnection() {
-        val pair = createSocketPair()
+        val pair = createAsyncPipeSocketPair()
 
         async {
             val server = Http2Connection(pair.second, false) {

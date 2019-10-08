@@ -230,7 +230,54 @@ suspend fun tlsHandshake(socket: AsyncSocket, engine: SSLEngine, options: AsyncT
 }
 
 suspend fun AsyncNetworkContext.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
+    return connect(host, port).connectTls(host, port, context, options)
+}
+
+suspend fun AsyncSocket.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
     val engine = context.createSSLEngine(host, port)
     engine.useClientMode = true
-    return tlsHandshake(connect(host, port), engine, options)
+    try {
+        return tlsHandshake(this, engine, options)
+    }
+    catch (exception: Exception) {
+        close()
+        throw exception
+    }
+}
+
+fun AsyncServerSocket.listenTls(context: SSLContext): AsyncServerSocket {
+    val wrapped = this
+    return object: AsyncServerSocket {
+        override suspend fun await() {
+            wrapped.await()
+        }
+
+        override fun accept(): AsyncIterable<out AsyncTlsSocket> {
+            val iterator = asyncIterator<AsyncTlsSocket> {
+                for (socket in wrapped.accept()) {
+                    val engine = context.createSSLEngine()
+                    engine.useClientMode = false
+                    val tlsSocket = try {
+                        tlsHandshake(socket, engine)
+                    }
+                    catch (exception: Exception) {
+                        close()
+                        continue
+                    }
+
+                    yield(tlsSocket)
+                }
+            }
+
+            return object : AsyncIterable<AsyncTlsSocket> {
+                override fun iterator(): AsyncIterator<AsyncTlsSocket> {
+                    return iterator
+                }
+            }
+        }
+
+        override suspend fun close() {
+            wrapped.close()
+        }
+    }
 }

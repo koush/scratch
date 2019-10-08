@@ -4,7 +4,7 @@ import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import java.io.IOException
 
-fun createAsyncSocketPipe(): AsyncSocket {
+fun createAsyncPipeSocket(): AsyncSocket {
     val yielder = Cooperator()
     var pending: ReadableBuffers? = null
     var closed = false
@@ -59,9 +59,9 @@ private class CompositeSocket(val input: AsyncRead, val output: AsyncWrite, val 
 }
 
 
-fun createSocketPair() : Pair<AsyncSocket, AsyncSocket> {
-    val p1 = createAsyncSocketPipe()
-    val p2 = createAsyncSocketPipe()
+fun createAsyncPipeSocketPair() : Pair<AsyncSocket, AsyncSocket> {
+    val p1 = createAsyncPipeSocket()
+    val p2 = createAsyncPipeSocket()
 
     val close: suspend () -> Unit = {
         p1.close()
@@ -69,4 +69,33 @@ fun createSocketPair() : Pair<AsyncSocket, AsyncSocket> {
     }
 
     return Pair(CompositeSocket(p1::read, p2::write, close), CompositeSocket(p2::read, p1::write, close))
+}
+
+interface AsyncPipeServerSocket : AsyncServerSocket {
+    suspend fun connect(): AsyncSocket
+}
+
+fun createAsyncPipeServerSocket(): AsyncPipeServerSocket {
+    val sockets = AsyncDequeueIterator<AsyncSocket>()
+    var closed = false
+
+    return object : AsyncPipeServerSocket {
+        override suspend fun connect(): AsyncSocket {
+            check(!closed) { "server closed" }
+            val ret = createAsyncPipeSocketPair()
+            sockets.add(ret.second)
+            return ret.first
+        }
+
+        override suspend fun await() {
+        }
+
+        override fun accept(): AsyncIterable<out AsyncSocket> {
+            return sockets
+        }
+
+        override suspend fun close() {
+            closed = true
+        }
+    }
 }

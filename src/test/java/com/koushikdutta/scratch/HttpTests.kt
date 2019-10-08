@@ -15,7 +15,7 @@ import java.net.URI
 class HttpTests {
     @Test
     fun testHttp() {
-        val pair = createSocketPair()
+        val pair = createAsyncPipeSocketPair()
 
         async {
             val httpServer = AsyncHttpServer {
@@ -44,7 +44,7 @@ class HttpTests {
 
     @Test
     fun testHttpEcho() {
-        val pair = createSocketPair()
+        val pair = createAsyncPipeSocketPair()
 
         async {
             val httpServer = AsyncHttpServer {

@@ -95,7 +95,7 @@ fun initializeSSLContext(sslContext: SSLContext, certificate: Certificate): SSLC
     val ks = KeyStore.getInstance(KeyStore.getDefaultType())
     ks.load(null)
 
-    ks.setCertificateEntry("key", certificate)
+    ks.setCertificateEntry("cert", certificate)
 
     val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
     tmf.init(ks)
