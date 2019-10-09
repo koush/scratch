@@ -242,7 +242,7 @@ class TlsTests {
 
 
         val server = createAsyncPipeServerSocket()
-        var tlsServer = server.listenTls {
+        val tlsServer = server.listenTls {
             val engine = serverContext.createSSLEngine()
             Conscrypt.setApplicationProtocols(engine, arrayOf("h2", "http/1.1"))
             engine
@@ -251,10 +251,11 @@ class TlsTests {
         val clientContext = SSLContext.getInstance("TLS", conscrypt)
         initializeSSLContext(clientContext, keypairCert.second)
 
+        var protocol = ""
         val pipeMiddleware = object : ConscryptMiddleware(clientContext) {
-            override suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
-                val ret = super.wrapSocket(session, socket, host, port)
-                return ret
+            override suspend fun wrapTlsSocket(session: AsyncHttpClientSession, tlsSocket: AsyncTlsSocket, host: String, port: Int): AsyncSocket {
+                protocol = Conscrypt.getApplicationProtocol(tlsSocket.engine)
+                return super.wrapTlsSocket(session, tlsSocket, host, port)
             }
             override suspend fun connectInternal(session: AsyncHttpClientSession, host: String, port: Int): AsyncSocket {
                 return server.connect()
@@ -282,5 +283,6 @@ class TlsTests {
         }
 
         assert(data == "hello world")
+        assert(protocol == "h2")
     }
 }

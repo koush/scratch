@@ -23,11 +23,14 @@ open class ConscryptMiddleware(context: SSLContext = getConscryptSSLContext()) :
         Conscrypt.setApplicationProtocols(engine, protocols)
     }
 
-    override suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
-        val tlsSocket = super.wrapSocket(session, socket, host, port) as AsyncTlsSocket
+    protected open suspend fun wrapTlsSocket(session: AsyncHttpClientSession, tlsSocket: AsyncTlsSocket, host: String, port: Int): AsyncSocket {
         if ("h2" == Conscrypt.getApplicationProtocol(tlsSocket.engine))
             return manageHttp2Connection(session, host, port, tlsSocket)
         return tlsSocket
+    }
+
+    override suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
+        return wrapTlsSocket(session, super.wrapSocket(session, socket, host, port) as AsyncTlsSocket, host, port)
     }
 
     companion object {
