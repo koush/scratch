@@ -206,6 +206,56 @@ class HttpTests {
         assert(clientMd5.joinToString { it.toString(16) } == serverMd5.joinToString { it.toString(16) })
     }
 
+    @Test
+    fun testBigRequest() {
+        val random = SecureRandom()
+        var sent = 0
+        // 100 mb body
+        val serverDigest = MessageDigest.getInstance("MD5")
+        val clientDigest = MessageDigest.getInstance("MD5")
+        // generate ~100mb of random data and digest it.
+        val body: AsyncRead = createContentLengthPipe(100000000, AsyncReader {
+            val buffer = ByteBuffer.allocate(10000)
+            random.nextBytes(buffer.array())
+            sent += buffer.remaining()
+            serverDigest.update(buffer.array())
+
+            it.add(buffer)
+            true
+        })
+
+        var received = 0
+        val server = createAsyncPipeServerSocket()
+        val httpServer = AsyncHttpServer {
+            val buffer = ByteBufferList()
+            // stream the data and digest it
+            while (it.body!!(buffer)) {
+                val byteArray = buffer.bytes
+                received += byteArray.size
+                clientDigest.update(byteArray)
+            }
+
+            AsyncHttpResponse.OK(body = StringBody("hello world"))
+        }
+        httpServer.listen(server)
+
+        async {
+            val client = AsyncHttpClient()
+            val socket = server.connect()
+            val reader = AsyncReader(socket::read)
+            val connected = client.execute(AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)), socket, reader)
+            val data = readAllString(connected.body!!)
+            assert(data == "hello world")
+        }
+
+        val clientMd5 = clientDigest.digest()
+        val serverMd5 = serverDigest.digest()
+
+        assert(sent == received)
+        assert(sent == 100000000)
+
+        assert(clientMd5.joinToString { it.toString(16) } == serverMd5.joinToString { it.toString(16) })
+    }
 
     @Test
     fun testHttp2ServerPriorKnowledge() {
@@ -225,8 +275,9 @@ class HttpTests {
         var data = ""
         async {
             val connection = Http2Connection(server.connect(), true)
-            val stream = connection.newStream(AsyncHttpRequest.POST("https://example.com/", body = StringBody("hello world")), false)
+            val stream = connection.newStream(AsyncHttpRequest.POST("https://example.com/", body = StringBody("hello world")))
             data = readAllString(stream::read)
+            println(data)
         }
 
         assert(data == "hello world")

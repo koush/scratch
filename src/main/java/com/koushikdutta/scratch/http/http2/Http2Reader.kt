@@ -53,9 +53,9 @@ import java.util.logging.Logger
 class Http2Reader(
   /** Creates a frame reader with max header table size of 4096. */
   private val socket: AsyncSocket,
-  private val client: Boolean
+  private val client: Boolean,
+  private val reader: AsyncReader
 ) : Closeable {
-  private val reader: AsyncReader = AsyncReader(socket::read)
   private val headerSource: Buffer = ByteBufferList()
   private val dataSource: Buffer = ByteBufferList()
   private val source: Buffer = ByteBufferList()

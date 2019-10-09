@@ -133,7 +133,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
     val http2Connections = mutableMapOf<String, Http2Connection>()
     private suspend fun connectHttp2(session: AsyncHttpClientSession, connection: Http2Connection): Http2Stream {
         session.protocol = Protocol.HTTP_2.toString()
-        val responseSocket = connection.newStream(session.request, true)
+        val responseSocket = connection.newStream(session.request)
         session.socket = responseSocket
         ensureSocketReader(session)
         return responseSocket

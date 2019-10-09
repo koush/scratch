@@ -8,10 +8,31 @@ import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.middleware.getHttpBody
+import com.koushikdutta.scratch.http.http2.Http2Connection
+import com.koushikdutta.scratch.http.http2.Http2ExchangeCodec
+import com.koushikdutta.scratch.parser.Parser
 
 typealias AsyncHttpResponseHandler = suspend (request: AsyncHttpRequest) -> AsyncHttpResponse
 
 class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
+    private fun acceptHttp2Connection(socket: AsyncSocket, reader: AsyncReader) {
+        Http2Connection(socket, false, reader, false) { request ->
+            val response = try {
+                handler(request)
+            }
+            catch (exception: Exception) {
+                println("internal server error")
+                println(exception)
+                AsyncHttpResponse.INTERNAL_SERVER_ERROR()
+            }
+
+            if (request.body != null)
+                request.body!!.drain()
+
+            response
+        }
+    }
+
     fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket::read)) {
         async {
             try {
@@ -20,6 +41,13 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
                     socket.close()
                     return@async
                 }
+
+                if (requestLine == HTTP2_INITIAL_CONNECTION_PREFACE) {
+                    Parser.ensureReadString(reader, HTTP2_REMAINING_CONNECTION_PREFACE)
+                    acceptHttp2Connection(socket, reader)
+                    return@async
+                }
+
                 val requestHeaders = reader.readHeaderBlock()
 
                 val requestBody = getHttpBody(requestHeaders, reader, true)
@@ -81,5 +109,10 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
 
     fun listen(server: AsyncServerSocket) = server.accept().receive {
         accept(it)
+    }
+
+    companion object {
+        private const val HTTP2_INITIAL_CONNECTION_PREFACE = "PRI * HTTP/2.0\r\n"
+        private const val HTTP2_REMAINING_CONNECTION_PREFACE = "\r\nSM\r\n\r\n"
     }
 }

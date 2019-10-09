@@ -10,6 +10,7 @@ import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.middleware.getHttpBody
 import com.koushikdutta.scratch.http.contentLength
 import com.koushikdutta.scratch.http.readHeaderBlock
+import com.koushikdutta.scratch.parser.Parser.Companion.ensureReadString
 import java.io.IOException
 import java.lang.Math.abs
 import java.util.*
@@ -98,12 +99,6 @@ class Multipart : AsyncHttpMessageBody {
         --------------------------17903558439eb6ff--            <--- note! two dashes before AND after boundary
         */
         private const val CRLF = "\r\n"
-
-        private suspend fun ensureReadString(reader: AsyncReader, expected: String) {
-            val found = reader.readString(expected.length)
-            if (found != expected)
-                throw IOException("Multipart expected $expected but found $found")
-        }
 
         suspend fun parseMultipart(boundary: String, reader: AsyncReader): Multipart {
             val boundaryStart = "--$boundary"
