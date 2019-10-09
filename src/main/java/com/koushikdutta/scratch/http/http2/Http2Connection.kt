@@ -13,7 +13,7 @@ class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielde
     val handler = AsyncHandler(connection.socket::await)
     var headers: List<Header>? = null
     var trailers: List<Header>? = null
-    var writeBytesMaximum: Long = connection.peerSettings.initialWindowSize.toLong()
+    var writeBytesAvailable: Long = connection.peerSettings.initialWindowSize.toLong()
         internal set
     val writeYielder = Cooperator()
     val writeBuffer = ByteBufferList()
@@ -32,8 +32,8 @@ class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielde
     }
 
     fun addBytesToWriteWindow(delta: Long) {
-        writeBytesMaximum += delta
-        if (writeBytesMaximum > 0)
+        writeBytesAvailable += delta
+        if (writeBytesAvailable > 0)
             writeYielder.resume()
     }
 
@@ -41,17 +41,18 @@ class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielde
     override suspend fun write(buffer: ReadableBuffers) = handler.run {
         while (buffer.hasRemaining()) {
             // check write window, and yield if necessary
-            if (writeBytesMaximum <= 0)
+            if (writeBytesAvailable <= 0)
                 writeYielder.yield()
 
-            var toWrite = minOf(buffer.remaining().toLong(), connection.writeBytesMaximum).toInt()
+            var toWrite = minOf(buffer.remaining().toLong(), connection.writeBytesAvailable).toInt()
             toWrite = minOf(toWrite, connection.writer.maxDataLength())
 
-            writeBytesMaximum -= toWrite
+            writeBytesAvailable -= toWrite
             buffer.get(writeBuffer, toWrite)
 
             // perform this write frame on the connection handler
             connection.handler.run {
+                connection.writeBytesAvailable -= toWrite
                 connection.writer.data(false, streamId, writeBuffer, writeBuffer.remaining())
                 connection.flush()
             }
@@ -107,15 +108,16 @@ class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielde
     fun acknowledgeData() {
         if (unacknowledgedBytes == 0L)
             throw AssertionError("flush called with nothing to flush")
-        connection.writeWindowUpdateLater(streamId, unacknowledgedBytes)
+        val delta = unacknowledgedBytes
         unacknowledgedBytes = 0
+        connection.writeWindowUpdateLater(streamId, delta)
     }
 
 
     var unacknowledgedBytes = 0L
     fun data(inFinished: Boolean, source: BufferedSource) {
         unacknowledgedBytes += source.remaining()
-        if (input.write(source) && unacknowledgedBytes > connection.localSettings.initialWindowSize / 2) {
+        if (input.write(source) && (unacknowledgedBytes > connection.localSettings.initialWindowSize / 2)) {
             acknowledgeData()
         }
         if (inFinished)
@@ -140,8 +142,9 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, private val 
         }
     }
     var peerSettings = DEFAULT_SETTINGS
-    var writeBytesMaximum: Long = peerSettings.initialWindowSize.toLong()
-        private set
+    private var unacknowledgedBytes = 0L
+    var writeBytesAvailable: Long = peerSettings.initialWindowSize.toLong()
+        internal set
 
     var closedCallback: Http2ConnectionClose? = null
     val pinger = Cooperator()
@@ -151,10 +154,11 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, private val 
     // writing to the socket.
     val sink = ByteBufferList()
     val writer = Http2Writer(sink, client)
+    val writeYielder = Cooperator()
     val reader = Http2Reader(socket, client)
     val readerHandler = object : Http2Reader.Handler {
         override fun data(inFinished: Boolean, streamId: Int, source: BufferedSource, length: Int) {
-            writeWindowUpdateLater(0, length.toLong())
+            updateConnectionFlowControl(length.toLong())
             // length isn't used here as the source is simply a buffer of length
             val stream = streams[streamId]!!
             // todo: stream null?
@@ -253,11 +257,10 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, private val 
 
         override fun windowUpdate(streamId: Int, windowSizeIncrement: Long) {
             if (streamId == 0) {
-                writeBytesMaximum += windowSizeIncrement
+                addBytesToWriteWindow(windowSizeIncrement)
             }
             else {
-                val stream = streams[streamId]!!
-                stream.writeBytesMaximum += windowSizeIncrement
+                streams[streamId]?.addBytesToWriteWindow(windowSizeIncrement)
             }
         }
 
@@ -272,6 +275,11 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, private val 
         }
     }
 
+    fun addBytesToWriteWindow(delta: Long) {
+        writeBytesAvailable += delta
+        if (writeBytesAvailable > 0)
+            writeYielder.resume()
+    }
 
     fun writePing(
             reply: Boolean,
@@ -332,8 +340,11 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, private val 
     }
 
     fun failConnection(exception: Exception?) {
-        println("http2 connection failed:")
-        println(exception)
+        if (exception != null) {
+            println("http2 connection failed:")
+            println(exception)
+            exception!!.printStackTrace()
+        }
         async {
             try {
                 if (exception != null)
@@ -413,6 +424,23 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, private val 
 
     internal suspend fun flush() {
         socket.write(sink)
+        if (writeBytesAvailable <= 0)
+            writeYielder.yield()
+    }
+
+    private fun acknowledgeData() {
+        if (unacknowledgedBytes == 0L)
+            throw AssertionError("flush called with nothing to flush")
+        val delta = unacknowledgedBytes
+        unacknowledgedBytes = 0
+        writeWindowUpdateLater(0, delta)
+    }
+
+    internal fun updateConnectionFlowControl(length: Long) {
+        unacknowledgedBytes += length
+        if (unacknowledgedBytes > localSettings.initialWindowSize / 2) {
+            acknowledgeData()
+        }
     }
 
     suspend fun newStream(request: AsyncHttpRequest, outFinished: Boolean, associatedStreamId: Int = 0): Http2Stream {
