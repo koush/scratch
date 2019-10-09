@@ -15,7 +15,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
-import com.koushikdutta.scratch.http.http2.Protocol
+import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.tls.tlsHandshake
 import java.io.IOException
 import javax.net.ssl.SSLContext
@@ -82,9 +82,13 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
         }
     }
 
-    protected open suspend fun connectInternal(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
+    protected open suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
         session.protocol = session.request.protocol.toLowerCase()
         return socket
+    }
+
+    protected open suspend fun connectInternal(session: AsyncHttpClientSession, host: String, port: Int): AsyncSocket {
+        return session.networkContext.connect(host, port)
     }
 
     fun ensureSocketReader(session: AsyncHttpClientSession) {
@@ -124,7 +128,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
         }
 
         // todo: connect all IPs
-        session.socket = connectInternal(session, session.networkContext.connect(host, port), host, port)
+        session.socket = wrapSocket(session, connectInternal(session, host, port), host, port)
         ensureSocketReader(session)
 
         return true
@@ -160,7 +164,7 @@ open class AsyncTlsSocketMiddleware(val context: SSLContext = SSLContext.getDefa
     protected open fun configureEngine(engine: SSLEngine) {
     }
 
-    override suspend fun connectInternal(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
+    override suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
         try {
             session.protocol = session.request.protocol.toLowerCase()
             val engine = context.createSSLEngine(host, port)

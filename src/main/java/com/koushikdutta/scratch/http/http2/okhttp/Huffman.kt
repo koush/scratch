@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.koushikdutta.scratch.http.http2
+package com.koushikdutta.scratch.http.http2.okhttp
 
+import com.koushikdutta.scratch.http.http2.*
 import java.io.IOException
 
 
@@ -76,7 +77,7 @@ object Huffman {
   private val root = Node()
   init {
     for (i in CODE_BIT_COUNTS.indices) {
-      addCode(i, CODES[i], CODE_BIT_COUNTS[i].toInt())
+        addCode(i, CODES[i], CODE_BIT_COUNTS[i].toInt())
     }
   }
 

@@ -1,7 +1,8 @@
-package com.koushikdutta.scratch.http.http2
+package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.http2.Http2Stream
 import java.net.ProtocolException
 import java.net.URI
 import java.util.*

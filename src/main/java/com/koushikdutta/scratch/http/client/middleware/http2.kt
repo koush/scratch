@@ -1,8 +1,8 @@
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpTransportMiddleware
-import com.koushikdutta.scratch.http.http2.Http2ExchangeCodec
+import com.koushikdutta.scratch.http.http2.okhttp.Http2ExchangeCodec
 import com.koushikdutta.scratch.http.http2.Http2Stream
-import com.koushikdutta.scratch.http.http2.Protocol
+import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
 
 class AsyncHttp2TransportMiddleware: AsyncHttpTransportMiddleware() {

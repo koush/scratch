@@ -5,7 +5,8 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.http2.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
+import com.koushikdutta.scratch.http.http2.okhttp.*
+import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
 import com.koushikdutta.scratch.http.server.AsyncHttpResponseHandler
 import java.io.IOException
 

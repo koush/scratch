@@ -13,13 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.koushikdutta.scratch.http.http2
+package com.koushikdutta.scratch.http.http2.okhttp
+
+import com.koushikdutta.scratch.http.http2.ByteString
+import com.koushikdutta.scratch.http.http2.encodeUtf8
+import com.koushikdutta.scratch.http.http2.utf8
 
 /** HTTP header: the name is an ASCII string, but the value can be UTF-8. */
 data class Header(
-  /** Name in case-insensitive ASCII encoding. */
+        /** Name in case-insensitive ASCII encoding. */
   @JvmField val name: ByteString,
-  /** Value in UTF-8 encoding. */
+        /** Value in UTF-8 encoding. */
   @JvmField val value: ByteString
 ) {
   @JvmField val hpackSize = 32 + name.size + value.size

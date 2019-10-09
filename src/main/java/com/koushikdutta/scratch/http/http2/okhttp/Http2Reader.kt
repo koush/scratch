@@ -13,31 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.koushikdutta.scratch.http.http2
+package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.http.http2.Http2.CONNECTION_PREFACE
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_ACK
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_COMPRESSED
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_END_HEADERS
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_END_STREAM
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_PADDED
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_PRIORITY
-import com.koushikdutta.scratch.http.http2.Http2.INITIAL_MAX_FRAME_SIZE
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_CONTINUATION
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_DATA
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_GOAWAY
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_HEADERS
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_PING
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_PRIORITY
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_PUSH_PROMISE
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_RST_STREAM
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_SETTINGS
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_WINDOW_UPDATE
-import com.koushikdutta.scratch.http.http2.Http2.frameLog
+import com.koushikdutta.scratch.http.http2.*
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.CONNECTION_PREFACE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_ACK
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_COMPRESSED
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_END_HEADERS
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_END_STREAM
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_PADDED
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_PRIORITY
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.INITIAL_MAX_FRAME_SIZE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_CONTINUATION
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_DATA
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_GOAWAY
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_HEADERS
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_PING
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_PRIORITY
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_PUSH_PROMISE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_RST_STREAM
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_SETTINGS
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_WINDOW_UPDATE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.frameLog
 import java.io.Closeable
 import java.io.IOException
 import java.lang.String.format
@@ -233,7 +234,8 @@ class Http2Reader(
     if (length != 4) throw IOException("TYPE_RST_STREAM length: $length != 4")
     if (streamId == 0) throw IOException("TYPE_RST_STREAM streamId == 0")
     val errorCodeInt = source.readInt()
-    val errorCode = ErrorCode.fromHttp2(errorCodeInt) ?: throw IOException(
+    val errorCode = ErrorCode.fromHttp2(errorCodeInt)
+            ?: throw IOException(
         "TYPE_RST_STREAM unexpected error code: $errorCodeInt")
     handler.rstStream(streamId, errorCode)
   }
@@ -325,7 +327,8 @@ class Http2Reader(
     val lastStreamId = source.readInt()
     val errorCodeInt = source.readInt()
     val opaqueDataLength = length - 8
-    val errorCode = ErrorCode.fromHttp2(errorCodeInt) ?: throw IOException(
+    val errorCode = ErrorCode.fromHttp2(errorCodeInt)
+            ?: throw IOException(
         "TYPE_GOAWAY unexpected error code: $errorCodeInt")
     var debugData = ByteString.EMPTY
     if (opaqueDataLength > 0) { // Must read debug data in order to not corrupt the connection.
@@ -464,12 +467,12 @@ class Http2Reader(
      * @param maxAge time in seconds that this alternative is considered fresh.
      */
     fun alternateService(
-      streamId: Int,
-      origin: String,
-      protocol: ByteString,
-      host: String,
-      port: Int,
-      maxAge: Long
+            streamId: Int,
+            origin: String,
+            protocol: ByteString,
+            host: String,
+            port: Int,
+            maxAge: Long
     )
   }
 

@@ -245,7 +245,8 @@ suspend fun AsyncSocket.connectTls(host: String, port: Int, context: SSLContext 
     }
 }
 
-fun AsyncServerSocket.listenTls(context: SSLContext): AsyncServerSocket {
+typealias CreateSSLEngine = () -> SSLEngine
+fun AsyncServerSocket.listenTls(createSSLEngine: CreateSSLEngine): AsyncServerSocket {
     val wrapped = this
     return object: AsyncServerSocket {
         override suspend fun await() {
@@ -255,13 +256,13 @@ fun AsyncServerSocket.listenTls(context: SSLContext): AsyncServerSocket {
         override fun accept(): AsyncIterable<out AsyncTlsSocket> {
             val iterator = asyncIterator<AsyncTlsSocket> {
                 for (socket in wrapped.accept()) {
-                    val engine = context.createSSLEngine()
+                    val engine = createSSLEngine()
                     engine.useClientMode = false
                     val tlsSocket = try {
                         tlsHandshake(socket, engine)
                     }
                     catch (exception: Exception) {
-                        close()
+                        socket.close()
                         continue
                     }
 
@@ -279,5 +280,11 @@ fun AsyncServerSocket.listenTls(context: SSLContext): AsyncServerSocket {
         override suspend fun close() {
             wrapped.close()
         }
+    }
+}
+
+fun AsyncServerSocket.listenTls(context: SSLContext = SSLContext.getDefault()): AsyncServerSocket {
+    return this.listenTls {
+        context.createSSLEngine()
     }
 }

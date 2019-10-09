@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.copy
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.http2.Protocol
+import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.pipe
 
 

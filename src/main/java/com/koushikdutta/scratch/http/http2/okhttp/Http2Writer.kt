@@ -13,24 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.koushikdutta.scratch.http.http2
+package com.koushikdutta.scratch.http.http2.okhttp
 
-import com.koushikdutta.scratch.http.http2.Http2.CONNECTION_PREFACE
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_ACK
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_END_HEADERS
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_END_STREAM
-import com.koushikdutta.scratch.http.http2.Http2.FLAG_NONE
-import com.koushikdutta.scratch.http.http2.Http2.INITIAL_MAX_FRAME_SIZE
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_CONTINUATION
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_DATA
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_GOAWAY
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_HEADERS
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_PING
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_PUSH_PROMISE
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_RST_STREAM
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_SETTINGS
-import com.koushikdutta.scratch.http.http2.Http2.TYPE_WINDOW_UPDATE
-import com.koushikdutta.scratch.http.http2.Http2.frameLog
+import com.koushikdutta.scratch.http.http2.*
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.CONNECTION_PREFACE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_ACK
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_END_HEADERS
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_END_STREAM
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_NONE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.INITIAL_MAX_FRAME_SIZE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_CONTINUATION
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_DATA
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_GOAWAY
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_HEADERS
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_PING
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_PUSH_PROMISE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_RST_STREAM
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_SETTINGS
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_WINDOW_UPDATE
+import com.koushikdutta.scratch.http.http2.okhttp.Http2.frameLog
 import java.io.IOException
 import java.lang.String.format
 import java.util.logging.Level.FINE
@@ -39,9 +40,9 @@ import java.util.logging.Logger
 /** Writes HTTP/2 transport frames. */
 @Suppress("NAME_SHADOWING")
 class Http2Writer(
-  /** Creates a frame reader with max header table size of 4096. */
+        /** Creates a frame reader with max header table size of 4096. */
   private val sink: Buffer,
-  private val client: Boolean
+        private val client: Boolean
 ) {
   private val hpackBuffer: Buffer = Buffer()
   private var maxFrameSize: Int = INITIAL_MAX_FRAME_SIZE

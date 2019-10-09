@@ -13,13 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.koushikdutta.scratch.http.http2
+package com.koushikdutta.scratch.http.http2.okhttp
 
-import com.koushikdutta.scratch.http.http2.Header.Companion.RESPONSE_STATUS
-import com.koushikdutta.scratch.http.http2.Header.Companion.TARGET_AUTHORITY
-import com.koushikdutta.scratch.http.http2.Header.Companion.TARGET_METHOD
-import com.koushikdutta.scratch.http.http2.Header.Companion.TARGET_PATH
-import com.koushikdutta.scratch.http.http2.Header.Companion.TARGET_SCHEME
+import com.koushikdutta.scratch.http.http2.*
+import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.RESPONSE_STATUS
+import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_AUTHORITY
+import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_METHOD
+import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_PATH
+import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_SCHEME
 import java.io.IOException
 import java.util.*
 
@@ -48,76 +49,76 @@ object Hpack {
   private const val SETTINGS_HEADER_TABLE_SIZE_LIMIT = 16_384
 
   val STATIC_HEADER_TABLE = arrayOf(
-      Header(TARGET_AUTHORITY, ""),
-      Header(TARGET_METHOD, "GET"),
-      Header(TARGET_METHOD, "POST"),
-      Header(TARGET_PATH, "/"),
-      Header(TARGET_PATH, "/index.html"),
-      Header(TARGET_SCHEME, "http"),
-      Header(TARGET_SCHEME, "https"),
-      Header(RESPONSE_STATUS, "200"),
-      Header(RESPONSE_STATUS, "204"),
-      Header(RESPONSE_STATUS, "206"),
-      Header(RESPONSE_STATUS, "304"),
-      Header(RESPONSE_STATUS, "400"),
-      Header(RESPONSE_STATUS, "404"),
-      Header(RESPONSE_STATUS, "500"),
-      Header("accept-charset", ""),
-      Header("accept-encoding", "gzip, deflate"),
-      Header("accept-language", ""),
-      Header("accept-ranges", ""),
-      Header("accept", ""),
-      Header("access-control-allow-origin", ""),
-      Header("age", ""),
-      Header("allow", ""),
-      Header("authorization", ""),
-      Header("cache-control", ""),
-      Header("content-disposition", ""),
-      Header("content-encoding", ""),
-      Header("content-language", ""),
-      Header("content-length", ""),
-      Header("content-location", ""),
-      Header("content-range", ""),
-      Header("content-type", ""),
-      Header("cookie", ""),
-      Header("date", ""),
-      Header("etag", ""),
-      Header("expect", ""),
-      Header("expires", ""),
-      Header("from", ""),
-      Header("host", ""),
-      Header("if-match", ""),
-      Header("if-modified-since", ""),
-      Header("if-none-match", ""),
-      Header("if-range", ""),
-      Header("if-unmodified-since", ""),
-      Header("last-modified", ""),
-      Header("link", ""),
-      Header("location", ""),
-      Header("max-forwards", ""),
-      Header("proxy-authenticate", ""),
-      Header("proxy-authorization", ""),
-      Header("range", ""),
-      Header("referer", ""),
-      Header("refresh", ""),
-      Header("retry-after", ""),
-      Header("server", ""),
-      Header("set-cookie", ""),
-      Header("strict-transport-security", ""),
-      Header("transfer-encoding", ""),
-      Header("user-agent", ""),
-      Header("vary", ""),
-      Header("via", ""),
-      Header("www-authenticate", "")
+          Header(TARGET_AUTHORITY, ""),
+          Header(TARGET_METHOD, "GET"),
+          Header(TARGET_METHOD, "POST"),
+          Header(TARGET_PATH, "/"),
+          Header(TARGET_PATH, "/index.html"),
+          Header(TARGET_SCHEME, "http"),
+          Header(TARGET_SCHEME, "https"),
+          Header(RESPONSE_STATUS, "200"),
+          Header(RESPONSE_STATUS, "204"),
+          Header(RESPONSE_STATUS, "206"),
+          Header(RESPONSE_STATUS, "304"),
+          Header(RESPONSE_STATUS, "400"),
+          Header(RESPONSE_STATUS, "404"),
+          Header(RESPONSE_STATUS, "500"),
+          Header("accept-charset", ""),
+          Header("accept-encoding", "gzip, deflate"),
+          Header("accept-language", ""),
+          Header("accept-ranges", ""),
+          Header("accept", ""),
+          Header("access-control-allow-origin", ""),
+          Header("age", ""),
+          Header("allow", ""),
+          Header("authorization", ""),
+          Header("cache-control", ""),
+          Header("content-disposition", ""),
+          Header("content-encoding", ""),
+          Header("content-language", ""),
+          Header("content-length", ""),
+          Header("content-location", ""),
+          Header("content-range", ""),
+          Header("content-type", ""),
+          Header("cookie", ""),
+          Header("date", ""),
+          Header("etag", ""),
+          Header("expect", ""),
+          Header("expires", ""),
+          Header("from", ""),
+          Header("host", ""),
+          Header("if-match", ""),
+          Header("if-modified-since", ""),
+          Header("if-none-match", ""),
+          Header("if-range", ""),
+          Header("if-unmodified-since", ""),
+          Header("last-modified", ""),
+          Header("link", ""),
+          Header("location", ""),
+          Header("max-forwards", ""),
+          Header("proxy-authenticate", ""),
+          Header("proxy-authorization", ""),
+          Header("range", ""),
+          Header("referer", ""),
+          Header("refresh", ""),
+          Header("retry-after", ""),
+          Header("server", ""),
+          Header("set-cookie", ""),
+          Header("strict-transport-security", ""),
+          Header("transfer-encoding", ""),
+          Header("user-agent", ""),
+          Header("vary", ""),
+          Header("via", ""),
+          Header("www-authenticate", "")
   )
 
   val NAME_TO_FIRST_INDEX = nameToFirstIndex()
 
   // http://tools.ietf.org/html/draft-ietf-httpbis-header-compression-12#section-3.1
   class Reader @JvmOverloads constructor(
-    private val source: BufferedSource,
-    private val headerTableSizeSetting: Int,
-    private var maxDynamicTableByteCount: Int = headerTableSizeSetting
+          private val source: BufferedSource,
+          private val headerTableSizeSetting: Int,
+          private var maxDynamicTableByteCount: Int = headerTableSizeSetting
   ) {
     private val headerList = mutableListOf<Header>()
 
@@ -362,7 +363,7 @@ object Hpack {
 
       return if (huffmanDecode) {
         val decodeBuffer = Buffer()
-        Huffman.decode(source, length, decodeBuffer)
+          Huffman.decode(source, length, decodeBuffer)
         decodeBuffer.readByteString()
       } else {
         source.readByteString(length)
@@ -558,7 +559,7 @@ object Hpack {
     fun writeByteString(data: ByteString) {
       if (useCompression && Huffman.encodedLength(data) < data.size) {
         val huffmanBuffer = Buffer()
-        Huffman.encode(data, huffmanBuffer)
+          Huffman.encode(data, huffmanBuffer)
         val huffmanBytes = huffmanBuffer.readByteString()
         writeInt(huffmanBytes.size, PREFIX_7_BITS, 0x80)
         out.write(huffmanBytes)

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.koushikdutta.scratch.http.http2
+package com.koushikdutta.scratch.http.http2.okhttp
 
 /** http://tools.ietf.org/html/draft-ietf-httpbis-http2-17#section-7 */
 enum class ErrorCode constructor(val httpCode: Int) {

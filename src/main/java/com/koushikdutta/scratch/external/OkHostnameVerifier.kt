@@ -77,6 +77,8 @@ object OkHostnameVerifier : HostnameVerifier {
   /** Returns true if [certificate] matches [hostname]. */
   private fun verifyHostname(hostname: String, certificate: X509Certificate): Boolean {
     val hostname = hostname.toLowerCase(Locale.US)
+    if (certificate.subjectDN.name.toLowerCase() == "cn=$hostname")
+      return true
     return getSubjectAltNames(certificate, ALT_DNS_NAME).any {
       verifyHostname(hostname, it)
     }

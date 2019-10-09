@@ -9,7 +9,6 @@ import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.middleware.getHttpBody
 import com.koushikdutta.scratch.http.http2.Http2Connection
-import com.koushikdutta.scratch.http.http2.Http2ExchangeCodec
 import com.koushikdutta.scratch.parser.Parser
 
 typealias AsyncHttpResponseHandler = suspend (request: AsyncHttpRequest) -> AsyncHttpResponse
