@@ -85,9 +85,11 @@ fun <T> createAsyncIterable(iterable: Iterable<T>): AsyncIterable<T> {
     }
 }
 
-fun <T> AsyncIterable<T>.receive(receiver: (received: T) -> Unit) = async {
+fun <T> AsyncIterable<T>.receive(receiver: suspend T.() -> Unit) = async {
     for (received in this) {
-        receiver(received)
+        async {
+            receiver(received)
+        }
     }
 }
 

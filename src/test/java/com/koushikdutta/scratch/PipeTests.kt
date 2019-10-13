@@ -11,9 +11,7 @@ class PipeTests {
 
         var data = ""
         server.accept().receive {
-            async {
-                data = readAllString(it::read)
-            }
+            data = readAllString(::read)
         }
 
         async {

@@ -53,6 +53,14 @@ class AsyncHttpClient(val networkContext: AsyncNetworkContext = AsyncNetworkCont
         middlewares.add(AsyncHttpRedirector())
     }
 
+    fun <T> getMiddleware(type: Class<T>): T? {
+        for (middleware in middlewares) {
+            if (middleware.javaClass == type)
+                return middleware as T
+        }
+        return null
+    }
+
     private suspend fun execute(session: AsyncHttpClientSession) : AsyncHttpResponse {
         for (middleware in middlewares) {
             middleware.prepare(session)

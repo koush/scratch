@@ -206,7 +206,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
     val isRunning: Boolean
         get() = mSelector != null
 
-    private var mName: String
+    private val mName: String
 
     private var killed: Boolean = false
 
@@ -603,7 +603,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
                 if (readyNow == 0) {
                     // if there is nothing to select now, make sure we don't have an empty key set
                     // which means it would be time to turn this thread off.
-                    if (selector.keys().size == 0 && wait == QUEUE_EMPTY) {
+                    if (selector.keys().isEmpty() && wait == QUEUE_EMPTY) {
                         //                    Log.i(LOGTAG, "Shutting down. keys: " + selector.keys().size() + " keepRunning: " + keepRunning);
                         return
                     }

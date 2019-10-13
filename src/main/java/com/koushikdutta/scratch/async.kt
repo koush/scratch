@@ -3,15 +3,18 @@ package com.koushikdutta.scratch
 import kotlin.coroutines.*
 
 class AsyncResult<T> {
-    private var exception: Throwable? = null
-    private var done = false
-    private var result: T? = null
+    var exception: Throwable? = null
+        internal set
+    var done = false
+        internal set
+    var value: T? = null
+        internal set
 
     internal fun setComplete(result: Result<T>) {
         if (result.isFailure)
             this.exception = result.exceptionOrNull()
         else
-            this.result = result.getOrNull()
+            this.value = result.getOrNull()
         done = true
         try {
             if (exception != null)
@@ -27,6 +30,7 @@ class AsyncResult<T> {
             throw exception!!
     }
 
+    // uncaught async results will rethrow to prevent error gobbling
     private var catcher: (throwable: Throwable) -> Unit = {
         throw it
     }

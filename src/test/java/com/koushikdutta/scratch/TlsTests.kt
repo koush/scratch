@@ -145,9 +145,7 @@ class TlsTests {
 
         var data = ""
         tlsServer.accept().receive {
-            async {
-                data += readAllString(it::read)
-            }
+            data += readAllString(::read)
         }
 
         for (i in 1..2) {
@@ -176,9 +174,7 @@ class TlsTests {
 
         var data = ""
         tlsServer.accept().receive {
-            async {
-                data += readAllString(it::read)
-            }
+            data += readAllString(::read)
         }
 
         async {
@@ -213,9 +209,7 @@ class TlsTests {
 
         var data = ""
         tlsServer.accept().receive {
-            async {
-                data += readAllString(it::read)
-            }
+            data += readAllString(::read)
         }
 
         for (i in 1..2) {
