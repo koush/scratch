@@ -1,10 +1,13 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.AsyncReader
+import com.koushikdutta.scratch.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.body.StringBody
 import com.koushikdutta.scratch.parser.Multipart
 import com.koushikdutta.scratch.parser.Part
 import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.reader
 import org.junit.Test
 
 class MultipartTests {
@@ -54,7 +57,8 @@ class MultipartTests {
 
         var combined = ""
         async {
-            val multipartParsed = Multipart.parseMultipart(multipart.boundary, AsyncReader(multipart.read))
+            val multipartParsed =
+                Multipart.parseMultipart(multipart.boundary, AsyncReader(multipart.read))
 
             for (part in multipartParsed) {
                 val found = readAllString(part.body)

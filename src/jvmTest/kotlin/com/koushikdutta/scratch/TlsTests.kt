@@ -9,16 +9,11 @@ import com.koushikdutta.scratch.http.body.StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
-import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
 import org.conscrypt.Conscrypt
-import org.conscrypt.ConscryptCertStore
 import org.junit.Test
-import java.security.KeyPairGenerator
-import java.security.Security
-import java.security.spec.RSAKeyGenParameterSpec
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
 import javax.net.ssl.SSLHandshakeException
@@ -276,7 +271,8 @@ class TlsTests {
         async {
             val client = AsyncHttpClient()
             pipeMiddleware.install(client)
-            val connection = client.execute(AsyncHttpRequest.POST("https://TestServer", body = StringBody("hello world")))
+            val connection =
+                client.execute(AsyncHttpRequest.POST("https://TestServer", body = StringBody("hello world")))
             data = readAllString(connection.body!!)
         }
 

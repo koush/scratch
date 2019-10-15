@@ -221,7 +221,9 @@ class AsyncEventLoop(private val idle: AsyncEventLoop.() -> Unit = {}) {
         val copy = HashMap(handles)
         handles.clear()
         for (handle in copy) {
+            println("destructor1")
             uv_close(handle.key.reinterpret(), closeCallbackPtr)
+            println("destructor2")
             handle.value()
         }
     }

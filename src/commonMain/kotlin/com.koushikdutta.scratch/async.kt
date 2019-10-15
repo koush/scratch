@@ -2,7 +2,7 @@ package com.koushikdutta.scratch
 
 import kotlin.coroutines.*
 
-open class AsyncResultHolder<T> {
+open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
     var exception: Throwable? = null
         internal set
     var done = false
@@ -11,6 +11,7 @@ open class AsyncResultHolder<T> {
         internal set
 
     internal open fun onComplete() {
+        finalizer()
     }
 
     internal fun setComplete(result: Result<T>) {
@@ -28,38 +29,18 @@ open class AsyncResultHolder<T> {
     }
 }
 
-class AsyncResult<T> : AsyncResultHolder<T>() {
-    // uncaught async results will rethrow to prevent error gobbling
-    private var catcher: (throwable: Throwable) -> Unit = {
-        throw it
-    }
-    private var finalizer: () -> Unit = {}
-    fun catch(catcher: (throwable: Throwable) -> Unit): AsyncResult<T> {
-        this.catcher = catcher
-        return this
-    }
-
-    fun finally(finalizer: () -> Unit): AsyncResult<T> {
-        this.finalizer = finalizer
-        return this
-    }
-
+open class AsyncResult<T>(finalizer: () -> Unit = {}) : AsyncResultHolder<T>(finalizer) {
     override fun onComplete() {
-        try {
-            if (exception != null)
-                catcher(exception!!)
-        }
-        finally {
-            finalizer()
-        }
+        super.onComplete()
+        rethrow()
     }
 }
 
-
-internal fun <T> async(block: suspend() -> T): AsyncResultHolder<T> {
-    val ret = AsyncResultHolder<T>()
+internal fun <T> async(block: suspend() -> T): AsyncResult<T> {
+    val ret = AsyncResult<T>()
     block.startCoroutine(Continuation(EmptyCoroutineContext) { result ->
         ret.setComplete(result)
+        ret.rethrow()
     })
     return ret
 }

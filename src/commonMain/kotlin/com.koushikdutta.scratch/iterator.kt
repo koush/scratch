@@ -25,14 +25,14 @@ class AsyncIteratorScope<T>(private val yielder: Cooperator) {
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val yielder = Cooperator()
     var done = false
-    val result = AsyncResult<Unit> {
+    val result = AsyncResultHolder<Unit> {
         done = true
         yielder.resume()
     }
 
     val scope = AsyncIteratorScope<T>(yielder)
-    block.startCoroutine(scope, Continuation(EmptyCoroutineContext) { fin ->
-        result.setComplete(fin)
+    block.startCoroutine(scope, Continuation(EmptyCoroutineContext) {
+        result.setComplete(it)
     })
 
     return object: AsyncIterator<T> {
@@ -82,11 +82,29 @@ fun <T> createAsyncIterable(iterable: Iterable<T>): AsyncIterable<T> {
     }
 }
 
-fun <T> AsyncIterable<T>.receive(receiver: suspend T.() -> Unit) = async {
+typealias AsyncIterableExceptionCallback<T> = (value: T, exception: Throwable) -> Unit
+fun <T> AsyncIterable<T>.receive(exceptionCallback: AsyncIterableExceptionCallback<T> = {f,j->},
+                                 receiver: suspend T.() -> Unit) = async {
     for (received in this) {
         async {
             receiver(received)
+            try {
+            }
+            catch (throwable: Throwable) {
+                try {
+                    exceptionCallback(received, throwable)
+                }
+                catch (throwable: Throwable) {
+                    throw Error("Failure during AsyncIterableExceptionCallback", throwable)
+                }
+            }
         }
+    }
+}
+
+fun <T> AsyncIterable<T>.receive2(receiver: T.() -> Unit) = async {
+    for (received in this) {
+        receiver(received)
     }
 }
 

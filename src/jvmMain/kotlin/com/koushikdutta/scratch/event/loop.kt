@@ -350,8 +350,8 @@ open class AsyncEventLoop constructor(name: String? = null) {
     }
 
 
-    fun <T> async(block: suspend AsyncEventLoop.() -> T): AsyncResultHolder<T> {
-        val ret = AsyncResultHolder<T>()
+    fun <T> async(block: suspend AsyncEventLoop.() -> T): AsyncResult<T> {
+        val ret = AsyncResult<T>()
         postImmediate {
             block.startCoroutine(this, Continuation(EmptyCoroutineContext) { result ->
                 ret.setComplete(result)
