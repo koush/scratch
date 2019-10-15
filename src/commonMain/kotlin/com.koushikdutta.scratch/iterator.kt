@@ -25,13 +25,12 @@ class AsyncIteratorScope<T>(private val yielder: Cooperator) {
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val yielder = Cooperator()
     var done = false
-    val result = AsyncResult<Unit>()
-    .finally {
+    val result = AsyncResult<Unit> {
         done = true
         yielder.resume()
     }
 
-    var scope = AsyncIteratorScope<T>(yielder)
+    val scope = AsyncIteratorScope<T>(yielder)
     block.startCoroutine(scope, Continuation(EmptyCoroutineContext) { fin ->
         result.setComplete(fin)
     })

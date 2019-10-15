@@ -15,7 +15,7 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     private val yielder = Cooperator()
     private val pending = ByteBufferList()
     private var eos = false
-    private val result = AsyncResult<Unit>().finally(yielder::resume)
+    private val result = AsyncResult<Unit>(yielder::resume)
     private val completion: Continuation<Unit> = Continuation(EmptyCoroutineContext) { completionResult ->
         check(!eos) { "NonBlockingOutputPipe has already been closed" }
         eos = true
@@ -58,7 +58,7 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
 
     suspend fun read(buffer: WritableBuffers): Boolean {
         // rethrow errors downstream
-        result.rethrow()
+        result.rethrowSuspend()
 
         // check if we have something to read
         if (pending.isEmpty) {
@@ -68,7 +68,7 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
 
             // wait for something to come down
             yielder.yield()
-            result.rethrow()
+            result.rethrowSuspend()
 
             // still empty? bail. empty data but not eos is valid.
             if (pending.isEmpty)

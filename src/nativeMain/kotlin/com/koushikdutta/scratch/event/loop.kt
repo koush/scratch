@@ -11,21 +11,41 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import com.koushikdutta.scratch.synchronized
+import kotlin.system.getTimeMillis
+
+fun EventLoopClosedException(): Exception {
+    return Exception("Event Loop Closed")
+}
+
+private fun asyncCallback(asyncHandle: CPointer<uv_async_t>?) {
+    val loop = asyncHandle!!.pointed.data!!.asStableRef<AsyncEventLoop>().get()
+    loop.onIdle()
+}
+private val asyncCallbackPtr = staticCFunction(::asyncCallback)
+
+private fun timerCallback(timerHandle: CPointer<uv_timer_t>?) {
+    val loop = timerHandle!!.pointed.data!!.asStableRef<AsyncEventLoop>().get()
+    loop.onIdle()
+    loop.stop()
+}
+private val timerCallbackPtr = staticCFunction(::timerCallback)
 
 private fun connectCallback(connect: CPointer<uv_connect_t>?, status: Int) {
     val socket = AllocedHandle(connect!!.pointed.handle!!.reinterpret<uv_tcp_t>().pointed)
     nativeHeap.free(connect.rawValue)
 
-    val resume = socket.freeData<Continuation<AsyncSocket>>()!!
+    val cdata = socket.freeData<ContinuationData<AsyncSocket, AsyncEventLoop>>()!!
 
     if (status != 0) {
+        cdata.data.handles.remove(socket.ptr)
         socket.free()
-        resume.resumeWithException(Exception("connect error: $status"))
+        cdata.resume.resumeWithException(Exception("connect error: $status"))
         return
     }
 
     val uvSocket = UvSocket(socket.struct.reinterpret())
-    resume.resume(uvSocket)
+    cdata.data.handles[socket.ptr] = { uvSocket.closeInternal() }
+    cdata.resume.resume(uvSocket)
 }
 private val connectCallbackPtr = staticCFunction(::connectCallback)
 
@@ -93,12 +113,12 @@ fun allocBufferCallback(handle: CPointer<uv_handle_t>?, size: ULong, buf: CPoint
 val allocBufferPtr = staticCFunction(::allocBufferCallback)
 
 class UvSocket(socket: uv_stream_t): AsyncSocket {
-    val nio = object : NonBlockingWritePipe() {
+    internal val nio = object : NonBlockingWritePipe() {
         override fun writable() {
             uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
         }
     }
-    val socket: AllocedHandle<uv_stream_t> = AllocedHandle(socket)
+    internal val socket: AllocedHandle<uv_stream_t> = AllocedHandle(socket)
     init {
         socket.data = StableRef.create(this).asCPointer()
         uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
@@ -107,16 +127,16 @@ class UvSocket(socket: uv_stream_t): AsyncSocket {
     override suspend fun await() {
     }
 
-    val writeAlloc = Alloced<uv_write_t>(nativeHeap.alloc())
-    val bufsAlloc = AllocedPtr<uv_buf_t>().ensure<uv_buf_t>(10)
-    var pinnedBuffer: ByteBuffer? = null
-    var pinned: Pinned<ByteArray>? = null
+    internal val writeAlloc = Alloced<uv_write_t>(nativeHeap.alloc())
+    internal val bufsAlloc = AllocedPtr<uv_buf_t>().ensure<uv_buf_t>(10)
+    internal var pinnedBuffer: ByteBuffer? = null
+    internal var pinned: Pinned<ByteArray>? = null
     override suspend fun read(buffer: WritableBuffers): Boolean {
         return nio.read(buffer)
     }
 
-    var writeBuffers: Array<ByteBuffer>? = null
-    var pinnedWrites: List<Pinned<ByteArray>>? = null
+    internal var writeBuffers: Array<ByteBuffer>? = null
+    internal var pinnedWrites: List<Pinned<ByteArray>>? = null
     override suspend fun write(buffer: ReadableBuffers) {
         if (buffer.isEmpty)
             return
@@ -135,57 +155,13 @@ class UvSocket(socket: uv_stream_t): AsyncSocket {
         }
     }
 
+    internal fun closeInternal() {
+        if (!nio.hasEnded)
+            nio.end(EventLoopClosedException())
+    }
+
     override suspend fun close() {
         socket.free()
-    }
-}
-
-class AllocedPtr<T: CStructVar>() {
-    var array: CArrayPointer<T>? = null
-
-    var length: Int = 0
-
-    fun free() {
-        if (array == null)
-            return
-        val a = array!!
-        array = null
-        length = 0
-        nativeHeap.free(a)
-    }
-
-    inline fun <reified T2: T> ensure(length: Int): AllocedPtr<T> {
-        if (this.length >= length)
-            return this
-        free()
-        array = nativeHeap.allocArray<T2>(length).reinterpret()
-        this.length = length
-        return this
-    }
-}
-
-private fun <R> freeStableRef(data: COpaquePointer?): R? {
-    if (data == null)
-        return null
-    val ref = data.asStableRef<Any>()
-    val ret = ref.get()
-    ref.dispose()
-    return ret as R
-}
-
-class AllocedHandle<T: CStructVar>(value: T? = null, destructor: T.() -> Unit = {}): Alloced<T>(value, destructor) {
-    private fun <R> freeData(value: T): R? {
-        val handle: uv_handle_t = value.reinterpret()
-        val data = handle.data
-        handle.data = null
-        return freeStableRef(data)
-    }
-    fun <R> freeData(): R? {
-        return freeData(struct)
-    }
-    override fun freePointer(value: T) {
-        freeData<Any>(value)
-        uv_close(value.ptr.reinterpret(), closeCallbackPtr)
     }
 }
 
@@ -212,18 +188,18 @@ open class Alloced<T: CStructVar>(var value: T? = null, private val destructor: 
     }
 }
 
-class AsyncEventLoop {
-    private var loop = Alloced<uv_loop_t>()
-
-    suspend fun connect(address: RemoteSocketAddress): AsyncSocket = suspendCoroutine {
+class AsyncEventLoop(private val idle: AsyncEventLoop.() -> Unit = {}) {
+    suspend fun connect(address: RemoteSocketAddress) = suspendCoroutine<AsyncSocket> {
+        val self = this
         memScoped {
             val addr = alloc<sockaddr_in>()
             uv_ip4_addr(address.address, address.port, addr.ptr)
 
             val socket = AllocedHandle(nativeHeap.alloc<uv_tcp_t>())
             val connect = Alloced(nativeHeap.alloc<uv_connect_t>())
+            socket.struct.data = StableRef.create(ContinuationData(it, self)).asCPointer()
+            handles[socket.ptr] = {}
 
-            socket.struct.data = StableRef.create(it).asCPointer()
             try {
                 val initErr = uv_tcp_init(loop.ptr, socket.ptr)
                 if (initErr != 0)
@@ -242,30 +218,65 @@ class AsyncEventLoop {
         }
     }
 
-    fun run(block: AsyncEventLoop.() -> Unit) {
-        if (synchronized(this) {
-            if (loop.value != null)
-                return@synchronized true
-            loop.value = nativeHeap.alloc()
-            val ret = uv_loop_init(loop.ptr)
-            if (ret != 0) {
-                nativeHeap.free(loop.ptr)
-                throw Exception("loop init failed $ret")
-            }
-            false
-        }) return
+    internal fun onIdle() {
+        idle()
+    }
+
+    fun scheduleWakeup(timeout: Long) {
+        uv_timer_stop(timer.ptr)
+        uv_timer_start(timer.ptr, timerCallbackPtr, timeout.toULong(), 0)
+    }
+
+    fun stop() {
+        if (!running)
+            return
+
+        uv_timer_stop(timer.ptr)
+
+        val copy = HashMap(handles)
+        handles.clear()
+        for (handle in copy) {
+            uv_close(handle.key.reinterpret(), null)
+            handle.value()
+        }
+    }
+
+    val loop = Alloced<uv_loop_t>(nativeHeap.alloc())
+    val wakeup = Alloced<uv_async_t>(nativeHeap.alloc())
+    val timer = Alloced<uv_timer_t>(nativeHeap.alloc())
+    var running = false
+    val thisRef = StableRef.create(this).asCPointer()
+    val handles = mutableMapOf<CPointer<*>, () -> Unit>()
+
+    init {
+        checkZero(uv_loop_init(loop.ptr), "uv_loop_init failed")
+        wakeup.struct.data = thisRef
+        timer.struct.data = thisRef
+        checkZero(uv_timer_init(loop.ptr, timer.ptr), "uv_timer_init failed")
+    }
+
+    fun run() {
+        checkZero(uv_async_init(loop.ptr, wakeup.ptr, asyncCallbackPtr), "uv_async_init failed")
+        handles[wakeup.ptr] = {}
+
+        synchronized(this) {
+            check(!running) { "loop already running" }
+            running = true
+        }
 
         try {
-            block()
-            uv_run(loop.ptr, UV_RUN_DEFAULT);
-        }
-        catch (exception: Exception) {
-            println("loop exception")
-            println(exception)
-            throw exception
+            uv_run(loop.ptr, UV_RUN_DEFAULT)
         }
         finally {
-            loop.free()
+            running = false
         }
     }
 }
+
+private fun checkZero(ret: Int, err: String) {
+    if (ret == 0)
+        return
+    throw Exception("$err: $ret")
+}
+
+data class ContinuationData<C, T>(val resume: Continuation<C>, val data: T)
