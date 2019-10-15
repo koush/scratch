@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.GET
 import com.koushikdutta.scratch.http.client.middleware.*
-import com.koushikdutta.scratch.net.AsyncNetworkContext
+import com.koushikdutta.scratch.event.AsyncEventLoop
 
 
 enum class AsyncHttpRequestMethods {
@@ -24,7 +24,7 @@ var AsyncHttpClientSessionProperties.manageSocket: Boolean
         set("manage-socket", value)
     }
 
-data class AsyncHttpClientSession constructor(val client: AsyncHttpClient, val networkContext: AsyncNetworkContext, val request: AsyncHttpRequest) {
+data class AsyncHttpClientSession constructor(val client: AsyncHttpClient, val eventLoop: AsyncEventLoop, val request: AsyncHttpRequest) {
     var socket: AsyncSocket? = null
     var interrupt: InterruptibleRead? = null
     var socketReader: AsyncReader? = null
@@ -40,7 +40,7 @@ class AsyncHttpClientException : Exception {
     constructor(message: String, exception: Exception) : super(message, exception)
 }
 
-class AsyncHttpClient(val networkContext: AsyncNetworkContext = AsyncNetworkContext.default) {
+class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop.default) {
     val middlewares = mutableListOf<AsyncHttpClientMiddleware>()
     init {
         middlewares.add(DefaultsMiddleware())
@@ -96,12 +96,12 @@ class AsyncHttpClient(val networkContext: AsyncNetworkContext = AsyncNetworkCont
     }
 
     suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
-        val session = AsyncHttpClientSession(this, networkContext, request)
+        val session = AsyncHttpClientSession(this, eventLoop, request)
         return execute(session)
     }
 
     suspend fun execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader): AsyncHttpResponse {
-        val session = AsyncHttpClientSession(this, networkContext, request)
+        val session = AsyncHttpClientSession(this, eventLoop, request)
         session.socket = socket
         session.socketReader = socketReader
         session.properties.manageSocket = false

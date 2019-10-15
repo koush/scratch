@@ -88,7 +88,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
     }
 
     protected open suspend fun connectInternal(session: AsyncHttpClientSession, host: String, port: Int): AsyncSocket {
-        return session.networkContext.connect(host, port)
+        return session.eventLoop.connect(host, port)
     }
 
     fun ensureSocketReader(session: AsyncHttpClientSession) {

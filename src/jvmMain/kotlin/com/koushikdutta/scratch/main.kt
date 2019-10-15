@@ -8,7 +8,7 @@ import com.koushikdutta.scratch.http.body.StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
-import com.koushikdutta.scratch.net.AsyncNetworkContext
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.tls.connectTls
 import com.koushikdutta.scratch.tls.tlsHandshake
 import org.conscrypt.Conscrypt
@@ -81,7 +81,7 @@ class Main {
             pipe.end(IOException("whoopsy pipe"))
         }
 
-        suspend fun AsyncNetworkContext.testTls() {
+        suspend fun AsyncEventLoop.testTls() {
             val secureSocket = try {
                 connectTls("google.com", 443)
             }
@@ -105,7 +105,7 @@ class Main {
             }
         }
 
-        suspend fun AsyncNetworkContext.testTls2() {
+        suspend fun AsyncEventLoop.testTls2() {
             val socket = connect("173.192.176.174", 443)
             val engine = SSLContext.getDefault().createSSLEngine("clockworkmod.com", 443)
             engine.useClientMode = true
@@ -125,7 +125,7 @@ class Main {
             }
         }
 
-        suspend fun AsyncNetworkContext.testHttp() {
+        suspend fun AsyncEventLoop.testHttp() {
             val client = AsyncHttpClient()
             val conscrypt = ConscryptMiddleware()
             conscrypt.install(client)
@@ -146,7 +146,7 @@ class Main {
             println("done")
         }
 
-        suspend fun AsyncNetworkContext.testServer() {
+        suspend fun AsyncEventLoop.testServer() {
             val server = listen()
             println(server.localPort)
 
@@ -166,7 +166,7 @@ class Main {
             }
         }
 
-        suspend fun AsyncNetworkContext.testHttpServer() {
+        suspend fun AsyncEventLoop.testHttpServer() {
             val httpServer = AsyncHttpServer {
                 AsyncHttpResponse.OK(body = StringBody("ok ok ok!"))
             }
@@ -174,7 +174,7 @@ class Main {
             httpServer.listen(listen(5555))
         }
 
-        suspend fun AsyncNetworkContext.testConnect() {
+        suspend fun AsyncEventLoop.testConnect() {
             val buffer = ByteBufferList()
             val addr = InetSocketAddress("192.168.2.7", 5555)
             val socket = connect(addr)
@@ -215,7 +215,7 @@ class Main {
             val read: AsyncRead = {
                 it.putUtf8String("poops");
                 suspendCoroutine<Unit> {
-                    AsyncNetworkContext.default.async {
+                    AsyncEventLoop.default.async {
                         sleep(1000)
                         it.resume(Unit)
                     }
@@ -226,7 +226,7 @@ class Main {
 //            val discardServer = DiscardServer(5555)
 //            discardServer.run()
 
-            AsyncNetworkContext.default.async {
+            AsyncEventLoop.default.async {
 //                testHttpServer()
 //                testTls2()
                 testHttp()

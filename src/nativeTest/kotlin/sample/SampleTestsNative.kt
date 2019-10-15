@@ -1,10 +1,13 @@
 package sample
 
-import com.koushikdutta.scratch.AsyncEventLoop
-import com.koushikdutta.scratch.RemoteSocketAddress
 import com.koushikdutta.scratch.async
-import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.event.RemoteSocketAddress
+import com.koushikdutta.scratch.uv.uv_loop_init
+import com.koushikdutta.scratch.uv.uv_loop_t
+import kotlinx.cinterop.cValue
+import platform.posix.connect
 import kotlin.native.concurrent.TransferMode
 import kotlin.native.concurrent.Worker
 import kotlin.native.concurrent.freeze
@@ -12,39 +15,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class Poop {
-    var i = 0
-}
-
 class SampleTestsNative {
     @Test
     fun testHello() {
         assertTrue("Native" in hello())
-    }
-
-    @Test
-    fun testWorkers() {
-        val worker = Worker.start()
-        val ret = ByteArray(10)
-        val result = worker.execute(TransferMode.UNSAFE, { ret }) {
-//            println(it)
-//            println(it[3])
-            it[3] = 4
-            it
-        }
-
-        result.consume {
-            assertEquals(it[3], 4)
-//            println(it[3])
-        }
-    }
-
-
-    @Test
-    fun testFreeze() {
-        val poop = Poop()
-        poop.freeze()
-        poop.i = 4
     }
 
     @Test

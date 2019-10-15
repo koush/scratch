@@ -1,5 +1,7 @@
-package com.koushikdutta.scratch
+package com.koushikdutta.scratch.event
 
+import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.NonBlockingWritePipe
 import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.uv.*
 import kotlinx.cinterop.*
@@ -8,9 +10,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
-
-class RemoteSocketAddress(override val address: String, port: Int) : SocketAddress(address, port)
-open class SocketAddress(open val address: String?, val port: Int)
+import com.koushikdutta.scratch.synchronized
 
 private fun connectCallback(connect: CPointer<uv_connect_t>?, status: Int) {
     val socket = AllocedHandle(connect!!.pointed.handle!!.reinterpret<uv_tcp_t>().pointed)

@@ -1,44 +1,35 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.net.AsyncNetworkContext
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import org.junit.Test
 import java.lang.Exception
-import java.util.concurrent.Semaphore
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 class NetTests {
-    private fun networkContextTest(failureExpected: Boolean = false, runner: suspend AsyncNetworkContext.() -> Unit) {
-        val networkContext = AsyncNetworkContext()
-        val semaphore = Semaphore(0)
+    private fun networkContextTest(failureExpected: Boolean = false, runner: suspend AsyncEventLoop.() -> Unit) {
+        val networkContext = AsyncEventLoop()
 
         val result = networkContext.async {
             try {
                 runner(networkContext)
             }
             finally {
-                semaphore.release()
+                networkContext.stop()
             }
         }
 
         networkContext.postDelayed(1000) {
             result.setComplete(Result.failure(TimeoutException()))
-            semaphore.release()
+            networkContext.stop()
         }
 
         networkContext.affinity?.setUncaughtExceptionHandler { thread: Thread, throwable: Throwable ->
             result.setComplete(Result.failure(throwable))
-            semaphore.release()
+            networkContext.stop()
         }
 
-        while (true) {
-            if (semaphore.tryAcquire(1000, TimeUnit.MILLISECONDS))
-                break
-            if (!networkContext.affinity!!.isAlive)
-                throw Exception("network context crash?")
-        }
-        networkContext.kill()
+        networkContext.run()
         if (failureExpected) {
             try {
                 result.rethrow()
@@ -55,25 +46,23 @@ class NetTests {
 
     @Test
     fun testAsyncException() {
-        val networkContext = AsyncNetworkContext()
-        val semaphore = Semaphore(0)
+        val networkContext = AsyncEventLoop()
 
         val result = networkContext.async {
             try {
                 throw Exception()
             }
             finally {
-                semaphore.release()
+                networkContext.stop()
             }
         }
 
         networkContext.postDelayed(1000) {
             result.setComplete(Result.failure(TimeoutException()))
-            semaphore.release()
+            networkContext.stop()
         }
 
-        semaphore.acquire()
-        networkContext.kill()
+        networkContext.run()
         try {
             result.rethrow()
             assert(false)
@@ -85,25 +74,23 @@ class NetTests {
 
     @Test
     fun testAsyncSuccess() {
-        val networkContext = AsyncNetworkContext()
-        val semaphore = Semaphore(0)
+        val networkContext = AsyncEventLoop()
 
         val result = networkContext.async {
             try {
                 42
             }
             finally {
-                semaphore.release()
+                networkContext.stop()
             }
         }
 
         networkContext.postDelayed(1000) {
             result.setComplete(Result.failure(TimeoutException()))
-            semaphore.release()
+            networkContext.stop()
         }
 
-        semaphore.acquire()
-        networkContext.kill()
+        networkContext.run()
         try {
             result.rethrow()
             assert(result.value == 42)

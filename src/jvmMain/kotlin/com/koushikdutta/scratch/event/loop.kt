@@ -1,4 +1,6 @@
-package com.koushikdutta.scratch.net
+@file:Suppress("BlockingMethodInNonBlockingContext")
+
+package com.koushikdutta.scratch.event
 
 
 import com.koushikdutta.scratch.*
@@ -6,6 +8,8 @@ import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.external.Log
 import java.io.Closeable
 import java.io.IOException
+import java.lang.IllegalStateException
+import java.lang.Long.min
 import java.net.*
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
@@ -42,8 +46,8 @@ private fun milliTime(): Long {
     return TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
 }
 
-class AsyncNetworkServerSocket internal constructor(val server: AsyncNetworkContext, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket {
-    private val key: SelectionKey = channel.register(server.mSelector!!.selector, SelectionKey.OP_ACCEPT)
+class AsyncNetworkServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket {
+    private val key: SelectionKey = channel.register(server.mSelector.selector, SelectionKey.OP_ACCEPT)
 
     init {
         key.attach(this)
@@ -91,14 +95,14 @@ class AsyncNetworkServerSocket internal constructor(val server: AsyncNetworkCont
         return queue
     }
 
-    internal fun accepted(server: AsyncNetworkContext, selector: SelectorWrapper, channel: SocketChannel) {
+    internal fun accepted(server: AsyncEventLoop, selector: SelectorWrapper, channel: SocketChannel) {
         queue.add(AsyncNetworkSocket(server, channel, channel.register(selector.selector, SelectionKey.OP_READ)))
     }
 }
 
-class AsyncNetworkSocket internal constructor(val server: AsyncNetworkContext, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
+class AsyncNetworkSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
     val localPort = channel.socket().localPort
-    val remoteAddress: SocketAddress? = channel.socket().remoteSocketAddress
+    val remoteAddress: java.net.SocketAddress? = channel.socket().remoteSocketAddress
     private val inputBuffer = ByteBufferList()
     private var closed = false
     private val allocator = Allocator()
@@ -125,7 +129,7 @@ class AsyncNetworkSocket internal constructor(val server: AsyncNetworkContext, p
         server.await()
     }
 
-    fun closeInternal() {
+    private fun closeInternal() {
         closeQuietly(channel)
         try {
             key.cancel()
@@ -199,19 +203,10 @@ class AsyncNetworkSocket internal constructor(val server: AsyncNetworkContext, p
     }
 }
 
-
-class AsyncNetworkContext constructor(name: String? = null) {
-    internal var mSelector: SelectorWrapper? = null
-
-    val isRunning: Boolean
-        get() = mSelector != null
-
-    private val mName: String
-
-    private var killed: Boolean = false
-
+open class AsyncEventLoop constructor(name: String? = null) {
+    internal val mSelector: SelectorWrapper = SelectorWrapper(SelectorProvider.provider().openSelector())
     private var postCounter = 0
-    private var mQueue = PriorityQueue(1, Scheduler.INSTANCE)
+    internal val mQueue = PriorityQueue(1, Scheduler.INSTANCE)
 
     var affinity: Thread? = null
         internal set
@@ -225,25 +220,8 @@ class AsyncNetworkContext constructor(name: String? = null) {
             return affinity == null || affinity === Thread.currentThread()
         }
 
-    init {
-        if (name == null)
-            mName = "AsyncServer"
-        else
-            mName = name
-    }
-
-    fun kill() {
-        synchronized(this) {
-            killed = true
-        }
-        stop(false)
-    }
-
     fun postDelayed(delay: Long, runnable: AsyncServerRunnable): Cancellable {
         return synchronized(this) {
-            if (killed)
-                return@synchronized SimpleCancellable.CANCELLED
-
             // Calculate when to run this queue item:
             // If there is a delay (non-zero), add it to the current time
             // When delay is zero, ensure that this follows all other
@@ -258,14 +236,11 @@ class AsyncNetworkContext constructor(name: String? = null) {
             else if (delay == 0L)
                 time = postCounter++.toLong()
             else if (mQueue.size > 0)
-                time = Math.min(0, mQueue.peek().time - 1)
+                time = min(0, mQueue.peek().time - 1)
             else
                 time = 0
             val s = Scheduled(this, runnable, time)
             mQueue.add(s)
-            // start the server up if necessary
-            if (mSelector == null)
-                run()
             if (!isAffinityThread) {
                 wakeup(mSelector)
             }
@@ -285,73 +260,25 @@ class AsyncNetworkContext constructor(name: String? = null) {
         return postDelayed(0, runnable)
     }
 
-    private class Scheduled(var server: AsyncNetworkContext, var runnable: AsyncServerRunnable, var time: Long) : Cancellable, Runnable {
-
-        internal var cancelled: Boolean = false
-
-        override fun run() {
-            this.runnable()
-        }
-
-        override val isDone: Boolean
-            get() {
-                return synchronized(server) {
-                    !cancelled && !server.mQueue.contains(this)
-                }
-            }
-
-        override val isCancelled: Boolean
-            get() {
-                return cancelled
-            }
-
-        override fun cancel(): Boolean {
-            return synchronized(server) {
-                cancelled = server.mQueue.remove(this)
-                cancelled
-            }
-        }
-    }
-
-    private class Scheduler private constructor() : Comparator<Scheduled> {
-        override fun compare(s1: Scheduled, s2: Scheduled): Int {
-            // keep the smaller ones at the head, so they get tossed out quicker
-            if (s1.time == s2.time)
-                return 0
-            return if (s1.time > s2.time) 1 else -1
-        }
-
-        companion object {
-            var INSTANCE = Scheduler()
-        }
-    }
-
     @JvmOverloads
     fun stop(wait: Boolean = true) {
         //        Log.i(LOGTAG, "****AsyncServer is shutting down.****");
-        var currentSelector: SelectorWrapper?
         var semaphore: Semaphore? = null
-        var isAffinityThread: Boolean = false
+        var isAffinityThread = false
         synchronized(this) {
             isAffinityThread = this.isAffinityThread
-            currentSelector = mSelector
-            if (currentSelector == null)
-                return@synchronized
             semaphore = Semaphore(0)
 
             // post a shutdown and wait
             mQueue.add(Scheduled(this, {
-                shutdownEverything(currentSelector)
+                mQueue.clear()
+                shutdownKeys()
                 semaphore!!.release()
             }, 0))
-            currentSelector!!.wakeupOnce()
+            mSelector.wakeupOnce()
 
             // force any existing connections to die
-            shutdownKeys(currentSelector)
-
-            mQueue = PriorityQueue(1, Scheduler.INSTANCE)
-            mSelector = null
-            affinity = null
+            shutdownKeys()
         }
         try {
             if (!isAffinityThread && wait)
@@ -359,16 +286,6 @@ class AsyncNetworkContext constructor(name: String? = null) {
         } catch (e: Exception) {
         }
 
-    }
-
-    protected var dataReceived = 0
-    protected fun onDataReceived(transmitted: Int) {
-        dataReceived += transmitted
-    }
-
-    protected var dataSent = 0
-    protected fun onDataSent(transmitted: Int) {
-        dataSent += transmitted
     }
 
     suspend fun listen(): AsyncNetworkServerSocket {
@@ -396,8 +313,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
                 InetSocketAddress(host, port)
             server!!.socket().bind(isa)
 
-            val ret = AsyncNetworkServerSocket(this, server.socket().localPort, closeableServer!!)
-            return ret
+            return AsyncNetworkServerSocket(this, server.socket().localPort, closeableServer!!)
         } catch (e: IOException) {
             closeQuietly(closeableServer)
             throw e
@@ -415,7 +331,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
             socket = SocketChannel.open()
             socket!!.configureBlocking(false)
 
-            ckey = socket.register(mSelector!!.selector, SelectionKey.OP_CONNECT)
+            ckey = socket.register(mSelector.selector, SelectionKey.OP_CONNECT)
             suspendCoroutine<Unit> {
                 ckey.attach(it)
                 socket.connect(address)
@@ -434,7 +350,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
     }
 
 
-    fun <T> async(block: suspend AsyncNetworkContext.() -> T): AsyncResultHolder<T> {
+    fun <T> async(block: suspend AsyncEventLoop.() -> T): AsyncResultHolder<T> {
         val ret = AsyncResultHolder<T>()
         postImmediate {
             block.startCoroutine(this, Continuation(EmptyCoroutineContext) { result ->
@@ -452,7 +368,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
         }
     }
 
-    suspend fun post() {
+    private suspend fun post() {
         suspendCoroutine<Unit> {
             post {
                 it.resume(Unit)
@@ -480,115 +396,92 @@ class AsyncNetworkContext constructor(name: String? = null) {
         return getAllByName(host)[0]
     }
 
-    private fun run() {
-        var selector: SelectorWrapper? = null
-        var queue: PriorityQueue<Scheduled>? = null
-        val exit = synchronized(this) {
-            if (mSelector == null) {
-                try {
-                    mSelector = SelectorWrapper(SelectorProvider.provider().openSelector())
-                    selector = mSelector!!
-                    queue = mQueue
-                } catch (e: IOException) {
-                    throw RuntimeException("unable to create selector?", e)
-                }
-
-                affinity = object : Thread(mName) {
-                    override fun run() {
-                        try {
-                            threadServer.set(this@AsyncNetworkContext)
-                            run(this@AsyncNetworkContext, selector!!, queue!!)
-                        } finally {
-                            threadServer.remove()
-                        }
-                    }
-                }
-
-                affinity!!.start()
-                // kicked off the new thread, let's bail.
-                return@synchronized true
-            }
-
-            // this is a reentrant call
-            selector = mSelector!!
-            queue = mQueue
-
-            // fall through to outside of the synchronization scope
-            // to allow the thread to run without locking.
-            false
+    fun run() {
+        synchronized(this) {
+            if (affinity == null)
+                affinity = Thread.currentThread()
+            else
+                throw IllegalStateException("AsyncNetworkContext is already running.")
         }
-
-        if (exit)
-            return
 
         try {
-            runLoop(selector!!, queue!!)
+            // at this point, this local queue and selector are owned
+            // by this thread.
+            // if a stop is called, the instance queue and selector
+            // will be replaced and nulled respectively.
+            // this will allow the old queue and selector to shut down
+            // gracefully, while also allowing a new selector thread
+            // to start up while the old one is still shutting down.
+            while (true) {
+                try {
+                    runLoop()
+                } catch (e: AsyncSelectorException) {
+                }
+
+                // see if we keep looping, this must be in a synchronized block since the queue is accessed.
+                val exit = synchronized(this) {
+                    if (!mSelector.isOpen || (mSelector.keys().isEmpty() && mQueue.size == 0)) {
+                        shutdownKeys()
+                        return@synchronized true
+                    }
+                    false
+                }
+
+                if (exit)
+                    return
+            }
         } catch (e: AsyncSelectorException) {
             Log.i(LOGTAG, "Selector closed", e)
-            try {
-                // StreamUtility.closeQuiety is throwing ArrayStoreException?
-                selector!!.selector.close()
-            }
-            catch (ex: Exception) {
-            }
-        }
-
-    }
-
-    private class AsyncSelectorException(e: Exception) : IOException(e)
-
-    fun dump() {
-        post {
-            if (mSelector == null) {
-                Log.i(LOGTAG, "Server dump not possible. No selector?")
-                return@post
-            }
-            Log.i(LOGTAG, "Key Count: " + mSelector!!.keys().size)
-
-            for (key in mSelector!!.keys()) {
-                Log.i(LOGTAG, "Key: $key")
-            }
         }
     }
 
-    private class NamedThreadFactory internal constructor(private val namePrefix: String) : ThreadFactory {
-        private val group: ThreadGroup
-        private val threadNumber = AtomicInteger(1)
+    private fun lockAndRunQueue(): Long {
+        var wait = QUEUE_EMPTY
 
-        init {
-            val s = System.getSecurityManager()
-            group = if (s != null)
-                s.threadGroup
-            else
-                Thread.currentThread().threadGroup
-        }
+        // find the first item we can actually run
+        while (true) {
+            var run: Scheduled? = null
 
-        override fun newThread(r: Runnable): Thread {
-            val t = Thread(group, r,
-                    namePrefix + threadNumber.getAndIncrement(), 0)
-            if (t.isDaemon) t.isDaemon = false
-            if (t.priority != Thread.NORM_PRIORITY) {
-                t.priority = Thread.NORM_PRIORITY
+            synchronized(this) {
+                val now = milliTime()
+
+                if (mQueue.size > 0) {
+                    val s = mQueue.remove()
+                    if (s.time <= now) {
+                        run = s
+                    }
+                    else {
+                        wait = s.time - now
+                        mQueue.add(s)
+                    }
+                }
             }
-            return t
+
+            if (run == null)
+                break
+
+            run!!.run()
         }
+
+        postCounter = 0
+        return wait
     }
 
-    private fun runLoop(selector: SelectorWrapper, queue: PriorityQueue<Scheduled>) {
-        //        Log.i(LOGTAG, "Keys: " + selector.keys().size());
+    private fun runLoop() {
+//                Log.i(LOGTAG, "Keys: " + mSelector.keys().size)
         var needsSelect = true
 
         // run the queue to populate the selector with keys
-        val wait = lockAndRunQueue(this, queue)
+        val wait = lockAndRunQueue()
         try {
             val exit = synchronized(this) {
                 // select now to see if anything is ready immediately. this
                 // also clears the canceled key queue.
-                val readyNow = selector.selectNow()
+                val readyNow = mSelector.selectNow()
                 if (readyNow == 0) {
                     // if there is nothing to select now, make sure we don't have an empty key set
                     // which means it would be time to turn this thread off.
-                    if (selector.keys().isEmpty() && wait == QUEUE_EMPTY) {
+                    if (mSelector.keys().isEmpty() && wait == QUEUE_EMPTY) {
                         //                    Log.i(LOGTAG, "Shutting down. keys: " + selector.keys().size() + " keepRunning: " + keepRunning);
                         return@synchronized true
                     }
@@ -604,11 +497,11 @@ class AsyncNetworkContext constructor(name: String? = null) {
             if (needsSelect) {
                 if (wait == QUEUE_EMPTY) {
                     // wait until woken up
-                    selector.select()
+                    mSelector.select()
                 }
                 else {
                     // nothing to select immediately but there's something pending so let's block that duration and wait.
-                    selector.select(wait)
+                    mSelector.select(wait)
                 }
             }
         } catch (e: Exception) {
@@ -616,7 +509,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
         }
 
         // process whatever keys are ready
-        val readyKeys = selector.selector.selectedKeys()
+        val readyKeys = mSelector.selector.selectedKeys()
         for (key in readyKeys) {
             try {
                 if (key.isAcceptable) {
@@ -629,7 +522,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
                         if (sc == null)
                             continue
                         sc.configureBlocking(false)
-                        socket.accepted(this, selector, sc)
+                        socket.accepted(this, mSelector, sc)
                     } catch (e: IOException) {
                         closeQuietly(sc)
                     }
@@ -637,7 +530,6 @@ class AsyncNetworkContext constructor(name: String? = null) {
                 else if (key.isReadable) {
                     val socket = key.attachment() as AsyncNetworkSocket
                     val transmitted = socket.readable()
-                    onDataReceived(transmitted)
                 }
                 else if (key.isWritable) {
                     val socket = key.attachment() as AsyncNetworkSocket
@@ -649,8 +541,7 @@ class AsyncNetworkContext constructor(name: String? = null) {
                     continuation.resume(Unit)
                 }
                 else {
-                    Log.i(LOGTAG, "wtf")
-                    throw RuntimeException("Unknown key state.")
+                    throw AssertionError("Unknown key state")
                 }
             } catch (ex: CancelledKeyException) {
             }
@@ -660,12 +551,24 @@ class AsyncNetworkContext constructor(name: String? = null) {
         readyKeys.clear()
     }
 
+    private fun shutdownKeys() {
+        try {
+            for (key in mSelector.keys()) {
+                closeQuietly(key.channel())
+                try {
+                    key.cancel()
+                } catch (e: Exception) {
+                }
+
+            }
+        } catch (ex: Exception) {
+        }
+    }
 
     companion object {
         val LOGTAG = "NIO"
 
-        var default = AsyncNetworkContext()
-            internal set
+        val default = AsyncEventLoop()
 
         private val synchronousWorkers = newSynchronousWorkers("AsyncServer-worker-")
         private fun wakeup(selector: SelectorWrapper?) {
@@ -694,100 +597,72 @@ class AsyncNetworkContext constructor(name: String? = null) {
 
         private val synchronousResolverWorkers = newSynchronousWorkers("AsyncServer-resolver-")
 
-        private val threadServer = ThreadLocal<AsyncNetworkContext>()
-
-        val currentThreadServer: AsyncNetworkContext?
-            get() = threadServer.get()
-
-        private fun run(server: AsyncNetworkContext, selector: SelectorWrapper, queue: PriorityQueue<Scheduled>) {
-            // at this point, this local queue and selector are owned
-            // by this thread.
-            // if a stop is called, the instance queue and selector
-            // will be replaced and nulled respectively.
-            // this will allow the old queue and selector to shut down
-            // gracefully, while also allowing a new selector thread
-            // to start up while the old one is still shutting down.
-            while (true) {
-                try {
-                    server.runLoop(selector, queue)
-                } catch (e: AsyncSelectorException) {
-                    if (e.cause !is ClosedSelectorException)
-                        Log.i(LOGTAG, "Selector exception, shutting down", e)
-                    closeQuietly(selector)
-                }
-
-                // see if we keep looping, this must be in a synchronized block since the queue is accessed.
-                val exit = synchronized(server) {
-                    if (!selector.isOpen || (selector.keys().size  == 0 && queue.size == 0)) {
-                        shutdownEverything(selector)
-                        if (server.mSelector === selector) {
-                            server.mQueue = PriorityQueue(1, Scheduler.INSTANCE)
-                            server.mSelector = null
-                            server.affinity = null
-                        }
-
-                        return@synchronized true
-                    }
-                    false
-                }
-
-                if (exit)
-                    return
-            }
-        }
-
-        private fun shutdownKeys(selector: SelectorWrapper?) {
-            try {
-                for (key in selector!!.keys()) {
-                    closeQuietly(key.channel())
-                    try {
-                        key.cancel()
-                    } catch (e: Exception) {
-                    }
-
-                }
-            } catch (ex: Exception) {
-            }
-
-        }
-
-        private fun shutdownEverything(selector: SelectorWrapper?) {
-            shutdownKeys(selector)
-            // SHUT. DOWN. EVERYTHING.
-            closeQuietly(selector)
-        }
-
         private val QUEUE_EMPTY = java.lang.Long.MAX_VALUE
-        private fun lockAndRunQueue(server: AsyncNetworkContext, queue: PriorityQueue<Scheduled>): Long {
-            var wait = QUEUE_EMPTY
+    }
+}
 
-            // find the first item we can actually run
-            while (true) {
-                var run: Scheduled? = null
 
-                synchronized(server) {
-                    val now = milliTime()
+internal class Scheduled(var server: AsyncEventLoop, var runnable: AsyncServerRunnable, var time: Long) : Cancellable, Runnable {
+    private var cancelled: Boolean = false
 
-                    if (queue.size > 0) {
-                        val s = queue.remove()
-                        if (s.time <= now) {
-                            run = s
-                        }
-                        else {
-                            wait = s.time - now
-                            queue.add(s)
-                        }
-                    }
-                }
+    override fun run() {
+        this.runnable()
+    }
 
-                if (run == null)
-                    break
-
-                run!!.run()
+    override val isDone: Boolean
+        get() {
+            return synchronized(server) {
+                !cancelled && !server.mQueue.contains(this)
             }
-
-            server.postCounter = 0
-            return wait
         }
+
+    override val isCancelled: Boolean
+        get() {
+            return cancelled
+        }
+
+    override fun cancel(): Boolean {
+        return synchronized(server) {
+            cancelled = server.mQueue.remove(this)
+            cancelled
+        }
+    }
+}
+
+internal class Scheduler private constructor() : Comparator<Scheduled> {
+    override fun compare(s1: Scheduled, s2: Scheduled): Int {
+        // keep the smaller ones at the head, so they get tossed out quicker
+        if (s1.time == s2.time)
+            return 0
+        return if (s1.time > s2.time) 1 else -1
+    }
+
+    companion object {
+        var INSTANCE = Scheduler()
+    }
+}
+
+private class AsyncSelectorException(e: Exception) : IOException(e)
+
+private class NamedThreadFactory internal constructor(private val namePrefix: String) : ThreadFactory {
+    private val group: ThreadGroup
+    private val threadNumber = AtomicInteger(1)
+
+    init {
+        val s = System.getSecurityManager()
+        group = if (s != null)
+            s.threadGroup
+        else
+            Thread.currentThread().threadGroup
+    }
+
+    override fun newThread(r: Runnable): Thread {
+        val t = Thread(group, r,
+            namePrefix + threadNumber.getAndIncrement(), 0)
+        if (t.isDaemon) t.isDaemon = false
+        if (t.priority != Thread.NORM_PRIORITY) {
+            t.priority = Thread.NORM_PRIORITY
+        }
+        return t
     }
 }

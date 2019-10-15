@@ -1,4 +1,4 @@
-package com.koushikdutta.scratch.net;
+package com.koushikdutta.scratch.event;
 
 import java.io.Closeable
 import java.nio.channels.SelectionKey

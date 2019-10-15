@@ -6,7 +6,7 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.external.OkHostnameVerifier
-import com.koushikdutta.scratch.net.AsyncNetworkContext
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import java.security.cert.X509Certificate
 import javax.net.ssl.*
 
@@ -229,7 +229,7 @@ suspend fun tlsHandshake(socket: AsyncSocket, engine: SSLEngine, options: AsyncT
     return tlsSocket
 }
 
-suspend fun AsyncNetworkContext.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
+suspend fun AsyncEventLoop.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
     return connect(host, port).connectTls(host, port, context, options)
 }
 

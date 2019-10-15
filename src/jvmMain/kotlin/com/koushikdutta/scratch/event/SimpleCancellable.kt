@@ -1,4 +1,4 @@
-package com.koushikdutta.scratch.net
+package com.koushikdutta.scratch.event
 
 open class SimpleCancellable : Cancellable {
     internal var complete: Boolean = false
