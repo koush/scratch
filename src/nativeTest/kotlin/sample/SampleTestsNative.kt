@@ -35,7 +35,7 @@ class SampleTestsNative {
                 println("socket failed: $exception")
             }
             println("async done")
-            // loop.stop()
+            loop.stop()
         }
 
         loop.run()

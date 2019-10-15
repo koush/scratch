@@ -4,7 +4,30 @@ import com.koushikdutta.scratch.uv.uv_close
 import com.koushikdutta.scratch.uv.uv_handle_t
 import kotlinx.cinterop.*
 
-internal class AllocedPtr<T: CStructVar>() {
+internal open class Alloced<T : CStructVar>(var value: T? = null, private val destructor: T.() -> Unit = {}) {
+    val struct: T
+        get() = value!!
+    val ptr: CPointer<T>
+        get() = struct.ptr
+
+    fun free() {
+        if (value == null)
+            return
+        val v = value!!
+        value = null
+        try {
+            destructor(v)
+        } finally {
+            freePointer(v)
+        }
+    }
+
+    open fun freePointer(value: T) {
+        nativeHeap.free(value.ptr)
+    }
+}
+
+internal class AllocedArray<T: CStructVar>() {
     var array: CArrayPointer<T>? = null
 
     var length: Int = 0
@@ -18,7 +41,7 @@ internal class AllocedPtr<T: CStructVar>() {
         nativeHeap.free(a)
     }
 
-    inline fun <reified T2: T> ensure(length: Int): AllocedPtr<T> {
+    inline fun <reified T2: T> ensure(length: Int): AllocedArray<T> {
         if (this.length >= length)
             return this
         free()

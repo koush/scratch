@@ -26,18 +26,32 @@ open class AsyncResultHolder<T> {
         if (exception != null)
             throw exception!!
     }
-    suspend fun rethrowSuspend() {
-        if (exception == null)
-            return
-        return suspendCoroutine {
-            it.resumeWithException(exception!!)
-        }
-    }
 }
 
-class AsyncResult<T>(private val finalizer: () -> Unit = {}) : AsyncResultHolder<T>() {
+class AsyncResult<T> : AsyncResultHolder<T>() {
+    // uncaught async results will rethrow to prevent error gobbling
+    private var catcher: (throwable: Throwable) -> Unit = {
+        throw it
+    }
+    private var finalizer: () -> Unit = {}
+    fun catch(catcher: (throwable: Throwable) -> Unit): AsyncResult<T> {
+        this.catcher = catcher
+        return this
+    }
+
+    fun finally(finalizer: () -> Unit): AsyncResult<T> {
+        this.finalizer = finalizer
+        return this
+    }
+
     override fun onComplete() {
-        finalizer()
+        try {
+            if (exception != null)
+                catcher(exception!!)
+        }
+        finally {
+            finalizer()
+        }
     }
 }
 
