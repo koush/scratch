@@ -25,7 +25,7 @@ class AsyncIteratorScope<T>(private val yielder: Cooperator) {
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val yielder = Cooperator()
     var done = false
-    val result = AsyncResultHolder<Unit> {
+    val result = AsyncResult<Unit> {
         done = true
         yielder.resume()
     }

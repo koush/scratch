@@ -5,122 +5,23 @@ import com.koushikdutta.scratch.NonBlockingWritePipe
 import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
-import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.synchronized
 import com.koushikdutta.scratch.uv.*
 import kotlinx.cinterop.*
 import platform.posix.sockaddr_in
 import kotlin.coroutines.Continuation
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlin.system.getTimeMillis
+
+actual fun milliTime(): Long {
+    return getTimeMillis()
+}
 
 fun EventLoopClosedException(): Exception {
     return Exception("Event Loop Closed")
 }
 
-private fun asyncCallback(asyncHandle: CPointer<uv_async_t>?) {
-    val loop = asyncHandle!!.pointed.data!!.asStableRef<AsyncEventLoop>().get()
-    loop.onIdle()
-}
-
-private val asyncCallbackPtr = staticCFunction(::asyncCallback)
-
-private fun timerCallback(timerHandle: CPointer<uv_timer_t>?) {
-    val loop = timerHandle!!.pointed.data!!.asStableRef<AsyncEventLoop>().get()
-    loop.onIdle()
-    loop.stop()
-}
-
-private val timerCallbackPtr = staticCFunction(::timerCallback)
-
-private fun connectCallback(connect: CPointer<uv_connect_t>?, status: Int) {
-    val socket = AllocedHandle(connect!!.pointed.handle!!.reinterpret<uv_tcp_t>().pointed)
-    nativeHeap.free(connect.rawValue)
-
-    val cdata = socket.freeData<ContinuationData<AsyncSocket, AsyncEventLoop>>()!!
-
-    if (status != 0) {
-        cdata.data.handles.remove(socket.ptr)
-        socket.free()
-        cdata.resume.resumeWithException(Exception("connect error: $status"))
-        return
-    }
-
-    val uvSocket = UvSocket(socket.struct.reinterpret())
-    cdata.data.handles[socket.ptr] = { uvSocket.closeInternal() }
-    cdata.resume.resume(uvSocket)
-}
-
-private val connectCallbackPtr = staticCFunction(::connectCallback)
-
-fun closeCallback(handle: CPointer<uv_handle_t>?) {
-    nativeHeap.free(handle!!.pointed)
-}
-
-val closeCallbackPtr = staticCFunction(::closeCallback)
-
-fun readCallback(handle: CPointer<uv_stream_s>?, size: Long, buf: CPointer<uv_buf_t>?) {
-    val socket = handle!!.pointed.data!!.asStableRef<UvSocket>().get()
-    socket.pinned!!.unpin()
-    socket.pinned = null
-    val buffer = socket.pinnedBuffer!!
-    socket.pinnedBuffer = null
-
-    if (size < 0 || socket.nio.hasEnded) {
-        // todo: recycle buffer
-        if (!socket.nio.hasEnded) {
-            if (size.toInt() == UV_EOF)
-                socket.nio.end()
-            else
-                socket.nio.end(Exception("read error: $size"))
-        }
-        return
-    }
-
-    val length = size.toInt()
-    buffer.limit(length)
-    if (!socket.nio.write(buffer))
-        uv_read_stop(socket.socket.ptr)
-}
-
-val readCallbackPtr = staticCFunction(::readCallback)
-
-
-fun writeCallback(ptr: CPointer<uv_write_t>?, status: Int) {
-    // todo: unpin
-    val write = ptr!!.pointed
-    val resume = freeStableRef<Continuation<Unit>>(write.data)!!
-    write.data = null
-
-    if (status != 0) {
-        resume.resumeWithException(Exception("write error: $status"))
-        return
-    }
-
-    resume.resume(Unit)
-}
-
-private val writeCallbackPtr = staticCFunction(::writeCallback)
-
-fun allocBufferCallback(handle: CPointer<uv_handle_t>?, size: ULong, buf: CPointer<uv_buf_t>?) {
-    val socket = handle!!.pointed.data!!.asStableRef<UvSocket>().get()
-    if (socket.pinned != null)
-        throw Exception("pending allocation?")
-
-    val buffer = allocateByteBuffer(size.toInt())
-    val pinned = buffer.array().pin()
-    socket.pinnedBuffer = buffer
-    socket.pinned = pinned
-
-    val pointed = buf!!.pointed
-    pointed.len = buffer.remaining().toULong()
-    pointed.base = pinned.addressOf(0)
-}
-
-val allocBufferPtr = staticCFunction(::allocBufferCallback)
-
-class UvSocket(socket: uv_stream_t) : AsyncSocket {
+class UvSocket(val loop: AsyncEventLoop, socket: uv_stream_t) : AsyncSocket {
     internal val nio = object : NonBlockingWritePipe() {
         override fun writable() {
             uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
@@ -141,7 +42,12 @@ class UvSocket(socket: uv_stream_t) : AsyncSocket {
     internal var pinnedBuffer: ByteBuffer? = null
     internal var pinned: Pinned<ByteArray>? = null
     override suspend fun read(buffer: WritableBuffers): Boolean {
-        return nio.read(buffer)
+        try {
+            return nio.read(buffer)
+        }
+        finally {
+            loop.post()
+        }
     }
 
     internal var writeBuffers: Array<ByteBuffer>? = null
@@ -158,7 +64,7 @@ class UvSocket(socket: uv_stream_t) : AsyncSocket {
             buf.base = pinnedWrites!![i].addressOf(0)
             buf.len = writeBuffers!![i].remaining().toULong()
         }
-        return suspendCoroutine {
+        return loop.safeSuspendCoroutine {
             writeAlloc.struct.data = StableRef.create(it).asCPointer()
             uv_write(writeAlloc.ptr, socket.ptr, bufsAlloc.array, bufsAlloc.length.toUInt(), writeCallbackPtr)
         }
@@ -174,16 +80,45 @@ class UvSocket(socket: uv_stream_t) : AsyncSocket {
     }
 }
 
-class AsyncEventLoop(private val idle: AsyncEventLoop.() -> Unit = {}) {
-    suspend fun connect(address: RemoteSocketAddress) = suspendCoroutine<AsyncSocket> {
+class AsyncEventLoop : AsyncScheduler<AsyncEventLoop>() {
+    override fun wakeup() {
+        if (!running)
+            return
+        uv_async_send(wakeup.ptr)
+    }
+
+    internal suspend inline fun <T> safeSuspendCoroutine(crossinline block: (Continuation<T>) -> Unit): T {
+        try {
+            return suspendCoroutine(block)
+        }
+        finally {
+            // this finally post block ensures that libuv callbacks are posted into the scheduler queue.
+            // this ensures a clean C++/kotlin stack. otherwise, kotlin exceptions being thrown in C code go unhandled.
+            // this is an analogue for the java selector pattern.
+            post()
+        }
+    }
+
+    suspend fun getAllByName(host: String): Array<InetAddress> = safeSuspendCoroutine {
+        val self = this
+        memScoped {
+            val getAddrInfo = AllocedHandle(nativeHeap.alloc<uv_getaddrinfo_t>())
+            getAddrInfo.struct.data = StableRef.create(it).asCPointer()
+            uv_getaddrinfo(loop.ptr, getAddrInfo.ptr, addrInfoCallbackPtr, host, null, null)
+        }
+    }
+
+    suspend fun connect(address: InetSocketAddress) = safeSuspendCoroutine<AsyncSocket> {
         val self = this
         memScoped {
             val addr = alloc<sockaddr_in>()
-            uv_ip4_addr(address.address, address.port, addr.ptr)
+            uv_ip4_addr("127.0.0.1", address.port, addr.ptr)
 
             val socket = AllocedHandle(nativeHeap.alloc<uv_tcp_t>())
             val connect = Alloced(nativeHeap.alloc<uv_connect_t>())
             socket.struct.data = StableRef.create(ContinuationData(it, self)).asCPointer()
+            // todo: Delete this is a test
+            connect.struct.data = socket.struct.data
             handles[socket.ptr] = {}
 
             try {
@@ -204,7 +139,7 @@ class AsyncEventLoop(private val idle: AsyncEventLoop.() -> Unit = {}) {
     }
 
     internal fun onIdle() {
-        idle()
+        uv_stop(loop.ptr)
     }
 
     fun scheduleWakeup(timeout: Long) {
@@ -216,15 +151,17 @@ class AsyncEventLoop(private val idle: AsyncEventLoop.() -> Unit = {}) {
         if (!running)
             return
 
-        uv_timer_stop(timer.ptr)
+        scheduleShutdown {
+            uv_timer_stop(timer.ptr)
 
-        val copy = HashMap(handles)
-        handles.clear()
-        for (handle in copy) {
-            println("destructor1")
-            uv_close(handle.key.reinterpret(), closeCallbackPtr)
-            println("destructor2")
-            handle.value()
+            val copy = HashMap(handles)
+            handles.clear()
+            for (handle in copy) {
+                uv_close(handle.key.reinterpret(), closeCallbackPtr)
+                handle.value()
+            }
+
+            running = false
         }
     }
 
@@ -234,6 +171,8 @@ class AsyncEventLoop(private val idle: AsyncEventLoop.() -> Unit = {}) {
     private var running = false
     private val thisRef = StableRef.create(this).asCPointer()
     internal val handles = mutableMapOf<CPointer<*>, () -> Unit>()
+
+    override val isAffinityThread: Boolean = running
 
     init {
         checkZero(uv_loop_init(loop.ptr), "uv_loop_init failed")
@@ -252,7 +191,13 @@ class AsyncEventLoop(private val idle: AsyncEventLoop.() -> Unit = {}) {
         }
 
         try {
-            uv_run(loop.ptr, UV_RUN_DEFAULT)
+            while (running) {
+                val wait = lockAndRunQueue()
+                if (wait != QUEUE_EMPTY)
+                    scheduleWakeup(wait)
+
+                uv_run(loop.ptr, UV_RUN_DEFAULT)
+            }
         } finally {
             running = false
         }
@@ -265,4 +210,4 @@ private fun checkZero(ret: Int, err: String) {
     throw Exception("$err: $ret")
 }
 
-private data class ContinuationData<C, T>(val resume: Continuation<C>, val data: T)
+internal data class ContinuationData<C, T>(val resume: Continuation<C>, val data: T)

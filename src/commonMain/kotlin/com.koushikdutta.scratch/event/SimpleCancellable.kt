@@ -1,5 +1,7 @@
 package com.koushikdutta.scratch.event
 
+import com.koushikdutta.scratch.*
+
 open class SimpleCancellable : Cancellable {
     internal var complete: Boolean = false
     internal var cancelled: Boolean = false

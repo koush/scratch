@@ -1,4 +1,11 @@
 package com.koushikdutta.scratch.event
 
-class RemoteSocketAddress(override val address: String, port: Int) : SocketAddress(address, port)
-open class SocketAddress(open val address: String?, val port: Int)
+enum class InetAddressFamily {
+    INET4,
+    INET6,
+}
+
+expect open class InetAddress
+expect class Inet4Address: InetAddress
+expect class Inet6Address: InetAddress
+expect class InetSocketAddress

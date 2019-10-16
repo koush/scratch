@@ -3,8 +3,10 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import org.junit.Test
-import java.util.concurrent.TimeoutException
 import kotlin.coroutines.*
+
+private class TimeoutException: Exception()
+private class ExpectedException: Exception()
 
 class LoopTests {
     private fun networkContextTest(failureExpected: Boolean = false, runner: suspend AsyncEventLoop.() -> Unit) {
@@ -19,7 +21,7 @@ class LoopTests {
             }
         }
 
-        networkContext.postDelayed(1000) {
+        networkContext.postDelayed(100000000) {
             result.setComplete(Result.failure(TimeoutException()))
             networkContext.stop()
         }
@@ -27,10 +29,38 @@ class LoopTests {
         try {
             networkContext.run()
             result.rethrow()
+            assert(!failureExpected)
         }
-        catch (exception: Throwable) {
-            if (!failureExpected || exception is TimeoutException)
-                throw exception
+        catch (exception: ExpectedException) {
+            assert(failureExpected)
+        }
+    }
+
+    @Test
+    fun testPostDelayed() {
+        val networkContext = AsyncEventLoop()
+
+        val result = networkContext.async {
+            try {
+                sleep(500)
+                throw Exception()
+            }
+            finally {
+                networkContext.stop()
+            }
+        }
+
+        networkContext.postDelayed(3000) {
+            result.setComplete(Result.failure(Exception()))
+            networkContext.stop()
+        }
+
+        try {
+            networkContext.run()
+            result.rethrow()
+            assert(false)
+        }
+        catch (exception: Exception) {
         }
     }
 
@@ -76,7 +106,7 @@ class LoopTests {
             }
         }
 
-        networkContext.postDelayed(1000) {
+        networkContext.postDelayed(10000000) {
             result.setComplete(Result.failure(TimeoutException()))
             networkContext.stop()
         }
@@ -107,15 +137,27 @@ class LoopTests {
     }
 
     @Test
-    fun testServerCrash()= networkContextTest(true) {
-            val server = listen()
-            server.accept().receive {
-                throw Exception()
-            }
-            val client = connect("127.0.0.1", server.localPort)
-            client.write(ByteBufferList().putUtf8String("hello!"))
-            val reader = AsyncReader(client::read)
-            reader.readUtf8String(1)
-            assert(false)
+    fun testServerCrash() = networkContextTest(true) {
+        val server = listen()
+        server.accept().receive {
+            throw ExpectedException()
+        }
+        val client = connect("127.0.0.1", server.localPort)
+        client.write(ByteBufferList().putUtf8String("hello!"))
+        val reader = AsyncReader(client::read)
+        reader.readUtf8String(1)
+        assert(false)
+    }
+
+    @Test
+    fun testReadException() = networkContextTest(true) {
+        val server = listen()
+        server.accept().receive {
+            write(ByteBufferList().putUtf8String("hello"))
+        }
+        val client = connect("127.0.0.1", server.localPort)
+        val buffer = ByteBufferList()
+        client.read(buffer)
+        throw ExpectedException()
     }
 }

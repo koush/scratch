@@ -9,7 +9,6 @@ import com.koushikdutta.scratch.external.Log
 import java.io.Closeable
 import java.io.IOException
 import java.lang.IllegalStateException
-import java.lang.Long.min
 import java.net.*
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
@@ -18,6 +17,11 @@ import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.*
 
+actual typealias InetAddress = java.net.InetAddress
+actual typealias Inet4Address = java.net.Inet4Address
+actual typealias Inet6Address = java.net.Inet6Address
+actual typealias InetSocketAddress = java.net.InetSocketAddress
+
 private suspend fun Executor.await() {
     suspendCoroutine<Unit> {
         this.execute {
@@ -25,8 +29,6 @@ private suspend fun Executor.await() {
         }
     }
 }
-
-typealias AsyncServerRunnable = () -> Unit
 
 private fun closeQuietly(vararg closeables: Closeable?) {
     for (closeable in closeables) {
@@ -42,9 +44,6 @@ private fun closeQuietly(vararg closeables: Closeable?) {
     }
 }
 
-private fun milliTime(): Long {
-    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
-}
 
 class AsyncNetworkServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket {
     private val key: SelectionKey = channel.register(server.mSelector.selector, SelectionKey.OP_ACCEPT)
@@ -203,15 +202,13 @@ class AsyncNetworkSocket internal constructor(val server: AsyncEventLoop, privat
     }
 }
 
-open class AsyncEventLoop constructor(name: String? = null) {
+open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>() {
     internal val mSelector: SelectorWrapper = SelectorWrapper(SelectorProvider.provider().openSelector())
-    private var postCounter = 0
-    internal val mQueue = PriorityQueue(1, Scheduler.INSTANCE)
 
     var affinity: Thread? = null
         internal set
 
-    val isAffinityThread: Boolean
+    override val isAffinityThread: Boolean
         get() = affinity === Thread.currentThread()
 
     val isAffinityThreadOrStopped: Boolean
@@ -220,47 +217,7 @@ open class AsyncEventLoop constructor(name: String? = null) {
             return affinity == null || affinity === Thread.currentThread()
         }
 
-    fun postDelayed(delay: Long, runnable: AsyncServerRunnable): Cancellable {
-        return synchronized(this) {
-            // Calculate when to run this queue item:
-            // If there is a delay (non-zero), add it to the current time
-            // When delay is zero, ensure that this follows all other
-            // zero-delay queue items. This is done by setting the
-            // "time" to the queue size. This will make sure it is before
-            // all time-delayed queue items (for all real world scenarios)
-            // as it will always be less than the current time and also remain
-            // behind all other immediately run queue items.
-            val time: Long
-            if (delay > 0)
-                time = milliTime() + delay
-            else if (delay == 0L)
-                time = postCounter++.toLong()
-            else if (mQueue.size > 0)
-                time = min(0, mQueue.peek().time - 1)
-            else
-                time = 0
-            val s = Scheduled(this, runnable, time)
-            mQueue.add(s)
-            if (!isAffinityThread) {
-                wakeup(mSelector)
-            }
-            s
-        }
-    }
 
-    fun postImmediate(runnable: AsyncServerRunnable): Cancellable? {
-        if (Thread.currentThread() === affinity) {
-            runnable()
-            return null
-        }
-        return postDelayed(-1, runnable)
-    }
-
-    fun post(runnable: AsyncServerRunnable): Cancellable {
-        return postDelayed(0, runnable)
-    }
-
-    @JvmOverloads
     fun stop(wait: Boolean = true) {
         //        Log.i(LOGTAG, "****AsyncServer is shutting down.****");
         var semaphore: Semaphore? = null
@@ -270,11 +227,10 @@ open class AsyncEventLoop constructor(name: String? = null) {
             semaphore = Semaphore(0)
 
             // post a shutdown and wait
-            mQueue.add(Scheduled(this, {
-                mQueue.clear()
+            scheduleShutdown {
                 shutdownKeys()
                 semaphore!!.release()
-            }, 0))
+            }
             mSelector.wakeupOnce()
 
             // force any existing connections to die
@@ -285,7 +241,6 @@ open class AsyncEventLoop constructor(name: String? = null) {
                 semaphore!!.acquire()
         } catch (e: Exception) {
         }
-
     }
 
     suspend fun listen(): AsyncNetworkServerSocket {
@@ -349,39 +304,6 @@ open class AsyncEventLoop constructor(name: String? = null) {
         }
     }
 
-
-    fun <T> async(block: suspend AsyncEventLoop.() -> T): AsyncResult<T> {
-        val ret = AsyncResult<T>()
-        postImmediate {
-            block.startCoroutine(this, Continuation(EmptyCoroutineContext) { result ->
-                ret.setComplete(result)
-            })
-        }
-        return ret
-    }
-
-    suspend fun sleep(milliseconds: Long) {
-        suspendCoroutine<Unit> {
-            postDelayed(milliseconds) {
-                it.resume(Unit)
-            }
-        }
-    }
-
-    private suspend fun post() {
-        suspendCoroutine<Unit> {
-            post {
-                it.resume(Unit)
-            }
-        }
-    }
-
-    suspend fun await() {
-        if (isAffinityThread)
-            return
-        post()
-    }
-
     suspend fun getAllByName(host: String): Array<InetAddress> {
         synchronousResolverWorkers.await()
         val result = InetAddress.getAllByName(host)
@@ -404,67 +326,31 @@ open class AsyncEventLoop constructor(name: String? = null) {
                 throw IllegalStateException("AsyncNetworkContext is already running.")
         }
 
-        try {
-            // at this point, this local queue and selector are owned
-            // by this thread.
-            // if a stop is called, the instance queue and selector
-            // will be replaced and nulled respectively.
-            // this will allow the old queue and selector to shut down
-            // gracefully, while also allowing a new selector thread
-            // to start up while the old one is still shutting down.
-            while (true) {
-                try {
-                    runLoop()
-                } catch (e: AsyncSelectorException) {
-                }
-
-                // see if we keep looping, this must be in a synchronized block since the queue is accessed.
-                val exit = synchronized(this) {
-                    if (!mSelector.isOpen || (mSelector.keys().isEmpty() && mQueue.size == 0)) {
-                        shutdownKeys()
-                        return@synchronized true
-                    }
-                    false
-                }
-
-                if (exit)
-                    return
-            }
-        } catch (e: AsyncSelectorException) {
-            Log.i(LOGTAG, "Selector closed", e)
-        }
-    }
-
-    private fun lockAndRunQueue(): Long {
-        var wait = QUEUE_EMPTY
-
-        // find the first item we can actually run
+        // at this point, this local queue and selector are owned
+        // by this thread.
+        // if a stop is called, the instance queue and selector
+        // will be replaced and nulled respectively.
+        // this will allow the old queue and selector to shut down
+        // gracefully, while also allowing a new selector thread
+        // to start up while the old one is still shutting down.
         while (true) {
-            var run: Scheduled? = null
-
-            synchronized(this) {
-                val now = milliTime()
-
-                if (mQueue.size > 0) {
-                    val s = mQueue.remove()
-                    if (s.time <= now) {
-                        run = s
-                    }
-                    else {
-                        wait = s.time - now
-                        mQueue.add(s)
-                    }
-                }
+            try {
+                runLoop()
+            } catch (e: AsyncSelectorException) {
             }
 
-            if (run == null)
-                break
+            // see if we keep looping, this must be in a synchronized block since the queue is accessed.
+            val exit = synchronized(this) {
+                if (!mSelector.isOpen || (mSelector.keys().isEmpty() && isQueueEmpty)) {
+                    shutdownKeys()
+                    return@synchronized true
+                }
+                false
+            }
 
-            run!!.run()
+            if (exit)
+                return
         }
-
-        postCounter = 0
-        return wait
     }
 
     private fun runLoop() {
@@ -565,21 +451,25 @@ open class AsyncEventLoop constructor(name: String? = null) {
         }
     }
 
+    override fun wakeup() {
+        if (isAffinityThread)
+            return
+        synchronousWorkers.execute {
+            try {
+                mSelector.wakeupOnce()
+            } catch (e: Exception) {
+                Log.i(LOGTAG, "Selector Exception? L Preview?")
+            }
+        }
+    }
+
     companion object {
         val LOGTAG = "NIO"
 
         val default = AsyncEventLoop()
 
         private val synchronousWorkers = newSynchronousWorkers("AsyncServer-worker-")
-        private fun wakeup(selector: SelectorWrapper?) {
-            synchronousWorkers.execute {
-                try {
-                    selector!!.wakeupOnce()
-                } catch (e: Exception) {
-                    Log.i(LOGTAG, "Selector Exception? L Preview?")
-                }
-            }
-        }
+
 
         private fun newSynchronousWorkers(prefix: String): ExecutorService {
             val tf = NamedThreadFactory(prefix)
@@ -596,51 +486,9 @@ open class AsyncEventLoop constructor(name: String? = null) {
         }
 
         private val synchronousResolverWorkers = newSynchronousWorkers("AsyncServer-resolver-")
-
-        private val QUEUE_EMPTY = java.lang.Long.MAX_VALUE
     }
 }
 
-
-internal class Scheduled(var server: AsyncEventLoop, var runnable: AsyncServerRunnable, var time: Long) : Cancellable, Runnable {
-    private var cancelled: Boolean = false
-
-    override fun run() {
-        this.runnable()
-    }
-
-    override val isDone: Boolean
-        get() {
-            return synchronized(server) {
-                !cancelled && !server.mQueue.contains(this)
-            }
-        }
-
-    override val isCancelled: Boolean
-        get() {
-            return cancelled
-        }
-
-    override fun cancel(): Boolean {
-        return synchronized(server) {
-            cancelled = server.mQueue.remove(this)
-            cancelled
-        }
-    }
-}
-
-internal class Scheduler private constructor() : Comparator<Scheduled> {
-    override fun compare(s1: Scheduled, s2: Scheduled): Int {
-        // keep the smaller ones at the head, so they get tossed out quicker
-        if (s1.time == s2.time)
-            return 0
-        return if (s1.time > s2.time) 1 else -1
-    }
-
-    companion object {
-        var INSTANCE = Scheduler()
-    }
-}
 
 private class AsyncSelectorException(e: Exception) : IOException(e)
 
