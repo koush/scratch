@@ -217,7 +217,6 @@ class HttpTests {
         assertEquals(sent, received)
         assertEquals(sent, 100000000)
 
-        println(clientMd5.joinToString { it.toString(16) })
         assertEquals(clientMd5.joinToString { it.toString(16) }, serverMd5.joinToString { it.toString(16) })
     }
 

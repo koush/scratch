@@ -5,7 +5,8 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.parser.Multipart
 import com.koushikdutta.scratch.parser.Part
 import com.koushikdutta.scratch.parser.readAllString
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class MultipartTests {
     @Test
@@ -39,12 +40,12 @@ class MultipartTests {
             val multipart = Multipart.parseMultipart("123", reader)
             for (part in multipart) {
                 val found = readAllString(part.body)
-                assert(expectedStrings.removeAt(0) == found)
+                assertEquals(expectedStrings.removeAt(0), found)
                 partsFound++
             }
         }
 
-        assert(partsFound == 3)
+        assertEquals(partsFound, 3)
     }
 
     @Test
@@ -63,6 +64,6 @@ class MultipartTests {
             }
         }
 
-        assert(combined == "HelloWorld")
+        assertEquals(combined, "HelloWorld")
     }
 }
