@@ -82,29 +82,19 @@ fun <T> createAsyncIterable(iterable: Iterable<T>): AsyncIterable<T> {
     }
 }
 
-typealias AsyncIterableExceptionCallback<T> = (value: T, exception: Throwable) -> Unit
-fun <T> AsyncIterable<T>.receive(exceptionCallback: AsyncIterableExceptionCallback<T> = {f,j->},
-                                 receiver: suspend T.() -> Unit) = async {
-    for (received in this) {
-        async {
-            receiver(received)
-            try {
-            }
-            catch (throwable: Throwable) {
-                try {
-                    exceptionCallback(received, throwable)
-                }
-                catch (throwable: Throwable) {
-                    throw Error("Failure during AsyncIterableExceptionCallback", throwable)
-                }
-            }
+fun <T> createAsyncIterable(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterable<T> {
+    return object : AsyncIterable<T> {
+        override fun iterator(): AsyncIterator<T> {
+            return asyncIterator(block)
         }
     }
 }
 
-fun <T> AsyncIterable<T>.receive2(receiver: T.() -> Unit) = async {
+fun <T> AsyncIterable<T>.receive(receiver: suspend T.() -> Unit) = async {
     for (received in this) {
-        receiver(received)
+        async {
+            receiver(received)
+        }
     }
 }
 
@@ -115,18 +105,23 @@ fun <T> AsyncIterable<T>.receive2(receiver: T.() -> Unit) = async {
 open class AsyncDequeueIterator<T> : AsyncIterable<T> {
     private val yielder = Cooperator()
     private val deque = mutableListOf<T>()
+    private var exception: Throwable? = null
 
     protected open fun popped(value: T) {
     }
 
     private val iter = asyncIterator<T> {
-        while (!done) {
+        while (deque.isNotEmpty() || !hasEnded) {
             if (deque.isEmpty())
                 yielder.yield()
+            if (deque.isEmpty())
+                break
             val value = deque.removeAt(0)
             yield(value)
             popped(value)
         }
+        if (exception != null)
+            throw exception!!
     }
 
     override operator fun iterator(): AsyncIterator<T> {
@@ -136,12 +131,21 @@ open class AsyncDequeueIterator<T> : AsyncIterable<T> {
     val size: Int
         get() = deque.size
 
-    private var done = false
-    fun end() {
-        if (done)
+    private fun endInternal() {
+        if (hasEnded)
             throw IllegalStateException("done already called")
-        done = true
+        hasEnded = true
+    }
+
+    var hasEnded = false
+        private set
+    fun end() {
+        endInternal()
         yielder.resume()
+    }
+    fun end(exception: Throwable) {
+        endInternal()
+        this.exception = exception
     }
 
     open fun add(value: T) {

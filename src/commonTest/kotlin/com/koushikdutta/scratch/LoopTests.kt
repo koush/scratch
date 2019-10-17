@@ -2,8 +2,11 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import org.junit.Test
-import kotlin.coroutines.*
+import com.koushikdutta.scratch.event.connect
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 private class TimeoutException: Exception()
 private class ExpectedException: Exception()
@@ -29,10 +32,10 @@ class LoopTests {
         try {
             networkContext.run()
             result.rethrow()
-            assert(!failureExpected)
+            assertTrue(!failureExpected)
         }
         catch (exception: ExpectedException) {
-            assert(failureExpected)
+            assertTrue(failureExpected)
         }
     }
 
@@ -58,7 +61,7 @@ class LoopTests {
         try {
             networkContext.run()
             result.rethrow()
-            assert(false)
+            fail("exception expected")
         }
         catch (exception: Exception) {
         }
@@ -86,7 +89,7 @@ class LoopTests {
         try {
             networkContext.run()
             result.rethrow()
-            assert(false)
+            fail("exception expected")
         }
         catch (exception: Exception) {
         }
@@ -112,13 +115,8 @@ class LoopTests {
         }
 
         networkContext.run()
-        try {
-            result.rethrow()
-            assert(result.value == 42)
-        }
-        catch (exception: Exception) {
-            assert(false)
-        }
+        result.rethrow()
+        assertEquals(result.value, 42)
     }
 
     @Test
@@ -132,8 +130,8 @@ class LoopTests {
         }
         val client = connect("127.0.0.1", server.localPort)
         client.write(ByteBufferList().putUtf8String("hello!"))
-        val reader = AsyncReader(client::read)
-        assert(reader.readUtf8String(6) == "hello!")
+        val reader = AsyncReader({client.read(it)})
+        assertEquals(reader.readUtf8String(6), "hello!")
     }
 
     @Test
@@ -144,9 +142,9 @@ class LoopTests {
         }
         val client = connect("127.0.0.1", server.localPort)
         client.write(ByteBufferList().putUtf8String("hello!"))
-        val reader = AsyncReader(client::read)
+        val reader = AsyncReader({client.read(it)})
         reader.readUtf8String(1)
-        assert(false)
+        fail("exception expected")
     }
 
     @Test

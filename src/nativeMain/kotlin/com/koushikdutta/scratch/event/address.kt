@@ -1,23 +1,40 @@
 package com.koushikdutta.scratch.event
 
-actual open class InetAddress(internal val bytes: ByteArray)
+import com.koushikdutta.scratch.uv.uv_ip4_name
+import com.koushikdutta.scratch.uv.uv_ip6_name
+import kotlinx.cinterop.*
+import platform.posix.sockaddr
+import platform.posix.sockaddr_in
 
-actual class Inet4Address internal constructor(bytes: ByteArray): InetAddress(bytes)
-actual class Inet6Address internal constructor(bytes: ByteArray): InetAddress(bytes)
-
-actual class InetSocketAddress {
-    val address: InetAddress?
-    val hostName: String?
-    val port: Int
-
-    constructor(hostName: String, port: Int) {
-        this.hostName = hostName
-        this.address = null
-        this.port = port
+actual open class InetAddress internal constructor(internal val sockaddr: CValue<sockaddr>) {
+    protected open fun getName(pinnedSockaddr: CPointer<sockaddr>, pinnedString: Pinned<ByteArray>, length: ULong) {
     }
-    constructor(address: InetAddress, port: Int) {
-        this.address = address
-        this.hostName = null
-        this.port = port
+
+    override fun toString(): String {
+        val length = 64
+        val addressString = ByteArray(length)
+        memScoped {
+            addressString.usePinned { pinnedString ->
+                getName(sockaddr.ptr, pinnedString, length.toULong())
+            }
+        }
+
+        return addressString.stringFromUtf8()
     }
+}
+actual class Inet4Address internal constructor(sockaddr: CValue<sockaddr>) : InetAddress(sockaddr) {
+    override fun getName(pinnedSockaddr: CPointer<sockaddr>, pinnedString: Pinned<ByteArray>, length: ULong) {
+        uv_ip4_name(pinnedSockaddr.reinterpret(), pinnedString.addressOf(0), length)
+    }
+}
+
+actual class Inet6Address internal constructor(sockaddr: CValue<sockaddr>) : InetAddress(sockaddr) {
+    override fun getName(pinnedSockaddr: CPointer<sockaddr>, pinnedString: Pinned<ByteArray>, length: ULong) {
+        uv_ip6_name(pinnedSockaddr.reinterpret(), pinnedString.addressOf(0), length)
+    }
+}
+
+actual class InetSocketAddress actual constructor(addr: InetAddress, port: Int) {
+    val address: InetAddress = addr
+    val port: Int = port
 }

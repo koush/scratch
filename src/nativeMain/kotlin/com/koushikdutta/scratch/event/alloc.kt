@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.event
 import com.koushikdutta.scratch.uv.uv_close
 import com.koushikdutta.scratch.uv.uv_handle_t
 import kotlinx.cinterop.*
+import platform.posix.sockaddr_in
 
 internal open class Alloced<T : CStructVar>(var value: T? = null, private val destructor: T.() -> Unit = {}) {
     val struct: T
@@ -60,18 +61,32 @@ internal fun <R> freeStableRef(data: COpaquePointer?): R? {
     return ret as R
 }
 
-internal class AllocedHandle<T: CStructVar>(value: T? = null, destructor: T.() -> Unit = {}): Alloced<T>(value, destructor) {
-    private fun <R> freeData(value: T): R? {
-        val handle: uv_handle_t = value.reinterpret()
-        val data = handle.data
-        handle.data = null
-        return freeStableRef(data)
-    }
+internal class AllocedHandle<T: CStructVar>(val loop: AsyncEventLoop, value: T? = null, destructor: T.() -> Unit = {}): Alloced<T>(value, destructor) {
     fun <R> freeData(): R? {
-        return freeData(struct)
+        return freeUvHandleData(struct)
     }
     override fun freePointer(value: T) {
-        freeData<Any>(value)
+        freeUvHandleData<Any>(value)
+        loop.handles.remove(value.ptr)
         uv_close(value.ptr.reinterpret(), closeCallbackPtr)
     }
+}
+
+internal fun <R> freeUvHandleData(self: CStructVar): R? {
+    val handle: uv_handle_t = self.reinterpret()
+    val data = handle.data
+    if (data == null)
+        return null
+    handle.data = null
+    return freeStableRef(data)
+}
+
+inline fun <reified T: CVariable> MemScope.allocPtr(): CPointer<T> {
+    return alloc<T>().ptr
+}
+
+inline fun <reified T: CVariable> MemScope.allocUsePtr(block: (CPointer<T>) -> Unit): CPointer<T> {
+    val ret = allocPtr<T>()
+    block(ret)
+    return ret
 }

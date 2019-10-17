@@ -8,6 +8,7 @@ import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.add
 import com.koushikdutta.scratch.collections.pop
 import com.koushikdutta.scratch.collections.removeValue
+import com.koushikdutta.scratch.event.connect
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers

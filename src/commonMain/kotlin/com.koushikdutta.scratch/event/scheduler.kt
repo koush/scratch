@@ -5,8 +5,6 @@ import kotlin.coroutines.*
 import kotlin.math.min
 import com.koushikdutta.scratch.*
 
-internal expect fun milliTime(): Long
-
 typealias AsyncServerRunnable = () -> Unit
 
 private typealias PriorityQueue = ArrayList<AsyncScheduler.Scheduled>

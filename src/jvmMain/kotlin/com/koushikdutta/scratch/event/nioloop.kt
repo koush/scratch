@@ -8,8 +8,9 @@ import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.external.Log
 import java.io.Closeable
 import java.io.IOException
+import java.lang.IllegalArgumentException
 import java.lang.IllegalStateException
-import java.net.*
+import java.net.NetworkInterface
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
 import java.util.*
@@ -21,6 +22,8 @@ actual typealias InetAddress = java.net.InetAddress
 actual typealias Inet4Address = java.net.Inet4Address
 actual typealias Inet6Address = java.net.Inet6Address
 actual typealias InetSocketAddress = java.net.InetSocketAddress
+
+internal actual fun milliTime(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
 
 private suspend fun Executor.await() {
     suspendCoroutine<Unit> {
@@ -44,8 +47,8 @@ private fun closeQuietly(vararg closeables: Closeable?) {
     }
 }
 
-
-class AsyncNetworkServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket {
+actual typealias AsyncNetworkServerSocket = NIOServerSocket
+class NIOServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket {
     private val key: SelectionKey = channel.register(server.mSelector.selector, SelectionKey.OP_ACCEPT)
 
     init {
@@ -72,7 +75,7 @@ class AsyncNetworkServerSocket internal constructor(val server: AsyncEventLoop, 
 
     val backlog: Int = 65535
     private var isAccepting = true
-    private val queue = object : AsyncDequeueIterator<AsyncNetworkSocket>() {
+    private val queue = object : AsyncDequeueIterator<NIOSocket>() {
         override fun popped(value: AsyncNetworkSocket) {
             if (!isAccepting && size < backlog) {
                 isAccepting = true
@@ -95,13 +98,15 @@ class AsyncNetworkServerSocket internal constructor(val server: AsyncEventLoop, 
     }
 
     internal fun accepted(server: AsyncEventLoop, selector: SelectorWrapper, channel: SocketChannel) {
-        queue.add(AsyncNetworkSocket(server, channel, channel.register(selector.selector, SelectionKey.OP_READ)))
+        queue.add(NIOSocket(server, channel, channel.register(selector.selector, SelectionKey.OP_READ)))
     }
 }
 
-class AsyncNetworkSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
+actual typealias AsyncNetworkSocket = NIOSocket
+
+class NIOSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
     val localPort = channel.socket().localPort
-    val remoteAddress: java.net.SocketAddress? = channel.socket().remoteSocketAddress
+    val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress
     private val inputBuffer = ByteBufferList()
     private var closed = false
     private val allocator = Allocator()
@@ -202,7 +207,9 @@ class AsyncNetworkSocket internal constructor(val server: AsyncEventLoop, privat
     }
 }
 
-open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>() {
+actual typealias AsyncEventLoop = NIOEventLoop
+
+open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
     internal val mSelector: SelectorWrapper = SelectorWrapper(SelectorProvider.provider().openSelector())
 
     var affinity: Thread? = null
@@ -218,7 +225,11 @@ open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>(
         }
 
 
-    fun stop(wait: Boolean = true) {
+    fun stop() {
+        stop(false)
+    }
+
+    fun stop(wait: Boolean) {
         //        Log.i(LOGTAG, "****AsyncServer is shutting down.****");
         var semaphore: Semaphore? = null
         var isAffinityThread = false
@@ -243,30 +254,18 @@ open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>(
         }
     }
 
-    suspend fun listen(): AsyncNetworkServerSocket {
-        return listen(null, 0)
-    }
-
-    suspend fun listen(port: Int): AsyncNetworkServerSocket {
-        return listen(null, port)
-    }
-
-    suspend fun listen(host: InetAddress): AsyncNetworkServerSocket {
-        return listen(host, 0)
-    }
-
-    suspend fun listen(host: InetAddress?, port: Int): AsyncNetworkServerSocket {
+    suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncNetworkServerSocket {
         await()
         var closeableServer: ServerSocketChannel? = null
         try {
             closeableServer = ServerSocketChannel.open()
             val server = closeableServer
             server.configureBlocking(false)
-            val isa = if (host == null)
+            val isa = if (address == null)
                 InetSocketAddress(port)
             else
-                InetSocketAddress(host, port)
-            server!!.socket().bind(isa)
+                InetSocketAddress(address, port)
+            server!!.socket().bind(isa, backlog)
 
             return AsyncNetworkServerSocket(this, server.socket().localPort, closeableServer!!)
         } catch (e: IOException) {
@@ -275,11 +274,7 @@ open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>(
         }
     }
 
-    suspend fun connect(host: String, port: Int): AsyncNetworkSocket {
-        return connect(InetSocketAddress(getByName(host), port))
-    }
-
-    suspend fun connect(address: InetSocketAddress): AsyncNetworkSocket {
+    suspend fun connect(socketAddress: InetSocketAddress): AsyncNetworkSocket {
         var ckey: SelectionKey? = null
         var socket: SocketChannel? = null
         try {
@@ -289,7 +284,7 @@ open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>(
             ckey = socket.register(mSelector.selector, SelectionKey.OP_CONNECT)
             suspendCoroutine<Unit> {
                 ckey.attach(it)
-                socket.connect(address)
+                socket.connect(socketAddress)
             }
 
             if (!socket.finishConnect())
@@ -312,10 +307,6 @@ open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>(
             throw IOException("no addresses for host")
         await()
         return result
-    }
-
-    suspend fun getByName(host: String): InetAddress {
-        return getAllByName(host)[0]
     }
 
     fun run() {
@@ -470,6 +461,26 @@ open class AsyncEventLoop(name: String? = null): AsyncScheduler<AsyncEventLoop>(
 
         private val synchronousWorkers = newSynchronousWorkers("AsyncServer-worker-")
 
+        fun parseInet4Address(address: String): Inet4Address {
+            // necessary to prevent dns lookup
+            require(Character.digit(address[0], 16) != -1) { "not an Inet4Address" }
+            return InetAddress.getAllByName(address) as Inet4Address
+        }
+        fun parseInet6Address(address: String): Inet6Address {
+            // necessary to prevent dns lookup
+            require(address.contains(':')) { "not an Inet6Address" }
+            return InetAddress.getAllByName(address) as Inet6Address
+        }
+        fun getInterfaceAddresses(): Array<InetAddress> {
+            val ret = arrayListOf<InetAddress>()
+            for (ni in NetworkInterface.getNetworkInterfaces()) {
+                for (ia in ni.interfaceAddresses) {
+                    if (ia.address != null)
+                        ret.add(ia.address)
+                }
+            }
+            return ret.toTypedArray()
+        }
 
         private fun newSynchronousWorkers(prefix: String): ExecutorService {
             val tf = NamedThreadFactory(prefix)

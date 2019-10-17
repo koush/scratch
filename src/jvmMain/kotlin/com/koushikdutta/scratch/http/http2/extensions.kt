@@ -73,18 +73,6 @@ fun BufferedSink.writeShort(short: Int) {
     putShort(short.toShort())
 }
 
-fun BufferedSource.readByte(): Byte {
-    return readByte()
-}
-
-fun BufferedSource.readInt(): Int {
-    return readInt()
-}
-
-fun BufferedSource.readShort(): Short {
-    return readShort()
-}
-
 fun BufferedSource.readByteString(): ByteString {
     return ByteString(this.readBytes(), Charsets.US_ASCII)
 }

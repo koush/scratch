@@ -9,6 +9,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.event.connect
 import com.koushikdutta.scratch.tls.connectTls
 import com.koushikdutta.scratch.tls.tlsHandshake
 import org.conscrypt.Conscrypt

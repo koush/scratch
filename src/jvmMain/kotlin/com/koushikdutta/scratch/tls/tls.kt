@@ -7,6 +7,7 @@ import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.external.OkHostnameVerifier
 import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.event.connect
 import java.security.cert.X509Certificate
 import javax.net.ssl.*
 

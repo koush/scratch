@@ -151,7 +151,9 @@ abstract class ByteBufferCommonBase(protected var bytes: ByteArray? = null, prot
     abstract fun get(): Byte
     open fun get(dst: ByteArray, offset: Int, length: Int): ByteBufferCommonBase {
         ensureRemaining(length)
-        bytes!!.copyInto(dst, offset, arrayOffset!! + position)
+        val start = arrayOffsetPosition
+        val end = arrayOffsetPosition + length
+        bytes!!.copyInto(dst, offset, start, end)
         position += length
         return this
     }
