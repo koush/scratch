@@ -1856,7 +1856,7 @@ class URI : Comparable<URI> {
 
         val sb = StringBuffer()
         if (scheme != null) {
-            sb.append(scheme)
+            sb.append(scheme!!)
             sb.append(':')
         }
         if (isOpaque) {
@@ -1865,14 +1865,14 @@ class URI : Comparable<URI> {
             if (host != null) {
                 sb.append("//")
                 if (rawUserInfo != null) {
-                    sb.append(rawUserInfo)
+                    sb.append(rawUserInfo!!)
                     sb.append('@')
                 }
                 val needBrackets = (host!!.indexOf(':') >= 0
                         && !host!!.startsWith("[")
                         && !host!!.endsWith("]"))
                 if (needBrackets) sb.append('[')
-                sb.append(host)
+                sb.append(host!!)
                 if (needBrackets) sb.append(']')
                 if (port != -1) {
                     sb.append(':')
@@ -1880,18 +1880,18 @@ class URI : Comparable<URI> {
                 }
             } else if (rawAuthority != null) {
                 sb.append("//")
-                sb.append(rawAuthority)
+                sb.append(rawAuthority!!)
             }
             if (rawPath != null)
-                sb.append(rawPath)
+                sb.append(rawPath!!)
             if (rawQuery != null) {
                 sb.append('?')
-                sb.append(rawQuery)
+                sb.append(rawQuery!!)
             }
         }
         if (rawFragment != null) {
             sb.append('#')
-            sb.append(rawFragment)
+            sb.append(rawFragment!!)
         }
         string = sb.toString()
     }

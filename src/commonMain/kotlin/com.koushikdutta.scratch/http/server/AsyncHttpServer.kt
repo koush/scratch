@@ -3,7 +3,6 @@ package com.koushikdutta.scratch.http.server
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
-import com.koushikdutta.scratch.filters.DeflatePipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
@@ -68,10 +67,11 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
 
             if (response.body != null) {
                 responseBody = response.body!!
-                if (requestHeaders.acceptEncodingDeflate) {
-                    response.headers.set("Content-Encoding", "deflate")
-                    responseBody = responseBody.pipe(DeflatePipe)
-                }
+                // todo: fixup for jvm
+//                if (requestHeaders.acceptEncodingDeflate) {
+//                    response.headers.set("Content-Encoding", "deflate")
+//                    responseBody = responseBody.pipe(DeflatePipe)
+//                }
 
                 if (response.headers.contentLength == null) {
                     response.headers.transferEncoding = "chunked"
@@ -90,7 +90,7 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
             buffer.putUtf8String(response.toMessageString())
             socket.write(buffer)
 
-            responseBody.copy(socket::write)
+            responseBody.copy({socket.write(it)})
 
             if (AsyncSocketMiddleware.isKeepAlive(request, response))
                 accept(socket, reader)
@@ -104,13 +104,13 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
         }
     }
 
-    fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket::read)) = async {
+    fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) = async {
         acceptInternal(socket, reader)
     }
 
     fun listen(server: AsyncServerSocket) = server.accept().receive {
         try {
-            acceptInternal(this, AsyncReader(this::read))
+            acceptInternal(this, AsyncReader({this.read(it)}))
         }
         catch (exception: Exception) {
         }

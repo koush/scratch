@@ -21,8 +21,8 @@ import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_AUTHOR
 import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_METHOD
 import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_PATH
 import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_SCHEME
-import java.io.IOException
-import java.util.*
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmOverloads
 
 /**
  * Read and write HPACK v10.
@@ -169,7 +169,7 @@ object Hpack {
           entriesToEvict++
           j--
         }
-        System.arraycopy(dynamicTable, nextHeaderIndex + 1, dynamicTable,
+        dynamicTable.arraycopy(nextHeaderIndex + 1, dynamicTable,
             nextHeaderIndex + 1 + entriesToEvict, headerCount)
         nextHeaderIndex += entriesToEvict
       }
@@ -180,7 +180,6 @@ object Hpack {
      * Read `byteCount` bytes of headers from the source stream. This implementation does not
      * propagate the never indexed flag of a header.
      */
-    @Throws(IOException::class)
     fun readHeaders() {
       while (!source.exhausted()) {
         val b = source.readByte() and 0xff
@@ -224,7 +223,6 @@ object Hpack {
       }
     }
 
-    @Throws(IOException::class)
     private fun readIndexedHeader(index: Int) {
       if (isStaticHeader(index)) {
         val staticEntry = STATIC_HEADER_TABLE[index]
@@ -243,35 +241,30 @@ object Hpack {
       return nextHeaderIndex + 1 + index
     }
 
-    @Throws(IOException::class)
     private fun readLiteralHeaderWithoutIndexingIndexedName(index: Int) {
       val name = getName(index)
       val value = readByteString()
       headerList.add(Header(name, value))
     }
 
-    @Throws(IOException::class)
     private fun readLiteralHeaderWithoutIndexingNewName() {
       val name = checkLowercase(readByteString())
       val value = readByteString()
       headerList.add(Header(name, value))
     }
 
-    @Throws(IOException::class)
     private fun readLiteralHeaderWithIncrementalIndexingIndexedName(nameIndex: Int) {
       val name = getName(nameIndex)
       val value = readByteString()
       insertIntoDynamicTable(-1, Header(name, value))
     }
 
-    @Throws(IOException::class)
     private fun readLiteralHeaderWithIncrementalIndexingNewName() {
       val name = checkLowercase(readByteString())
       val value = readByteString()
       insertIntoDynamicTable(-1, Header(name, value))
     }
 
-    @Throws(IOException::class)
     private fun getName(index: Int): ByteString {
       return if (isStaticHeader(index)) {
         STATIC_HEADER_TABLE[index].name
@@ -312,7 +305,7 @@ object Hpack {
       if (index == -1) { // Adding a value to the dynamic table.
         if (headerCount + 1 > dynamicTable.size) { // Need to grow the dynamic table.
           val doubled = arrayOfNulls<Header>(dynamicTable.size * 2)
-          System.arraycopy(dynamicTable, 0, doubled, dynamicTable.size, dynamicTable.size)
+          dynamicTable.arraycopy(0, doubled, dynamicTable.size, dynamicTable.size)
           nextHeaderIndex = dynamicTable.size - 1
           dynamicTable = doubled
         }
@@ -326,12 +319,10 @@ object Hpack {
       dynamicTableByteCount += delta
     }
 
-    @Throws(IOException::class)
     private fun readByte(): Int {
       return source.readByte() and 0xff
     }
 
-    @Throws(IOException::class)
     fun readInt(firstByte: Int, prefixMask: Int): Int {
       val prefix = firstByte and prefixMask
       if (prefix < prefixMask) {
@@ -355,7 +346,6 @@ object Hpack {
     }
 
     /** Reads a potentially Huffman encoded byte string. */
-    @Throws(IOException::class)
     fun readByteString(): ByteString {
       val firstByte = readByte()
       val huffmanDecode = firstByte and 0x80 == 0x80 // 1NNNNNNN
@@ -378,19 +368,19 @@ object Hpack {
         result[STATIC_HEADER_TABLE[i].name] = i
       }
     }
-    return Collections.unmodifiableMap(result)
+    return HashMap(result)
   }
 
   class Writer @JvmOverloads constructor(
-          @JvmField var headerTableSizeSetting: Int = SETTINGS_HEADER_TABLE_SIZE,
-          private val useCompression: Boolean = true,
-          private val out: Buffer
+    @JvmField var headerTableSizeSetting: Int = SETTINGS_HEADER_TABLE_SIZE,
+    private val useCompression: Boolean = true,
+    private val out: Buffer
   ) {
     /**
      * In the scenario where the dynamic table size changes multiple times between transmission of
      * header blocks, we need to keep track of the smallest value in that interval.
      */
-    private var smallestHeaderTableSizeSetting = Integer.MAX_VALUE
+    private var smallestHeaderTableSizeSetting = Int.MAX_VALUE
     private var emitDynamicTableSizeUpdate: Boolean = false
     @JvmField var maxDynamicTableByteCount: Int = headerTableSizeSetting
 
@@ -422,9 +412,9 @@ object Hpack {
           entriesToEvict++
           j--
         }
-        System.arraycopy(dynamicTable, nextHeaderIndex + 1, dynamicTable,
+        dynamicTable.arraycopy(nextHeaderIndex + 1, dynamicTable,
             nextHeaderIndex + 1 + entriesToEvict, headerCount)
-        Arrays.fill(dynamicTable, nextHeaderIndex + 1, nextHeaderIndex + 1 + entriesToEvict, null)
+        dynamicTable.fill(null, nextHeaderIndex + 1, nextHeaderIndex + 1 + entriesToEvict)
         nextHeaderIndex += entriesToEvict
       }
       return entriesToEvict
@@ -445,7 +435,7 @@ object Hpack {
 
       if (headerCount + 1 > dynamicTable.size) { // Need to grow the dynamic table.
         val doubled = arrayOfNulls<Header>(dynamicTable.size * 2)
-        System.arraycopy(dynamicTable, 0, doubled, dynamicTable.size, dynamicTable.size)
+        dynamicTable.arraycopy(0, doubled, dynamicTable.size, dynamicTable.size)
         nextHeaderIndex = dynamicTable.size - 1
         dynamicTable = doubled
       }
@@ -457,7 +447,6 @@ object Hpack {
 
     /** This does not use "never indexed" semantics for sensitive headers. */
     // http://tools.ietf.org/html/draft-ietf-httpbis-header-compression-12#section-6.2.3
-    @Throws(IOException::class)
     fun writeHeaders(headerBlock: List<Header>) {
       if (emitDynamicTableSizeUpdate) {
         if (smallestHeaderTableSizeSetting < maxDynamicTableByteCount) {
@@ -465,7 +454,7 @@ object Hpack {
           writeInt(smallestHeaderTableSizeSetting, PREFIX_5_BITS, 0x20)
         }
         emitDynamicTableSizeUpdate = false
-        smallestHeaderTableSizeSetting = Integer.MAX_VALUE
+        smallestHeaderTableSizeSetting = Int.MAX_VALUE
         writeInt(maxDynamicTableByteCount, PREFIX_5_BITS, 0x20)
       }
 
@@ -555,7 +544,6 @@ object Hpack {
       out.writeByte(value)
     }
 
-    @Throws(IOException::class)
     fun writeByteString(data: ByteString) {
       if (useCompression && Huffman.encodedLength(data) < data.size) {
         val huffmanBuffer = Buffer()
@@ -599,7 +587,6 @@ object Hpack {
    * An HTTP/2 response cannot contain uppercase header characters and must be treated as
    * malformed.
    */
-  @Throws(IOException::class)
   fun checkLowercase(name: ByteString): ByteString {
     for (i in 0 until name.size) {
       if (name[i] in 'A'.toByte()..'Z'.toByte()) {

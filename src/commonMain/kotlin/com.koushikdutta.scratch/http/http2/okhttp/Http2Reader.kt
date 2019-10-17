@@ -38,12 +38,7 @@ import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_PUSH_PROMISE
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_RST_STREAM
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_SETTINGS
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_WINDOW_UPDATE
-import com.koushikdutta.scratch.http.http2.okhttp.Http2.frameLog
-import java.io.Closeable
-import java.io.IOException
-import java.lang.String.format
-import java.util.logging.Level.FINE
-import java.util.logging.Logger
+
 
 /**
  * Reads HTTP/2 transport frames.
@@ -56,7 +51,7 @@ class Http2Reader(
   private val socket: AsyncSocket,
   private val client: Boolean,
   private val reader: AsyncReader
-) : Closeable {
+) {
   private val headerSource: Buffer = ByteBufferList()
   private val dataSource: Buffer = ByteBufferList()
   private val source: Buffer = ByteBufferList()
@@ -65,7 +60,6 @@ class Http2Reader(
           headerTableSizeSetting = 4096
   )
 
-  @Throws(IOException::class)
   suspend fun readConnectionPreface(handler: Handler) {
     if (client) {
       // The client reads the initial SETTINGS frame.
@@ -77,14 +71,12 @@ class Http2Reader(
       if (!reader.readLength(source, Http2.CONNECTION_PREFACE.size))
         throw IOException("Server expected connection preface.")
       val connectionPreface = source.readByteString(Http2.CONNECTION_PREFACE.size.toLong())
-      if (logger.isLoggable(FINE)) logger.fine(format("<< CONNECTION ${connectionPreface.hex()}"))
       if (CONNECTION_PREFACE != connectionPreface) {
         throw IOException("Expected a connection header but was ${connectionPreface.utf8()}")
       }
     }
   }
 
-  @Throws(IOException::class)
   suspend fun nextFrame(requireSettings: Boolean, handler: Handler): Boolean {
     if (source.hasRemaining())
       throw AssertionError("source not empty")
@@ -113,7 +105,6 @@ class Http2Reader(
     }
     val flags = source.readByte() and 0xff
     val streamId = source.readInt() and 0x7fffffff // Ignore reserved bit.
-    if (logger.isLoggable(FINE)) logger.fine(frameLog(true, streamId, length, type, flags))
 
     reader.readLength(source, length)
 
@@ -133,7 +124,6 @@ class Http2Reader(
     return true
   }
 
-  @Throws(IOException::class)
   private suspend fun readHeaders(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (streamId == 0) throw IOException("PROTOCOL_ERROR: TYPE_HEADERS streamId == 0")
 
@@ -162,7 +152,6 @@ class Http2Reader(
     val type = source.readByte() and 0xff
     val flags = source.readByte() and 0xff
     val streamId = source.readInt() and 0x7fffffff
-    if (logger.isLoggable(FINE)) logger.fine(frameLog(true, streamId, length, type, flags))
 
     if (type != TYPE_CONTINUATION) throw IOException("$type != TYPE_CONTINUATION")
     if (streamId != previousStreamId) throw IOException("TYPE_CONTINUATION streamId changed")
@@ -173,7 +162,6 @@ class Http2Reader(
     return flags
   }
 
-  @Throws(IOException::class)
   private suspend fun readHeaderBlock(length: Int, padding: Int, headerFlags: Int, streamId: Int): List<Header> {
     if (headerSource.hasRemaining())
       throw AssertionError("header source not empty")
@@ -193,7 +181,6 @@ class Http2Reader(
     return hpackReader.getAndResetHeaderList()
   }
 
-  @Throws(IOException::class)
   private fun readData(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (streamId == 0) throw IOException("PROTOCOL_ERROR: TYPE_DATA streamId == 0")
 
@@ -213,14 +200,12 @@ class Http2Reader(
     source.skip(padding.toLong())
   }
 
-  @Throws(IOException::class)
   private fun readPriority(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (length != 5) throw IOException("TYPE_PRIORITY length: $length != 5")
     if (streamId == 0) throw IOException("TYPE_PRIORITY streamId == 0")
     readPriority(handler, streamId)
   }
 
-  @Throws(IOException::class)
   private fun readPriority(handler: Handler, streamId: Int) {
     val w1 = source.readInt()
     val exclusive = w1 and 0x80000000.toInt() != 0
@@ -229,7 +214,6 @@ class Http2Reader(
     handler.priority(streamId, streamDependency, weight, exclusive)
   }
 
-  @Throws(IOException::class)
   private fun readRstStream(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (length != 4) throw IOException("TYPE_RST_STREAM length: $length != 4")
     if (streamId == 0) throw IOException("TYPE_RST_STREAM streamId == 0")
@@ -240,7 +224,6 @@ class Http2Reader(
     handler.rstStream(streamId, errorCode)
   }
 
-  @Throws(IOException::class)
   private fun readSettings(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (streamId != 0) throw IOException("TYPE_SETTINGS streamId != 0")
     if (flags and FLAG_ACK != 0) {
@@ -298,7 +281,6 @@ class Http2Reader(
     handler.settings(false, settings)
   }
 
-  @Throws(IOException::class)
   private suspend fun readPushPromise(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (streamId == 0) {
       throw IOException("PROTOCOL_ERROR: TYPE_PUSH_PROMISE streamId == 0")
@@ -310,7 +292,6 @@ class Http2Reader(
     handler.pushPromise(streamId, promisedStreamId, headerBlock)
   }
 
-  @Throws(IOException::class)
   private fun readPing(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (length != 8) throw IOException("TYPE_PING length != 8: $length")
     if (streamId != 0) throw IOException("TYPE_PING streamId != 0")
@@ -320,7 +301,6 @@ class Http2Reader(
     handler.ping(ack, payload1, payload2)
   }
 
-  @Throws(IOException::class)
   private fun readGoAway(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (length < 8) throw IOException("TYPE_GOAWAY length < 8: $length")
     if (streamId != 0) throw IOException("TYPE_GOAWAY streamId != 0")
@@ -337,7 +317,6 @@ class Http2Reader(
     handler.goAway(lastStreamId, errorCode, debugData)
   }
 
-  @Throws(IOException::class)
   private fun readWindowUpdate(handler: Handler, length: Int, flags: Int, streamId: Int) {
     if (length != 4) throw IOException("TYPE_WINDOW_UPDATE length !=4: $length")
     val increment = source.readInt() and 0x7fffffffL
@@ -345,15 +324,13 @@ class Http2Reader(
     handler.windowUpdate(streamId, increment)
   }
 
-  @Throws(IOException::class)
-  override fun close() {
+  fun close() {
     async {
       socket.close()
     }
   }
 
   interface Handler {
-    @Throws(IOException::class)
     fun data(inFinished: Boolean, streamId: Int, source: BufferedSource, length: Int)
 
     /**
@@ -440,7 +417,6 @@ class Http2Reader(
      * @param promisedStreamId server-initiated stream ID.  Must be an even number.
      * @param requestHeaders minimally includes `:method`, `:scheme`, `:authority`, and `:path`.
      */
-    @Throws(IOException::class)
     fun pushPromise(
       streamId: Int,
       promisedStreamId: Int,
@@ -477,9 +453,6 @@ class Http2Reader(
   }
 
   companion object {
-    val logger: Logger = Logger.getLogger(Http2::class.java.name)
-
-    @Throws(IOException::class)
     fun lengthWithoutPadding(length: Int, flags: Int, padding: Int): Int {
       var result = length
       if (flags and FLAG_PADDED != 0) result-- // Account for reading the padding length.

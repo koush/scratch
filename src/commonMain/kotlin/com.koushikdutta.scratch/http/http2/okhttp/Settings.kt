@@ -15,6 +15,9 @@
  */
 package com.koushikdutta.scratch.http.http2.okhttp
 
+import com.koushikdutta.scratch.http.http2.bitCount
+import com.koushikdutta.scratch.http.http2.fill
+
 /**
  * Settings describe characteristics of the sending peer, which are used by the receiving peer.
  * Settings are [connection][Http2Connection] scoped.
@@ -66,7 +69,7 @@ class Settings {
   operator fun get(id: Int): Int = values[id]
 
   /** Returns the number of settings that have values assigned. */
-  fun size(): Int = Integer.bitCount(set)
+  fun size(): Int = set.bitCount()
 
   // TODO: honor this setting.
   fun getEnablePush(defaultValue: Boolean): Boolean {

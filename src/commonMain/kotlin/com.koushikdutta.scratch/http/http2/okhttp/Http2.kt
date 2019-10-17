@@ -16,10 +16,8 @@
 package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.http.http2.encodeUtf8
-import java.lang.String.format
 
 object Http2 {
-  @JvmField
   val CONNECTION_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".encodeUtf8()
 
   /** The initial max frame size, applied independently writing to, or reading from the peer. */
@@ -57,7 +55,7 @@ object Http2 {
    */
   private val FLAGS = arrayOfNulls<String>(0x40) // Highest bit flag is 0x20.
   private val BINARY = Array(256) {
-    format("%8s", Integer.toBinaryString(it)).replace(' ', '0')
+    it.toString(2).padStart(8, '0')
   }
 
   init {
@@ -87,36 +85,6 @@ object Http2 {
     for (i in FLAGS.indices) { // Fill in holes with binary representation.
       if (FLAGS[i] == null) FLAGS[i] = BINARY[i]
     }
-  }
-
-  /**
-   * Returns human-readable representation of HTTP/2 frame headers.
-   *
-   * The format is:
-   *
-   * ```
-   * direction streamID length type flags
-   * ```
-   *
-   * Where direction is `<<` for inbound and `>>` for outbound.
-   *
-   * For example, the following would indicate a HEAD request sent from the client.
-   * ```
-   * `<< 0x0000000f    12 HEADERS       END_HEADERS|END_STREAM
-   * ```
-   */
-  fun frameLog(
-    inbound: Boolean,
-    streamId: Int,
-    length: Int,
-    type: Int,
-    flags: Int
-  ): String {
-    val formattedType = if (type < FRAME_NAMES.size) FRAME_NAMES[type] else format("0x%02x", type)
-    val formattedFlags = formatFlags(type, flags)
-    val direction = if (inbound) "<<" else ">>"
-    return format("%s 0x%08x %5d %-13s %s",
-        direction, streamId, length, formattedType, formattedFlags)
   }
 
   /**

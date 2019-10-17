@@ -15,8 +15,7 @@
  */
 package com.koushikdutta.scratch.http.http2.okhttp;
 
-import java.io.IOException
-
+private typealias IOException = Exception
 /**
  * Protocols that OkHttp implements for [ALPN][ietf_alpn] selection.
  *
@@ -99,8 +98,6 @@ enum class Protocol(private val protocol: String) {
      *
      * @throws IOException if `protocol` is unknown.
      */
-    @JvmStatic
-    @Throws(IOException::class)
     fun get(protocol: String): Protocol {
       // Unroll the loop over values() to save an allocation.
       @Suppress("DEPRECATION")

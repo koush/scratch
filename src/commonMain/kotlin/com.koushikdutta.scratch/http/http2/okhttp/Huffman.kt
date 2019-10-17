@@ -16,7 +16,6 @@
 package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.http.http2.*
-import java.io.IOException
 
 
 /**
@@ -81,7 +80,6 @@ object Huffman {
     }
   }
 
-  @Throws(IOException::class)
   fun encode(source: ByteString, sink: BufferedSink) {
     var accumulator = 0L
     var accumulatorBitCount = 0

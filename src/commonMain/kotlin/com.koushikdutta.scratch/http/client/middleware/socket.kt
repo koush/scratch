@@ -9,6 +9,7 @@ import com.koushikdutta.scratch.collections.add
 import com.koushikdutta.scratch.collections.pop
 import com.koushikdutta.scratch.collections.removeValue
 import com.koushikdutta.scratch.event.connect
+import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
@@ -17,11 +18,8 @@ import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
-import com.koushikdutta.scratch.tls.tlsHandshake
-import java.io.IOException
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLEngine
 
+private typealias IOException = Exception
 
 /**
  * Manages socket connection initiation and keep alive.
@@ -30,7 +28,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
     protected open val scheme = "http"
     open val defaultPort = 80
 
-    private data class KeepAliveSocket(val socket: AsyncSocket, val interrupt: InterruptibleRead, val socketReader: AsyncReader, val time: Long = System.nanoTime(), var observe: Boolean = true)
+    private data class KeepAliveSocket(val socket: AsyncSocket, val interrupt: InterruptibleRead, val socketReader: AsyncReader, val time: Long = nanoTime(), var observe: Boolean = true)
     private val sockets: Multimap<String, KeepAliveSocket> = mutableMapOf()
 
     private fun observeKeepaliveSocket(socketKey: String, keepAliveSocket: KeepAliveSocket) {
@@ -93,8 +91,8 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
     }
 
     fun ensureSocketReader(session: AsyncHttpClientSession) {
-        session.interrupt = InterruptibleRead(session.socket!!::read)
-        session.socketReader = AsyncReader(session.interrupt!!::read)
+        session.interrupt = InterruptibleRead({session.socket!!.read(it)})
+        session.socketReader = AsyncReader({session.interrupt!!.read(it)})
     }
 
     override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
@@ -155,27 +153,5 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
         }
 
         return connectHttp2(session, http2Connection)
-    }
-}
-
-open class AsyncTlsSocketMiddleware(val context: SSLContext = SSLContext.getDefault()) : AsyncSocketMiddleware() {
-    override val scheme: String = "https"
-    override val defaultPort = 443
-
-    protected open fun configureEngine(engine: SSLEngine) {
-    }
-
-    override suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
-        try {
-            session.protocol = session.request.protocol.toLowerCase()
-            val engine = context.createSSLEngine(host, port)
-            engine.useClientMode = true
-            configureEngine(engine)
-            return tlsHandshake(socket, engine)
-        }
-        catch (throwable: Throwable) {
-            socket.close()
-            throw throwable
-        }
     }
 }

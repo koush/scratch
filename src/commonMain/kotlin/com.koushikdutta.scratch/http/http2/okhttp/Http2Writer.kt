@@ -31,11 +31,6 @@ import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_PUSH_PROMISE
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_RST_STREAM
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_SETTINGS
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_WINDOW_UPDATE
-import com.koushikdutta.scratch.http.http2.okhttp.Http2.frameLog
-import java.io.IOException
-import java.lang.String.format
-import java.util.logging.Level.FINE
-import java.util.logging.Logger
 
 /** Writes HTTP/2 transport frames. */
 @Suppress("NAME_SHADOWING")
@@ -49,19 +44,14 @@ class Http2Writer(
   private var closed: Boolean = false
   val hpackWriter: Hpack.Writer = Hpack.Writer(out = hpackBuffer)
 
-  @Synchronized @Throws(IOException::class)
   fun connectionPreface() {
     if (closed) throw IOException("closed")
     if (!client) return // Nothing to write; servers don't send connection headers!
-    if (logger.isLoggable(FINE)) {
-      logger.fine(format(">> CONNECTION ${CONNECTION_PREFACE.hex()}"))
-    }
     sink.write(CONNECTION_PREFACE)
     sinkFlush()
   }
 
   /** Applies `peerSettings` and then sends a settings ACK. */
-  @Synchronized @Throws(IOException::class)
   fun applyAndAckSettings(peerSettings: Settings) {
     if (closed) throw IOException("closed")
     this.maxFrameSize = peerSettings.getMaxFrameSize(maxFrameSize)
@@ -89,7 +79,6 @@ class Http2Writer(
    * @param promisedStreamId server-initiated stream ID.  Must be an even number.
    * @param requestHeaders minimally includes `:method`, `:scheme`, `:authority`, and `:path`.
    */
-  @Synchronized @Throws(IOException::class)
   fun pushPromise(
     streamId: Int,
     promisedStreamId: Int,
@@ -116,13 +105,11 @@ class Http2Writer(
     
   }
   
-  @Synchronized @Throws(IOException::class)
   fun flush() {
     if (closed) throw IOException("closed")
     sinkFlush()
   }
 
-  @Synchronized @Throws(IOException::class)
   fun rstStream(streamId: Int, errorCode: ErrorCode) {
     if (closed) throw IOException("closed")
     require(errorCode.httpCode != -1)
@@ -147,7 +134,6 @@ class Http2Writer(
    * @param source the buffer to draw bytes from. May be null if byteCount is 0.
    * @param byteCount must be between 0 and the minimum of `source.length` and [maxDataLength].
    */
-  @Synchronized @Throws(IOException::class)
   fun data(outFinished: Boolean, streamId: Int, source: Buffer?, byteCount: Int) {
     if (closed) throw IOException("closed")
     var flags = FLAG_NONE
@@ -155,7 +141,6 @@ class Http2Writer(
     dataFrame(streamId, flags, source, byteCount)
   }
 
-  @Throws(IOException::class)
   fun dataFrame(streamId: Int, flags: Int, buffer: Buffer?, byteCount: Int) {
     frameHeader(
         streamId = streamId,
@@ -169,7 +154,6 @@ class Http2Writer(
   }
 
   /** Write okhttp's settings to the peer. */
-  @Synchronized @Throws(IOException::class)
   fun settings(settings: Settings) {
     if (closed) throw IOException("closed")
     frameHeader(
@@ -195,7 +179,6 @@ class Http2Writer(
    * Send a connection-level ping to the peer. `ack` indicates this is a reply. The data in
    * `payload1` and `payload2` opaque binary, and there are no rules on the content.
    */
-  @Synchronized @Throws(IOException::class)
   fun ping(ack: Boolean, payload1: Int, payload2: Int) {
     if (closed) throw IOException("closed")
     frameHeader(
@@ -217,7 +200,6 @@ class Http2Writer(
    * @param errorCode reason for closing the connection.
    * @param debugData only valid for HTTP/2; opaque debug data to send.
    */
-  @Synchronized @Throws(IOException::class)
   fun goAway(lastGoodStreamId: Int, errorCode: ErrorCode, debugData: ByteArray) {
     if (closed) throw IOException("closed")
     require(errorCode.httpCode != -1) { "errorCode.httpCode == -1" }
@@ -239,7 +221,6 @@ class Http2Writer(
    * Inform peer that an additional `windowSizeIncrement` bytes can be sent on `streamId`, or the
    * connection if `streamId` is zero.
    */
-  @Synchronized @Throws(IOException::class)
   fun windowUpdate(streamId: Int, windowSizeIncrement: Long) {
     if (closed) throw IOException("closed")
     require(windowSizeIncrement != 0L && windowSizeIncrement <= 0x7fffffffL) {
@@ -255,9 +236,7 @@ class Http2Writer(
     sinkFlush()
   }
 
-  @Throws(IOException::class)
   fun frameHeader(streamId: Int, length: Int, type: Int, flags: Int) {
-    if (logger.isLoggable(FINE)) logger.fine(frameLog(false, streamId, length, type, flags))
     require(length <= maxFrameSize) { "FRAME_SIZE_ERROR length > $maxFrameSize: $length" }
     require(streamId and 0x80000000.toInt() == 0) { "reserved bit set: $streamId" }
     sink.writeMedium(length)
@@ -266,7 +245,6 @@ class Http2Writer(
     sink.writeInt(streamId and 0x7fffffff)
   }
 
-  @Throws(IOException::class)
   private fun writeContinuationFrames(streamId: Int, byteCount: Long) {
     var byteCount = byteCount
     while (byteCount > 0L) {
@@ -282,7 +260,6 @@ class Http2Writer(
     }
   }
 
-  @Synchronized @Throws(IOException::class)
   fun headers(
     outFinished: Boolean,
     streamId: Int,
@@ -304,9 +281,5 @@ class Http2Writer(
     sink.write(hpackBuffer, length)
 
     if (byteCount > length) writeContinuationFrames(streamId, byteCount - length)
-  }
-
-  companion object {
-    private val logger = Logger.getLogger(Http2::class.java.name)
   }
 }

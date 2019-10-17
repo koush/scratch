@@ -24,7 +24,7 @@ class Headers {
     }
 
     fun remove(name: String) {
-        headers.removeIf {
+        headers.removeAll {
             headerEquals(name, it.name)
         }
     }

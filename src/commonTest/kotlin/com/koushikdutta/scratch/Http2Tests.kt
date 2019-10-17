@@ -1,18 +1,37 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
+import com.koushikdutta.scratch.http.http2.arraycopy
+import com.koushikdutta.scratch.http.http2.bitCount
 import com.koushikdutta.scratch.parser.readAllString
-import org.junit.Test
-import java.nio.ByteBuffer
-import java.security.MessageDigest
-import java.security.SecureRandom
+import kotlin.random.Random
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class Http2Tests {
+    @Test
+    fun testBitcount() {
+        assertEquals(0xFF.bitCount(), 8)
+        assertEquals(0xFF00.bitCount(), 8)
+        assertEquals(0xFF0000.bitCount(), 8)
+        assertEquals((0xFF000000).toInt().bitCount(), 8)
+        assertEquals((0xFF000001).toInt().bitCount(), 9)
+    }
+
+    @Test
+    fun testArrayCopy() {
+        val array = arrayOf(1,2,3,4)
+        val array2 = Array<Int>(2, {0})
+        array.arraycopy(2, array2, 1, 1)
+        assertEquals(array2[1], 3)
+    }
+
     @Test
     fun testConnection() {
         val pair = createAsyncPipeSocketPair()
@@ -27,10 +46,10 @@ class Http2Tests {
         async {
             val client = Http2Connection(pair.first, true)
             val connected = client.newStream(AsyncHttpRequest.GET("https://example.com/"))
-            data = readAllString(connected::read)
+            data = readAllString({connected.read(it)})
         }
 
-        assert(data == "Hello World")
+        assertEquals(data, "Hello World")
     }
 
 
@@ -40,14 +59,14 @@ class Http2Tests {
     fun testBigResponse() {
         val pair = createAsyncPipeSocketPair()
 
-        val random = SecureRandom()
+        val random = Random.Default
         var sent = 0
         // 100 mb body
-        val serverDigest = MessageDigest.getInstance("MD5")
+        val serverDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
         val body: AsyncRead = createContentLengthPipe(100000000,
             AsyncReader {
-                val buffer = ByteBuffer.allocate(10000)
+                val buffer = allocateByteBuffer(10000)
                 random.nextBytes(buffer.array())
                 sent += buffer.remaining()
                 serverDigest.update(buffer.array())
@@ -60,7 +79,7 @@ class Http2Tests {
             AsyncHttpResponse.OK(body = BinaryBody(read = body))
         }
 
-        val clientDigest = MessageDigest.getInstance("MD5")
+        val clientDigest = CrappyDigest.getInstance()
         var received = 0
         async {
             val client = Http2Connection(pair.first, true)
@@ -77,10 +96,10 @@ class Http2Tests {
         val clientMd5 = clientDigest.digest()
         val serverMd5 = serverDigest.digest()
 
-        assert(sent == received)
-        assert(sent == 100000000)
+        assertEquals(sent, received)
+        assertEquals(sent, 100000000)
 
-        assert(clientMd5.joinToString { it.toString(16) } == serverMd5.joinToString { it.toString(16) })
+        assertEquals(clientMd5.joinToString { it.toString(16) }, serverMd5.joinToString { it.toString(16) })
     }
 
 
@@ -90,15 +109,15 @@ class Http2Tests {
     fun testBigRequest() {
         val pair = createAsyncPipeSocketPair()
 
-        val random = SecureRandom()
+        val random = Random.Default
         var sent = 0
         // 100 mb body
-        val serverDigest = MessageDigest.getInstance("MD5")
-        val clientDigest = MessageDigest.getInstance("MD5")
+        val serverDigest = CrappyDigest.getInstance()
+        val clientDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
         val body: AsyncRead = createContentLengthPipe(100000000,
             AsyncReader {
-                val buffer = ByteBuffer.allocate(10000)
+                val buffer = allocateByteBuffer(10000)
                 random.nextBytes(buffer.array())
                 sent += buffer.remaining()
                 serverDigest.update(buffer.array())
@@ -124,16 +143,16 @@ class Http2Tests {
             val client = Http2Connection(pair.first, true)
             val connected =
                 client.newStream(AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)))
-            val data = readAllString(connected::read)
-            assert(data == "hello world")
+            val data = readAllString({connected.read(it)})
+            assertEquals(data, "hello world")
         }
 
         val clientMd5 = clientDigest.digest()
         val serverMd5 = serverDigest.digest()
 
-        assert(sent == received)
-        assert(sent == 100000000)
+        assertEquals(sent, received)
+        assertEquals(sent, 100000000)
 
-        assert(clientMd5.joinToString { it.toString(16) } == serverMd5.joinToString { it.toString(16) })
+        assertEquals(clientMd5.joinToString { it.toString(16) }, serverMd5.joinToString { it.toString(16) })
     }
 }

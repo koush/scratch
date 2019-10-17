@@ -45,7 +45,7 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop.default) {
     init {
         middlewares.add(DefaultsMiddleware())
         middlewares.add(AsyncSocketMiddleware())
-        middlewares.add(AsyncTlsSocketMiddleware())
+//        middlewares.add(AsyncTlsSocketMiddleware())
         middlewares.add(AsyncHttpTransportMiddleware())
         middlewares.add(AsyncHttp2TransportMiddleware())
         middlewares.add(AsyncBodyDecoder())

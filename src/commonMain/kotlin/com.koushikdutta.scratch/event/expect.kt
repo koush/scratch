@@ -8,6 +8,7 @@ expect class Inet4Address : InetAddress
 expect class Inet6Address : InetAddress
 expect class InetSocketAddress(addr: InetAddress, port: Int)
 
+internal expect fun nanoTime(): Long
 internal expect fun milliTime(): Long
 
 expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
@@ -22,6 +23,7 @@ expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
         fun parseInet4Address(address: String): Inet4Address
         fun parseInet6Address(address: String): Inet6Address
         fun getInterfaceAddresses(): Array<InetAddress>
+        val default: AsyncEventLoop
     }
 }
 

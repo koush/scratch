@@ -46,6 +46,11 @@ kotlin {
             dependencies {
                 implementation kotlin('stdlib-common')
             }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
         }
         commonTest {
             dependencies {
@@ -64,6 +69,11 @@ kotlin {
                 compileOnly group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
                 compileOnly group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
             }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
         }
         jvmTest {
             dependencies {
@@ -78,6 +88,11 @@ kotlin {
             dependencies {
                 implementation kotlin('stdlib-js')
             }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
         }
         jsTest {
             dependencies {
@@ -85,6 +100,11 @@ kotlin {
             }
         }
         nativeMain {
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
         }
         nativeTest {
         }

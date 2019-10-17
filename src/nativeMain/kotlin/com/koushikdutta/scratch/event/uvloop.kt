@@ -11,9 +11,13 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.system.getTimeMillis
+import kotlin.system.getTimeNanos
 
 actual fun milliTime(): Long {
     return getTimeMillis()
+}
+actual fun nanoTime(): Long {
+    return getTimeNanos()
 }
 
 fun EventLoopClosedException(): Exception {
@@ -338,6 +342,8 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
     }
 
     companion object {
+        val default = UvEventLoop()
+
         fun parseInet4Address(address: String): Inet4Address {
             memScoped {
                 val sockaddr: sockaddr_in = alloc()

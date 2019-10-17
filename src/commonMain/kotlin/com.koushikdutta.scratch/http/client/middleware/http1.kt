@@ -37,12 +37,12 @@ open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
         buffer.putUtf8String(session.request.toMessageString())
         session.socket!!.write(buffer)
 
-        requestBody.copy(session.socket!!::write)
+        requestBody.copy({session.socket!!.write(it)})
 
         val statusLine = session.socketReader!!.readScanUtf8String("\r\n").trim()
         val headers = session.socketReader!!.readHeaderBlock()
 
-        session.response = AsyncHttpResponse(ResponseLine(statusLine), headers, session.socketReader!!::read)
+        session.response = AsyncHttpResponse(ResponseLine(statusLine), headers, {session.socketReader!!.read(it)})
 
         return true
     }

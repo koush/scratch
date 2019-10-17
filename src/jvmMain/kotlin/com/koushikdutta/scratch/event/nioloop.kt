@@ -24,6 +24,7 @@ actual typealias Inet6Address = java.net.Inet6Address
 actual typealias InetSocketAddress = java.net.InetSocketAddress
 
 internal actual fun milliTime(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
+internal actual fun nanoTime(): Long = System.nanoTime()
 
 private suspend fun Executor.await() {
     suspendCoroutine<Unit> {

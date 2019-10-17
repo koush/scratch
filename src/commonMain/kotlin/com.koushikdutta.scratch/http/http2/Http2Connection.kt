@@ -8,10 +8,11 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.http2.okhttp.*
 import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
 import com.koushikdutta.scratch.http.server.AsyncHttpResponseHandler
-import java.io.IOException
+
+typealias IOException = Exception
 
 class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielder: Cooperator? = null) : AsyncSocket {
-    val handler = AsyncHandler(connection.socket::await)
+    val handler = AsyncHandler({connection.socket.await()})
     var headers: List<Header>? = null
     var trailers: List<Header>? = null
     var writeBytesAvailable: Long = connection.peerSettings.initialWindowSize.toLong()
@@ -119,8 +120,8 @@ class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielde
 
 typealias Http2ConnectionClose = (exception: Exception?) -> Unit
 
-class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read), readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpResponseHandler? = null) {
-    val handler = AsyncHandler(socket::await)
+class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpResponseHandler? = null) {
+    val handler = AsyncHandler({socket.await()})
     var lastGoodStreamId: Int = 0
     var isShutdown = false
     var nextStreamId = if (client) 3 else 2
@@ -333,11 +334,6 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
     }
 
     fun failConnection(exception: Exception?) {
-        if (exception != null) {
-            println("http2 connection failed:")
-            println(exception)
-            exception!!.printStackTrace()
-        }
         async {
             try {
                 if (exception != null)
@@ -395,7 +391,7 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
         }
 
 
-        val httpRequest = Http2ExchangeCodec.createRequest(request.headers!!, request::read)
+        val httpRequest = Http2ExchangeCodec.createRequest(request.headers!!, {request.read(it)})
         val response = requestListener!!(httpRequest)
         val outFinished = response.body == null
         request.outputClosed = outFinished
@@ -405,7 +401,7 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
         }
 
         if (!outFinished) {
-            response.body!!.copy(request::write)
+            response.body!!.copy({request.write(it)})
             request.closeOutput()
         }
     }
@@ -466,7 +462,7 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
         }
 
         if (requestBody != null) {
-            requestBody.copy(stream::write)
+            requestBody.copy({stream.write(it)})
             stream.closeOutput()
         }
 

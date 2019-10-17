@@ -5,9 +5,7 @@ import com.koushikdutta.scratch.http.AsyncHttpRequestProperties
 import com.koushikdutta.scratch.http.client.AsyncHttpClientException
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpRequestMethods
-import java.net.HttpURLConnection
-import java.net.URI
-import java.net.URL
+import com.koushikdutta.scratch.uri.URI
 
 
 private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: String) {
@@ -28,7 +26,7 @@ class AsyncHttpRedirector : AsyncHttpClientMiddleware() {
     override suspend fun onBodyReady(session: AsyncHttpClientSession) {
         val responseCode = session.response!!.code
         // valid redirects
-        if (responseCode != HttpURLConnection.HTTP_MOVED_PERM && responseCode != HttpURLConnection.HTTP_MOVED_TEMP && responseCode != 307)
+        if (responseCode != 301 && responseCode != 302 && responseCode != 307)
             return
 
         if (!session.request.properties.followRedirect)
@@ -38,7 +36,7 @@ class AsyncHttpRedirector : AsyncHttpClientMiddleware() {
 
         var redirect = URI(location)
         if (redirect.scheme == null)
-            redirect = URI(URL(URL(session.request.uri.toString()), location).toString())
+            redirect = session.request.uri.resolve(location)
 
         val method = if (session.request.method == AsyncHttpRequestMethods.HEAD.toString()) AsyncHttpRequestMethods.HEAD.toString() else AsyncHttpRequestMethods.GET.toString()
         val newRequest = AsyncHttpRequest(com.koushikdutta.scratch.uri.URI.create(redirect.toString()), method)

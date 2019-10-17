@@ -3,9 +3,7 @@ package com.koushikdutta.scratch.http.http2
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
-import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.charset.Charset
+import com.koushikdutta.scratch.buffers.createByteBuffer
 
 typealias BufferedSource = ReadableBuffers
 typealias BufferedSink = WritableBuffers
@@ -14,12 +12,12 @@ typealias Buffer = ByteBufferList
 class ByteString {
     val bytes: ByteArray
     val string: String
-    constructor(bytes: ByteArray, charset: Charset) {
+    constructor(bytes: ByteArray) {
         this.bytes = bytes
-        this.string = String(bytes, charset)
+        this.string = bytes.decodeToString()
     }
-    constructor(string: String, charset: Charset) {
-        this.bytes = string.toByteArray(charset)
+    constructor(string: String) {
+        this.bytes = string.encodeToByteArray()
         this.string = string
     }
     val size: Int
@@ -28,7 +26,7 @@ class ByteString {
     operator fun get(index: Int): Byte = bytes[index]
 
     internal fun hex(): String {
-        return bytes.joinToString { String.format("%02X", it) }
+        return bytes.joinToString { it.toString(16).padStart(2, '0') }
     }
 
     fun startsWith(other: ByteString): Boolean {
@@ -36,7 +34,7 @@ class ByteString {
     }
 
     companion object {
-        val EMPTY = ByteString("", Charsets.US_ASCII)
+        val EMPTY = ByteString("")
     }
 
     override fun equals(other: Any?): Boolean {
@@ -49,7 +47,7 @@ class ByteString {
 }
 
 fun String.encodeUtf8() : ByteString {
-    return ByteString(this, Charsets.UTF_8)
+    return ByteString(this)
 }
 
 fun ByteString.utf8(): String {
@@ -58,7 +56,7 @@ fun ByteString.utf8(): String {
 
 fun ByteString.toAsciiLowercase() : ByteString {
     val lower = string.toLowerCase()
-    return ByteString(lower, Charsets.US_ASCII)
+    return ByteString(lower)
 }
 
 fun BufferedSink.writeByte(byte: Int) {
@@ -74,11 +72,11 @@ fun BufferedSink.writeShort(short: Int) {
 }
 
 fun BufferedSource.readByteString(): ByteString {
-    return ByteString(this.readBytes(), Charsets.US_ASCII)
+    return ByteString(this.readBytes())
 }
 
 fun BufferedSource.readByteString(length: Long): ByteString {
-    return ByteString(this.readBytes(length.toInt()), Charsets.US_ASCII)
+    return ByteString(this.readBytes(length.toInt()))
 }
 
 fun BufferedSource.exhausted(): Boolean {
@@ -89,7 +87,6 @@ fun BufferedSource.skip(length: Long) {
     this.skip(length.toInt())
 }
 
-@Throws(IOException::class)
 fun BufferedSource.readMedium(): Int {
     return (readByte() and 0xff shl 16
             or (readByte() and 0xff shl 8)
@@ -104,11 +101,11 @@ fun BufferedSink.writeMedium(medium: Int) {
 }
 
 fun BufferedSink.write(byteString: ByteString) {
-    add(ByteBufferList.deepCopy(ByteBuffer.wrap(byteString.bytes)))
+    add(ByteBufferList.deepCopy(createByteBuffer(byteString.bytes)))
 }
 
 fun BufferedSink.write(bytes: ByteArray) {
-    add(ByteBufferList.deepCopy(ByteBuffer.wrap(bytes)))
+    add(ByteBufferList.deepCopy(createByteBuffer(bytes)))
 }
 
 fun BufferedSink.write(buffer: Buffer, length: Long) {
@@ -118,3 +115,28 @@ fun BufferedSink.write(buffer: Buffer, length: Long) {
 infix fun Byte.and(mask: Int): Int = toInt() and mask
 infix fun Short.and(mask: Int): Int = toInt() and mask
 infix fun Int.and(mask: Long): Long = toLong() and mask
+
+internal fun <T> Array<T>.arraycopy(sourcePos: Int, dest_arr: Array<T>, destPos: Int, len: Int) {
+    copyInto(dest_arr, destPos, sourcePos, sourcePos + len)
+}
+internal fun <T> Array<T>.fill(value: T, startIndex: Int = 0, endIndex: Int = size) {
+    for (i in startIndex until endIndex) {
+        this[i] = value
+    }
+}
+internal fun IntArray.fill(value: Int, startIndex: Int = 0, endIndex: Int = size) {
+    for (i in startIndex until endIndex) {
+        this[i] = value
+    }
+}
+
+internal fun Int.bitCount(): Int {
+    var ret = 0
+    var i = this
+    for (n in 0 until 32) {
+        if ((i and 0x1) != 0)
+            ret++
+        i = i shr 1
+    }
+    return ret
+}

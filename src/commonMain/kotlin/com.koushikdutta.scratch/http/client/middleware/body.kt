@@ -4,7 +4,6 @@ import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedInputPipe
-import com.koushikdutta.scratch.filters.InflatePipe
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.contentLength
@@ -60,11 +59,12 @@ fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRe
     else {
         // handling server response:
         // no meaningful headers means server will write data and close the connection.
-        read = reader::read
+        read = { reader.read(it) }
     }
 
-    if ("deflate" == headers.get("Content-Encoding"))
-        read = read.pipe(InflatePipe)
+    // todo: inflate
+//    if ("deflate" == headers.get("Content-Encoding"))
+//        read = read.pipe(InflatePipe)
 
     return read
 }
