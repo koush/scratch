@@ -73,4 +73,15 @@ class ByteBufferTests {
 
         assertEquals(buffer.remaining(), 93)
     }
+
+    @Test
+    fun testByteArrayGet() {
+        val buffer = ByteBufferCommon(byteArrayOf(0, 1, 2, 3))
+        val bytes = ByteArray(2)
+        buffer.get(bytes)
+        assertEquals(bytes[0], 0)
+        assertEquals(bytes[1], 1)
+        buffer.get(bytes, 1, 1)
+        assertEquals(bytes[1], 2)
+    }
 }

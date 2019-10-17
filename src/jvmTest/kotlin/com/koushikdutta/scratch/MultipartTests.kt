@@ -1,13 +1,10 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.AsyncReader
-import com.koushikdutta.scratch.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.http.body.StringBody
+import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.parser.Multipart
 import com.koushikdutta.scratch.parser.Part
 import com.koushikdutta.scratch.parser.readAllString
-import com.koushikdutta.scratch.reader
 import org.junit.Test
 
 class MultipartTests {
@@ -52,7 +49,7 @@ class MultipartTests {
 
     @Test
     fun testMultipartRoundtrip() {
-        val parts = listOf(Part(body = StringBody("Hello")), Part(body = StringBody("World")))
+        val parts = listOf(Part(body = Utf8StringBody("Hello")), Part(body = Utf8StringBody("World")))
         val multipart = Multipart(parts)
 
         var combined = ""

@@ -5,7 +5,7 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.OK
 import com.koushikdutta.scratch.http.POST
-import com.koushikdutta.scratch.http.body.StringBody
+import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
@@ -262,7 +262,7 @@ class TlsTests {
             // entire request must be received before sending a response.
             val data = readAllString(it.body!!)
             assert(data == "hello world")
-            AsyncHttpResponse.OK(body = StringBody(data))
+            AsyncHttpResponse.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(tlsServer)
@@ -272,7 +272,7 @@ class TlsTests {
             val client = AsyncHttpClient()
             pipeMiddleware.install(client)
             val connection =
-                client.execute(AsyncHttpRequest.POST("https://TestServer", body = StringBody("hello world")))
+                client.execute(AsyncHttpRequest.POST("https://TestServer", body = Utf8StringBody("hello world")))
             data = readAllString(connection.body!!)
         }
 

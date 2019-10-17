@@ -1,7 +1,7 @@
 package com.koushikdutta.scratch.http
 
 import com.koushikdutta.scratch.AsyncRead
-import java.net.URI
+import com.koushikdutta.scratch.uri.URI
 
 abstract class AsyncHttpMessage {
     val headers: Headers
@@ -129,7 +129,7 @@ class ResponseLine {
         val parts = responseLine.split(Regex(" "), 3)
         require(parts.size >= 2) { "invalid response line $responseLine" }
         protocol = parts[0]
-        code = Integer.parseInt(parts[1])
+        code = parts[1].toInt()
         message = if (parts.size == 3) parts[2] else ""
     }
 

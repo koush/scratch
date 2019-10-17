@@ -1,6 +1,6 @@
 package com.koushikdutta.scratch.http
 
-import java.net.URI
+import com.koushikdutta.scratch.uri.URI
 
 private fun create(uri: String, method: String, headers: Headers = Headers(), body: AsyncHttpMessageBody? = null): AsyncHttpRequest {
     return AsyncHttpRequest(URI.create(uri), method, headers = headers, body = body)

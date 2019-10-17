@@ -3,7 +3,7 @@ package com.koushikdutta.scratch.http.http2.okhttp
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.http2.Http2Stream
-import java.net.URI
+import com.koushikdutta.scratch.uri.URI
 
 class Http2ExchangeCodec {
     companion object {
@@ -76,7 +76,8 @@ class Http2ExchangeCodec {
             if (host != null) {
                 headerList.add(Header(Header.TARGET_AUTHORITY, host)) // Optional.
             }
-            headerList.add(Header(Header.TARGET_SCHEME, request.uri.scheme))
+            if (request.uri.scheme != null)
+                headerList.add(Header(Header.TARGET_SCHEME, request.uri.scheme!!))
 
             createHeaders(request, headerList)
 
@@ -97,7 +98,7 @@ class Http2ExchangeCodec {
             }
 
             val method = headers.get(Header.TARGET_METHOD_UTF8)
-            val path = headers.get(Header.TARGET_PATH_UTF8)
+            val path = headers.get(Header.TARGET_PATH_UTF8)!!
             val host = headers.get(Header.TARGET_AUTHORITY_UTF8)
             val scheme = headers.get(Header.TARGET_SCHEME_UTF8)
 

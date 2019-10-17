@@ -9,7 +9,7 @@ class DefaultsMiddleware : AsyncHttpClientMiddleware() {
     }
 
     private fun addDefaultHeaders(session: AsyncHttpClientSession) {
-        addHeaderIfNotExists(session, "Host", session.request.uri.host)
+        addHeaderIfNotExists(session, "Host", session.request.uri.host!!)
         addHeaderIfNotExists(session, "User-Agent", "ion/1.0")
     }
 

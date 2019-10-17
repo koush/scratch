@@ -3,7 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
-import com.koushikdutta.scratch.http.body.StringBody
+import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
@@ -13,8 +13,8 @@ import com.koushikdutta.scratch.tls.connectTls
 import com.koushikdutta.scratch.tls.createSelfSignedCertificate
 import com.koushikdutta.scratch.tls.initializeSSLContext
 import com.koushikdutta.scratch.tls.listenTls
+import com.koushikdutta.scratch.uri.URI
 import org.junit.Test
-import java.net.URI
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -28,7 +28,7 @@ class HttpTests {
 
         async {
             val httpServer = AsyncHttpServer {
-                AsyncHttpResponse.OK(body = StringBody("hello world"))
+                AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
             }
 
             httpServer.accept(pair.second)
@@ -62,7 +62,7 @@ class HttpTests {
                 // entire request must be received before sending a response.
                 val data = readAllString(it.body!!)
                 assert(data == "hello world")
-                AsyncHttpResponse.OK(body = StringBody(data))
+                AsyncHttpResponse.OK(body = Utf8StringBody(data))
             }
 
             httpServer.accept(pair.second)
@@ -75,7 +75,7 @@ class HttpTests {
 
             for (i in 1..3) {
                 val request =
-                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = StringBody("hello world"))
+                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
                 val result = httpClient.execute(request, pair.first, reader)
                 val data = readAllString(result.body!!)
                 assert(data == "hello world")
@@ -96,7 +96,7 @@ class HttpTests {
             // entire request must be received before sending a response.
             val data = readAllString(it.body!!)
             assert(data == "hello world")
-            AsyncHttpResponse.OK(body = StringBody(data))
+            AsyncHttpResponse.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(server)
@@ -109,7 +109,7 @@ class HttpTests {
 
             for (i in 1..3) {
                 val request =
-                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = StringBody("hello world"))
+                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
                 val result = httpClient.execute(request, socket, reader)
                 val data = readAllString(result.body!!)
                 assert(data == "hello world")
@@ -135,7 +135,7 @@ class HttpTests {
             // entire request must be received before sending a response.
             val data = readAllString(it.body!!)
             assert(data == "hello world")
-            AsyncHttpResponse.OK(body = StringBody(data))
+            AsyncHttpResponse.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(tlsServer)
@@ -151,7 +151,7 @@ class HttpTests {
 
             for (i in 1..3) {
                 val request =
-                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = StringBody("hello world"))
+                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
                 val result = httpClient.execute(request, socket, reader)
                 val data = readAllString(result.body!!)
                 assert(data == "hello world")
@@ -240,7 +240,7 @@ class HttpTests {
                 clientDigest.update(byteArray)
             }
 
-            AsyncHttpResponse.OK(body = StringBody("hello world"))
+            AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
         }
         httpServer.listen(server)
 
@@ -276,7 +276,7 @@ class HttpTests {
             // entire request must be received before sending a response.
             val data = readAllString(it.body!!)
             assert(data == "hello world")
-            AsyncHttpResponse.OK(body = StringBody(data))
+            AsyncHttpResponse.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(server)
@@ -285,7 +285,7 @@ class HttpTests {
         async {
             val connection = Http2Connection(server.connect(), true)
             val stream =
-                connection.newStream(AsyncHttpRequest.POST("https://example.com/", body = StringBody("hello world")))
+                connection.newStream(AsyncHttpRequest.POST("https://example.com/", body = Utf8StringBody("hello world")))
             data = readAllString(stream::read)
         }
 

@@ -4,7 +4,7 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.OK
-import com.koushikdutta.scratch.http.body.StringBody
+import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
@@ -12,10 +12,10 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.connect
 import com.koushikdutta.scratch.tls.connectTls
 import com.koushikdutta.scratch.tls.tlsHandshake
+import com.koushikdutta.scratch.uri.URI
 import org.conscrypt.Conscrypt
 import java.io.IOException
 import java.net.InetSocketAddress
-import java.net.URI
 import java.security.Security
 import javax.net.ssl.SSLContext
 import kotlin.coroutines.resume
@@ -169,7 +169,7 @@ class Main {
 
         suspend fun AsyncEventLoop.testHttpServer() {
             val httpServer = AsyncHttpServer {
-                AsyncHttpResponse.OK(body = StringBody("ok ok ok!"))
+                AsyncHttpResponse.OK(body = Utf8StringBody("ok ok ok!"))
             }
 
             httpServer.listen(listen(5555))

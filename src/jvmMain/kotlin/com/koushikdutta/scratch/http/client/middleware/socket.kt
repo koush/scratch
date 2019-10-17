@@ -102,7 +102,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
             return false
 
 
-        val host = session.request.uri.host
+        val host = session.request.uri.host!!
         val port = if (session.request.uri.port == -1) defaultPort else session.request.uri.port
 
         val socketKey = "$host:$port"

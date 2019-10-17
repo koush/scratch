@@ -3,7 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
-import com.koushikdutta.scratch.http.body.StringBody
+import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.parser.readAllString
@@ -19,7 +19,7 @@ class Http2Tests {
 
         async {
             val server = Http2Connection(pair.second, false) {
-                AsyncHttpResponse.OK(body = StringBody("Hello World"))
+                AsyncHttpResponse.OK(body = Utf8StringBody("Hello World"))
             }
         }
 
@@ -117,7 +117,7 @@ class Http2Tests {
                 clientDigest.update(byteArray)
             }
 
-            AsyncHttpResponse.OK(body = StringBody("hello world"))
+            AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
         }
 
         async {

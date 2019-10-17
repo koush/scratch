@@ -41,7 +41,7 @@ class AsyncHttpRedirector : AsyncHttpClientMiddleware() {
             redirect = URI(URL(URL(session.request.uri.toString()), location).toString())
 
         val method = if (session.request.method == AsyncHttpRequestMethods.HEAD.toString()) AsyncHttpRequestMethods.HEAD.toString() else AsyncHttpRequestMethods.GET.toString()
-        val newRequest = AsyncHttpRequest(redirect, method)
+        val newRequest = AsyncHttpRequest(com.koushikdutta.scratch.uri.URI.create(redirect.toString()), method)
         copyHeader(session.request, newRequest, "User-Agent")
         copyHeader(session.request, newRequest, "Range")
 
