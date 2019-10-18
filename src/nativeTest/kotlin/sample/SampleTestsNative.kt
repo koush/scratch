@@ -90,8 +90,9 @@ class SampleTestsNative {
         val tlsServer = server.listenTls(serverContext)
 
         println(server.localPort)
-        for (socket in server.accept()) {
-
+        for (socket in tlsServer.accept()) {
+            println("got socket")
+//            socket.write(ByteBufferList().putUtf8String("test"))
         }
     }
 

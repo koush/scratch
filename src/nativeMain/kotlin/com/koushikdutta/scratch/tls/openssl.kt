@@ -47,6 +47,14 @@ actual fun getDefaultSSLContext(): SSLContext {
     return defaultContext
 }
 
+fun verifyCallback(preverifyOk: Int, x509Store: CPointer<X509_STORE_CTX>?): Int {
+    val err = X509_STORE_CTX_get_error(x509Store);
+    val str = X509_verify_cert_error_string(err.toLong())!!.toKString()
+    println("prever $preverifyOk $str")
+    return preverifyOk
+}
+val verifyCallbackPtr = staticCFunction(::verifyCallback)
+
 actual class SSLContext(val ctx: CPointer<SSL_CTX> = SSL_CTX_new(SSLv23_method!!.invoke())!!) {
     companion object {
         // seem to need to reference this class to trigger the static constructor. wierd.
@@ -54,6 +62,9 @@ actual class SSLContext(val ctx: CPointer<SSL_CTX> = SSL_CTX_new(SSLv23_method!!
         }
         init {
             OPENSSL_init_ssl(0, null)
+            ERR_load_X509_strings()
+            ERR_load_X509V3_strings()
+            ERR_load_RSA_strings()
             ERR_load_SSL_strings()
             ERR_load_BIO_strings()
             ERR_load_CRYPTO_strings()
@@ -78,13 +89,10 @@ actual class SSLContext(val ctx: CPointer<SSL_CTX> = SSL_CTX_new(SSLv23_method!!
         // should we use this? use okhostnameverifier instead?
         val engine = createSSLEngine()
 
-        SSL_set_hostflags(engine.engine, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS)
-        var ret = SSL_set1_host(engine.engine, host!!)
-        println(ret)
-        SSL_set_verify(engine.engine, SSL_VERIFY_PEER, null);
-
-
-
+         var ret2 = SSL_set_hostflags(engine.engine, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS)
+         var ret = SSL_set1_host(engine.engine, host!!)
+         println(ret)
+         ret2 = SSL_set_verify(engine.engine, SSL_VERIFY_PEER, verifyCallbackPtr);
 
         // val param = SSL_get0_param(engine.engine)
 
@@ -108,12 +116,18 @@ class SSLEngineImpl(engine: CPointer<SSL>): SSLEngine(engine) {
         SSL_set_bio(engine, rbio, wbio);
     }
 
+    private fun getErrorString(n: ULong): String {
+        memScoped {
+            return ERR_error_string(n, null)!!.toKString()
+        }
+    }
+
     private fun getStatusOrThrow(n: Int, stage: String): SSLStatus {
         return when (val err = SSL_get_error(engine, n)) {
             SSL_ERROR_NONE -> SSLStatus.SSL_ERROR_NONE
             SSL_ERROR_WANT_WRITE -> SSLStatus.SSL_ERROR_WANT_WRITE
             SSL_ERROR_WANT_READ -> SSLStatus.SSL_ERROR_WANT_READ
-            else -> throw SSLException("error: $err")
+            else -> throw SSLException("error: $err ${getErrorString(err.toULong())}")
         }
     }
 
@@ -122,7 +136,8 @@ class SSLEngineImpl(engine: CPointer<SSL>): SSLEngine(engine) {
         // try to finish the handshake
         try {
             val handshakeResult = getStatusOrThrow(SSL_do_handshake(engine), "handshake")
-            finishedHandshake = SSL_is_init_finished(engine) != 0
+            println("$useClientMode shake $handshakeResult")
+            finishedHandshake = SSL_is_init_finished(engine) != 0 && SSL_in_init(engine) == 0
             return handshakeResult
         }
         catch (exception: SSLException) {
@@ -137,7 +152,7 @@ class SSLEngineImpl(engine: CPointer<SSL>): SSLEngine(engine) {
             val bytesConsumed = if (src.hasRemaining()) writeBio(src) else 0
 
             // check if handshaking
-            if (SSL_is_init_finished(engine) == 0) {
+            if (!finishedHandshake) {
                 // try to finish the handshake
                 val handshakeResult = doSSLHandshake()
                 if (handshakeResult != SSLStatus.SSL_ERROR_WANT_WRITE)
@@ -160,7 +175,7 @@ class SSLEngineImpl(engine: CPointer<SSL>): SSLEngine(engine) {
             val bytesConsumed = if (src.hasRemaining()) writeSSL(src) else 0
 
             // check if handshaking
-            if (SSL_is_init_finished(engine) == 0) {
+            if (!finishedHandshake) {
                 // try to finish the handshake
                 val handshakeResult = doSSLHandshake()
                 if (handshakeResult != SSLStatus.SSL_ERROR_WANT_READ)

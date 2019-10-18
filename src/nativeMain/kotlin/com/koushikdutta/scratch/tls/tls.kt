@@ -131,21 +131,29 @@ actual class AsyncTlsSocket actual constructor(
 
             // trigger a wrap call
             encryptedWrite(ByteBufferList())
-             if (engine.finishedHandshake)
-                 break
+            if (engine.finishedHandshake) {
+                println("${engine.useClientMode} write handshake finished")
+                break
+            }
 
             // trigger an unwrap call, wait for data
             // this will unsuspend once the handshake completes, even if no data is available.
             // an empty data set is still a valid
             if (!decryptedRead(handshakeBuffer) && !engine.finishedHandshake)
                 throw SSLException("socket unexpectedly closed")
+
+            if (engine.finishedHandshake) {
+                println("${engine.useClientMode} read finished handhsake")
+                break
+            }
         }
 
-        if (engine.finishedHandshake && engine.useClientMode) {
+        // if (engine.finishedHandshake && engine.useClientMode) {
             // it's safe to do a final empty wrap call if the handshake
             // completed on a read. this sends the ack to the server it seems.
+        socketRead.readTransient()
             encryptedWrite(ByteBufferList())
-        }
+        // }
     }
 }
 
