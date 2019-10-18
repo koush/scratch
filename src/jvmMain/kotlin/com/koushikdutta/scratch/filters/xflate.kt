@@ -45,7 +45,7 @@ private fun XflatePipe(read: AsyncRead, needsInput: needsInput, setInput: setInp
                 }
 
                 // queue up another buffer
-                val b = ByteBufferList.deepCopyIfDirect(temp.remove())
+                val b = ByteBufferList.deepCopyIfDirect(temp.readFirst())
                 ByteBufferList.reclaim(recycle)
                 recycle = b
                 if (!b.hasRemaining())

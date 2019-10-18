@@ -11,12 +11,12 @@ apply plugin: 'maven-publish'
 
 kotlin {
     jvm()
-    js {
-        browser {
-        }
-        nodejs {
-        }
-    }
+//    js {
+//        browser {
+//        }
+//        nodejs {
+//        }
+//    }
 
     compileKotlinJvm {
         kotlinOptions {
@@ -39,6 +39,9 @@ kotlin {
             uv {
                 compilerOpts "-I./src/nativeInterop/cinterop/libuv/include"
             }
+            crypto {
+                compilerOpts "-I./src/nativeInterop/cinterop/openssl/include"
+            }
         }
     }
     sourceSets {
@@ -48,7 +51,8 @@ kotlin {
             }
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
                 useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
             }
         }
@@ -71,6 +75,7 @@ kotlin {
             }
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
                 useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
                 useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
             }
@@ -84,24 +89,25 @@ kotlin {
                 implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
             }
         }
-        jsMain {
-            dependencies {
-                implementation kotlin('stdlib-js')
-            }
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
-            }
-        }
-        jsTest {
-            dependencies {
-                implementation kotlin('test-js')
-            }
-        }
+//        jsMain {
+//            dependencies {
+//                implementation kotlin('stdlib-js')
+//            }
+//            languageSettings {
+//                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+//                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+//                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+//            }
+//        }
+//        jsTest {
+//            dependencies {
+//                implementation kotlin('test-js')
+//            }
+//        }
         nativeMain {
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
                 useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
                 useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
             }

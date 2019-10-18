@@ -15,6 +15,7 @@
  */
 package com.koushikdutta.scratch.http.http2.okhttp
 
+import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.http.http2.*
 import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.RESPONSE_STATUS
 import com.koushikdutta.scratch.http.http2.okhttp.Header.Companion.TARGET_AUTHORITY

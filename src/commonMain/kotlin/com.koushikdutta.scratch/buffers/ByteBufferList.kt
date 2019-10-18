@@ -265,7 +265,7 @@ class ByteBufferList : Buffers {
         if (remaining == 0)
             return EMPTY_BYTEBUFFER
         read(remaining)
-        return remove()
+        return readFirst()
     }
 
     override fun readByteBuffer(length: Int): ByteBuffer {
@@ -385,7 +385,7 @@ class ByteBufferList : Buffers {
         remaining = 0
     }
 
-    fun remove(): ByteBuffer {
+    override fun readFirst(): ByteBuffer {
         val ret = mBuffers.removeFirst()
         remaining -= ret.remaining()
         return ret

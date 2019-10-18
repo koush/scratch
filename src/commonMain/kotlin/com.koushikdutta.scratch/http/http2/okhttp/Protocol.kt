@@ -15,7 +15,8 @@
  */
 package com.koushikdutta.scratch.http.http2.okhttp;
 
-private typealias IOException = Exception
+import com.koushikdutta.scratch.IOException
+
 /**
  * Protocols that OkHttp implements for [ALPN][ietf_alpn] selection.
  *

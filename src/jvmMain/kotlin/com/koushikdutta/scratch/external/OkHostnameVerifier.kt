@@ -16,10 +16,10 @@
  */
 package com.koushikdutta.scratch.external
 
+import com.koushikdutta.scratch.tls.HostnameVerifier
 import java.security.cert.CertificateParsingException
 import java.security.cert.X509Certificate
 import java.util.*
-import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.SSLException
 import javax.net.ssl.SSLSession
 

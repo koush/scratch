@@ -12,19 +12,20 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import java.math.BigInteger
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-import java.security.KeyStore
-import java.security.Security
+import java.security.*
 import java.security.cert.Certificate
+import java.security.cert.X509Certificate
+import java.security.interfaces.RSAPrivateKey
 import java.util.*
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 
+actual typealias RSAPrivateKey = RSAPrivateKey
+actual typealias X509Certificate = X509Certificate
 
 @Throws(Exception::class)
-private fun createSelfSignedCertificate(keyPair: KeyPair, subjectDN: String): Certificate {
+private fun createSelfSignedCertificate(keyPair: KeyPair, subjectDN: String): X509Certificate {
     val bcProvider = BouncyCastleProvider()
     Security.addProvider(bcProvider)
 
@@ -63,18 +64,16 @@ private fun createSelfSignedCertificate(keyPair: KeyPair, subjectDN: String): Ce
     return JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certBuilder.build(contentSigner))
 }
 
-fun createSelfSignedCertificate(subjectName: String): Pair<KeyPair, Certificate> {
+actual fun createSelfSignedCertificate(subjectName: String): Pair<RSAPrivateKey, X509Certificate> {
     val keyGen = KeyPairGenerator.getInstance("RSA")
     keyGen.initialize(2048)
     val pair = keyGen.generateKeyPair()
     val cert = createSelfSignedCertificate(pair, subjectName)
 
-    return Pair(pair, cert)
+    return Pair(pair.private as RSAPrivateKey, cert)
 }
 
-fun initializeSSLContext(sslContext: SSLContext, keyPair: KeyPair, certificate: Certificate): SSLContext {
-    val pk = keyPair.private
-
+actual fun SSLContext.init(pk: RSAPrivateKey, certificate: X509Certificate): SSLContext {
     val ks = KeyStore.getInstance(KeyStore.getDefaultType())
     ks.load(null)
 
@@ -84,24 +83,24 @@ fun initializeSSLContext(sslContext: SSLContext, keyPair: KeyPair, certificate: 
     val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
     kmf.init(ks, "".toCharArray())
 
-    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), sslContext.provider)
+    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), provider)
     tmf.init(ks)
 
-    sslContext.init(kmf.keyManagers, tmf.trustManagers, null)
+    init(kmf.keyManagers, tmf.trustManagers, null)
 
-    return sslContext
+    return this
 }
 
-fun initializeSSLContext(sslContext: SSLContext, certificate: Certificate): SSLContext {
+actual fun SSLContext.init(certificate: X509Certificate): SSLContext {
     val ks = KeyStore.getInstance(KeyStore.getDefaultType())
     ks.load(null)
 
     ks.setCertificateEntry("cert", certificate)
 
-    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), sslContext.provider)
+    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), provider)
     tmf.init(ks)
 
-    sslContext.init(null, tmf.trustManagers, null)
+    init(null, tmf.trustManagers, null)
 
-    return sslContext
+    return this
 }

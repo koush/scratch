@@ -17,6 +17,7 @@ package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.http2.*

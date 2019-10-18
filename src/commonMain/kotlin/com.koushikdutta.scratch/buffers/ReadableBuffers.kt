@@ -57,6 +57,10 @@ interface ReadableBuffers {
      */
     fun readByteBuffer(): ByteBuffer
 
+    /**
+     * Read the first ByteBuffer
+     */
+    fun readFirst(): ByteBuffer
     fun readByteBuffer(length: Int): ByteBuffer
     fun readInt(): Int
     fun readByteChar(): Char

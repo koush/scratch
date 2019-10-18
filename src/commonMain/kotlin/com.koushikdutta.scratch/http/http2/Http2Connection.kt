@@ -9,8 +9,6 @@ import com.koushikdutta.scratch.http.http2.okhttp.*
 import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
 import com.koushikdutta.scratch.http.server.AsyncHttpResponseHandler
 
-typealias IOException = Exception
-
 class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielder: Cooperator? = null) : AsyncSocket {
     val handler = AsyncHandler({connection.socket.await()})
     var headers: List<Header>? = null

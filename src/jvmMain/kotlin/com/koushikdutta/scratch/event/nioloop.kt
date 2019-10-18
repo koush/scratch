@@ -219,13 +219,6 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
     override val isAffinityThread: Boolean
         get() = affinity === Thread.currentThread()
 
-    val isAffinityThreadOrStopped: Boolean
-        get() {
-            val affinity = this.affinity
-            return affinity == null || affinity === Thread.currentThread()
-        }
-
-
     fun stop() {
         stop(false)
     }
@@ -242,6 +235,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             scheduleShutdown {
                 shutdownKeys()
                 semaphore!!.release()
+                throw NIOLoopShutdownException()
             }
             mSelector.wakeupOnce()
 
@@ -328,20 +322,19 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         while (true) {
             try {
                 runLoop()
-            } catch (e: AsyncSelectorException) {
+            }
+            catch (e: AsyncSelectorException) {
+                // these are wakeup exceptions
+            }
+            catch (e: NIOLoopShutdownException) {
+                break
             }
 
-            // see if we keep looping, this must be in a synchronized block since the queue is accessed.
-            val exit = synchronized(this) {
-                if (!mSelector.isOpen || (mSelector.keys().isEmpty() && isQueueEmpty)) {
-                    shutdownKeys()
-                    return@synchronized true
-                }
-                false
+            // check to see if the selector was killed somehow?
+            if (!mSelector.isOpen) {
+                shutdownKeys()
+                break
             }
-
-            if (exit)
-                return
         }
     }
 
@@ -383,6 +376,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 }
             }
         } catch (e: Exception) {
+            // can ignore these exceptions, they spawn from wakeups
             throw AsyncSelectorException(e)
         }
 
@@ -503,6 +497,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
 
 private class AsyncSelectorException(e: Exception) : IOException(e)
+private class NIOLoopShutdownException: Exception()
 
 private class NamedThreadFactory internal constructor(private val namePrefix: String) : ThreadFactory {
     private val group: ThreadGroup

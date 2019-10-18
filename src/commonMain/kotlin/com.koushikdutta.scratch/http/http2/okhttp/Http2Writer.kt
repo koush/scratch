@@ -15,6 +15,7 @@
  */
 package com.koushikdutta.scratch.http.http2.okhttp
 
+import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.http.http2.*
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.CONNECTION_PREFACE
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_ACK

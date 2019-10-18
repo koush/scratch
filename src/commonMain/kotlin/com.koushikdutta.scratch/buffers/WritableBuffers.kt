@@ -25,4 +25,6 @@ interface WritableBuffers {
     fun putByteChar(c: Char): WritableBuffers
 
     fun putUtf8String(s: String): WritableBuffers
+
+    fun remaining(): Int
 }

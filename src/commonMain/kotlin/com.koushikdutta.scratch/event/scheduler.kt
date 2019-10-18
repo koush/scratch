@@ -105,7 +105,10 @@ abstract class AsyncScheduler<S: AsyncScheduler<S>> {
     protected fun scheduleShutdown(runnable: AsyncServerRunnable) {
         synchronized (this) {
             mQueue.clear()
-            runnable()
+            mQueue.add(Scheduled(this, {
+                mQueue.clear()
+                runnable()
+            }, 0))
         }
     }
 

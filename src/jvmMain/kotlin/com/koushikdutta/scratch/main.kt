@@ -251,6 +251,7 @@ class Main {
 //                }
 
             }
+            AsyncEventLoop.default.run()
 
             Thread.sleep(10000000)
         }

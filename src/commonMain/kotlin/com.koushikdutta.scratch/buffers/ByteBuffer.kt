@@ -94,7 +94,7 @@ expect fun allocateByteBuffer(length: Int): ByteBuffer
 
 
 abstract class BufferCommon(internal val capacity: Int) {
-    internal var position = 0
+    protected var position = 0
     fun position(position: Int): BufferCommon {
         this.position = position
         return this

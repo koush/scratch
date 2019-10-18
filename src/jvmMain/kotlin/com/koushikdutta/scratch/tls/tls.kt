@@ -10,14 +10,30 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.connect
 import java.security.cert.X509Certificate
 import javax.net.ssl.*
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLSession
 
-interface AsyncTlsTrustFailureCallback {
-    fun handleOrRethrow(throwable: Throwable)
+actual typealias SSLSession = SSLSession
+actual typealias SSLEngine = javax.net.ssl.SSLEngine
+actual typealias SSLContext = javax.net.ssl.SSLContext
+actual typealias SSLException = javax.net.ssl.SSLException
+actual typealias SSLHandshakeException = SSLHandshakeException
+
+actual var SSLEngine.useClientMode: Boolean
+    get() = this.useClientMode
+    set(value) {
+        this.useClientMode = value
+    }
+
+actual fun createTLSContext(): SSLContext {
+    return SSLContext.getInstance("TLS")
 }
 
-class AsyncTlsOptions(internal val hostnameVerifier: HostnameVerifier? = null, internal val trustFailureCallback: AsyncTlsTrustFailureCallback?)
+actual fun getDefaultSSLContext(): SSLContext {
+    return javax.net.ssl.SSLContext.getDefault()
+}
 
-class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket {
+actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket {
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket::read)
 
@@ -82,8 +98,8 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
         do {
             // if the handshake is finished, don't attempt to wrap 0 bytes of data.
             // this seems to terminate the ssl engine.
-            if (finishedHandshake && unencryptedWriteBuffer.isEmpty)
-                break
+//            if (finishedHandshake && unencryptedWriteBuffer.isEmpty)
+//                break
 
             // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
             // take into account that wrap/unwrap in the context of a handshake may
@@ -186,6 +202,9 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
     }
 
     override suspend fun write(buffer: ReadableBuffers) {
+        // do not allow empty writes
+        if (buffer.isEmpty)
+            return
         encryptedWrite(buffer)
     }
 
@@ -200,7 +219,7 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
     // need a reader to catch any overflow from the handshake
     private var reader: AsyncRead = decryptedRead
 
-    internal suspend fun awaitHandshake() {
+    internal actual suspend fun awaitHandshake() {
         val handshakeBuffer = ByteBufferList()
         reader = {
             reader = decryptedRead
@@ -221,71 +240,5 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
             if (!decryptedRead(handshakeBuffer) && !finishedHandshake)
                 throw SSLException("socket unexpectedly closed")
         }
-    }
-}
-
-suspend fun tlsHandshake(socket: AsyncSocket, engine: SSLEngine, options: AsyncTlsOptions? = null): AsyncTlsSocket {
-    val tlsSocket = AsyncTlsSocket(socket, engine, options)
-    tlsSocket.awaitHandshake()
-    return tlsSocket
-}
-
-suspend fun AsyncEventLoop.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
-    return connect(host, port).connectTls(host, port, context, options)
-}
-
-suspend fun AsyncSocket.connectTls(host: String, port: Int, context: SSLContext = SSLContext.getDefault(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
-    val engine = context.createSSLEngine(host, port)
-    engine.useClientMode = true
-    try {
-        return tlsHandshake(this, engine, options)
-    }
-    catch (exception: Exception) {
-        close()
-        throw exception
-    }
-}
-
-typealias CreateSSLEngine = () -> SSLEngine
-fun AsyncServerSocket.listenTls(createSSLEngine: CreateSSLEngine): AsyncServerSocket {
-    val wrapped = this
-    return object: AsyncServerSocket {
-        override suspend fun await() {
-            wrapped.await()
-        }
-
-        override fun accept(): AsyncIterable<out AsyncTlsSocket> {
-            val iterator = asyncIterator<AsyncTlsSocket> {
-                for (socket in wrapped.accept()) {
-                    val engine = createSSLEngine()
-                    engine.useClientMode = false
-                    val tlsSocket = try {
-                        tlsHandshake(socket, engine)
-                    }
-                    catch (exception: Exception) {
-                        socket.close()
-                        continue
-                    }
-
-                    yield(tlsSocket)
-                }
-            }
-
-            return object : AsyncIterable<AsyncTlsSocket> {
-                override fun iterator(): AsyncIterator<AsyncTlsSocket> {
-                    return iterator
-                }
-            }
-        }
-
-        override suspend fun close() {
-            wrapped.close()
-        }
-    }
-}
-
-fun AsyncServerSocket.listenTls(context: SSLContext = SSLContext.getDefault()): AsyncServerSocket {
-    return this.listenTls {
-        context.createSSLEngine()
     }
 }
