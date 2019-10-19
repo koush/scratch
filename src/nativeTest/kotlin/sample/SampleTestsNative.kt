@@ -81,20 +81,20 @@ class SampleTestsNative {
 //        }
 //    }
 //
-    @Test
-    fun testSSL() = networkContextTest {
-        val keypairCert = createSelfSignedCertificate("TestServer")
-        val serverContext = createTLSContext()
-        serverContext.init(keypairCert.first, keypairCert.second)
-        val server = listen()
-        val tlsServer = server.listenTls(serverContext)
+//     @Test
+//     fun testSSL() = networkContextTest {
+//         val keypairCert = createSelfSignedCertificate("TestServer")
+//         val serverContext = createTLSContext()
+//         serverContext.init(keypairCert.first, keypairCert.second)
+//         val server = listen()
+//         val tlsServer = server.listenTls(serverContext)
 
-        println(server.localPort)
-        for (socket in tlsServer.accept()) {
-            println("got socket")
-//            socket.write(ByteBufferList().putUtf8String("test"))
-        }
-    }
+//         println(server.localPort)
+//         for (socket in tlsServer.accept()) {
+//             println("got socket")
+// //            socket.write(ByteBufferList().putUtf8String("test"))
+//         }
+//     }
 
 //    @Test
 //    fun testCertificate() {

@@ -47,7 +47,6 @@ fun AsyncServerSocket.listenTls(createSSLEngine: CreateSSLEngine): AsyncServerSo
                         continue
                     }
 
-                    println("got sockets")
                     yield(tlsSocket)
                 }
             }
@@ -70,3 +69,7 @@ fun AsyncServerSocket.listenTls(context: SSLContext = getDefaultSSLContext()): A
         context.createSSLEngine()
     }
 }
+
+var SSLEngine.useClientMode: Boolean
+    get() = getUseClientMode()
+    set(value) = setUseClientMode(value)

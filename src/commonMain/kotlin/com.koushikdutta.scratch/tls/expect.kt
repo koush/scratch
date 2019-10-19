@@ -9,7 +9,10 @@ expect class SSLContext {
     fun createSSLEngine(): SSLEngine
     fun createSSLEngine(host: String?, port: Int): SSLEngine
 }
-expect abstract class SSLEngine
+expect abstract class SSLEngine {
+    abstract fun getUseClientMode(): Boolean
+    abstract fun setUseClientMode(value: Boolean)
+}
 expect open class SSLException: IOException
 expect class SSLHandshakeException : SSLException
 
@@ -22,8 +25,6 @@ expect fun SSLContext.init(pk: RSAPrivateKey, certificate: X509Certificate): SSL
 expect fun SSLContext.init(certificate: X509Certificate): SSLContext
 expect fun createTLSContext(): SSLContext
 expect fun getDefaultSSLContext(): SSLContext
-
-expect var SSLEngine.useClientMode: Boolean
 
 expect class AsyncTlsSocket(socket: AsyncSocket, engine: SSLEngine, options: AsyncTlsOptions?) : AsyncWrappingSocket {
     internal suspend fun awaitHandshake()

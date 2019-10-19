@@ -4,10 +4,6 @@ import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
-import com.koushikdutta.scratch.crypto.SSL_new
-import com.koushikdutta.scratch.crypto.SSL_set_connect_state
-import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.event.connect
 
 actual class AsyncTlsSocket actual constructor(
     override val socket: AsyncSocket,
@@ -81,7 +77,8 @@ actual class AsyncTlsSocket actual constructor(
             // add unused unencrypted data back to the wrap buffer
             unencryptedWriteBuffer.add(unencrypted)
             val bytesConsumed = available - unencryptedWriteBuffer.remaining()
-            socket.write(encryptedWriteBuffer)
+            if (encryptedWriteBuffer.hasRemaining())
+                socket.write(encryptedWriteBuffer)
 
             if (result == SSLStatus.SSL_ERROR_NONE) {
                 continue
@@ -132,7 +129,7 @@ actual class AsyncTlsSocket actual constructor(
             // trigger a wrap call
             encryptedWrite(ByteBufferList())
             if (engine.finishedHandshake) {
-                println("${engine.useClientMode} write handshake finished")
+                // println("${engine.useClientMode} write handshake finished")
                 break
             }
 
@@ -143,17 +140,17 @@ actual class AsyncTlsSocket actual constructor(
                 throw SSLException("socket unexpectedly closed")
 
             if (engine.finishedHandshake) {
-                println("${engine.useClientMode} read finished handhsake")
+                // println("${engine.useClientMode} read finished handhsake")
                 break
             }
         }
 
-        // if (engine.finishedHandshake && engine.useClientMode) {
-            // it's safe to do a final empty wrap call if the handshake
-            // completed on a read. this sends the ack to the server it seems.
+        // some ssl implementations finish the handshake, but still have a final wrap.
+        // ensure that happens.
+        // also trigger a background read to read that final packet if sent
+        // from the peer.
         socketRead.readTransient()
-            encryptedWrite(ByteBufferList())
-        // }
+        encryptedWrite(ByteBufferList())
     }
 }
 

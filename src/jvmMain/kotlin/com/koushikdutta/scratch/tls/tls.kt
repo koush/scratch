@@ -19,12 +19,6 @@ actual typealias SSLContext = javax.net.ssl.SSLContext
 actual typealias SSLException = javax.net.ssl.SSLException
 actual typealias SSLHandshakeException = SSLHandshakeException
 
-actual var SSLEngine.useClientMode: Boolean
-    get() = this.useClientMode
-    set(value) {
-        this.useClientMode = value
-    }
-
 actual fun createTLSContext(): SSLContext {
     return SSLContext.getInstance("TLS")
 }
@@ -118,7 +112,8 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             val bytesConsumed = available - unencryptedWriteBuffer.remaining()
             // queue up the encrypted data for write
             encryptedWriteBuffer.add(encrypted)
-            socket.write(encryptedWriteBuffer)
+            if (encrypted.hasRemaining())
+                socket.write(encryptedWriteBuffer)
 
             if (result.status == SSLEngineResult.Status.BUFFER_OVERFLOW) {
                 // allow the loop to continue
@@ -240,5 +235,12 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             if (!decryptedRead(handshakeBuffer) && !finishedHandshake)
                 throw SSLException("socket unexpectedly closed")
         }
+
+        // some ssl implementations finish the handshake, but still have a final wrap.
+        // ensure that happens.
+        // also trigger a background read to read that final packet if sent
+        // from the peer.
+        socketRead.readTransient()
+        encryptedWrite(ByteBufferList())
     }
 }

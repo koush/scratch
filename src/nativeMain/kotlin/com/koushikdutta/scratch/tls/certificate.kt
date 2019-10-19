@@ -126,10 +126,7 @@ class X509CertificateImpl internal constructor(pem: String): X509Certificate(pem
     override fun init(sslContext: SSLContext) = memScoped {
         usePem {
             val cert = PEM_read_bio_X509(it, null, null, null)
-            var ret = SSL_CTX_use_certificate(sslContext.ctx, cert)
-            println(ret)
-            ret = SSL_CTX_ctrl(sslContext.ctx, SSL_CTRL_BUILD_CERT_CHAIN, 0, null).toInt()
-            println(ret)
+            SSL_CTX_use_certificate(sslContext.ctx, cert)
         }
     }
 
@@ -201,10 +198,12 @@ actual fun createSelfSignedCertificate(subjectName: String): Pair<RSAPrivateKey,
 //        addExtension(x509, NID_netscape_cert_type, "sslCA");
 //
 //        addExtension(x509, NID_netscape_comment, "example comment extension");
-       addExtension(x509, NID_subject_alt_name, subjectName);
+
+        // does this work?
+//       addExtension(x509, NID_subject_alt_name, subjectName)
 
         var ret = X509_sign(x509, pkey, EVP_sha1())
-        println("sign $ret")
+//        println("sign $ret")
 
 
         // pinning memory + addressOf does not work on an empty array.
@@ -229,7 +228,7 @@ actual fun SSLContext.init(pk: RSAPrivateKey, certificate: X509Certificate): SSL
     pk.init(this)
     certificate.init(this)
     val ret = SSL_CTX_check_private_key(this.ctx)
-    println("check pk $ret")
+//    println("check pk $ret")
     return this
 }
 

@@ -47,7 +47,6 @@ class TlsTests {
             data = readAllString({client.read(it)})
         }
 
-        println(data)
         assertEquals(data, "Hello World")
     }
 
@@ -85,7 +84,6 @@ class TlsTests {
             result1.rethrow()
             result2.rethrow()
         } catch (exception: SSLException) {
-            println(exception.message)
             assertTrue(exception.message!!.toLowerCase().contains("hostname"))
             return
         }
@@ -153,11 +151,9 @@ class TlsTests {
                 val client = server.connect().connectTls("TestServer", 80, clientContext)
                 client.write(ByteBufferList().putUtf8String("hello world"))
                 client.close()
-                println("ok")
             }
         }
 
-        println(data)
         assertEquals(data, "hello worldhello world")
     }
 

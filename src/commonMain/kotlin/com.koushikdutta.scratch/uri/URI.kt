@@ -3534,5 +3534,4 @@ class URI : Comparable<URI> {
             return URLDecoder.decode(s)
         }
     }
-
 }
