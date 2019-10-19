@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 
 actual class AsyncTlsSocket actual constructor(
     override val socket: AsyncSocket,
-    private val engine: SSLEngine,
+    val engine: SSLEngine,
     private val options: AsyncTlsOptions?
 ) : AsyncWrappingSocket {
 

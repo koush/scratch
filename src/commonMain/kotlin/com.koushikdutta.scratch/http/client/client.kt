@@ -28,6 +28,7 @@ data class AsyncHttpClientSession constructor(val client: AsyncHttpClient, val e
     var socket: AsyncSocket? = null
     var interrupt: InterruptibleRead? = null
     var socketReader: AsyncReader? = null
+    var socketOwner: AsyncHttpClientMiddleware? = null
 
     var response: AsyncHttpResponse? = null
     var protocol: String? = null
@@ -43,9 +44,10 @@ class AsyncHttpClientException : Exception {
 class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop.default) {
     val middlewares = mutableListOf<AsyncHttpClientMiddleware>()
     init {
+        addPlatformMiddleware(this)
         middlewares.add(DefaultsMiddleware())
         middlewares.add(AsyncSocketMiddleware())
-//        middlewares.add(AsyncTlsSocketMiddleware())
+        middlewares.add(AsyncTlsSocketMiddleware())
         middlewares.add(AsyncHttpTransportMiddleware())
         middlewares.add(AsyncHttp2TransportMiddleware())
         middlewares.add(AsyncBodyDecoder())
@@ -59,8 +61,10 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop.default) {
 
         if (session.socket == null) {
             for (middleware in middlewares) {
-                if (middleware.connectSocket(session))
+                if (middleware.connectSocket(session)) {
+                    session.socketOwner = middleware
                     break
+                }
             }
         }
 

@@ -140,6 +140,5 @@ fun listenCallback(stream: CPointer<uv_stream_t>?, status: Int) {
 internal val listenCallbackPtr = staticCFunction(::listenCallback)
 
 internal fun readAddrInfoBytes(addr: CPointer<sockaddr>): ByteArray {
-    println(addr.pointed.sa_len)
     return addr.readBytes(addr.pointed.sa_len.toInt())
 }

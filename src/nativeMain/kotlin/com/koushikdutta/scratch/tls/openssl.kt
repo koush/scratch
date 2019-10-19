@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.tls
 
 import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.buffers.ByteBuffer
+import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.crypto.*
@@ -11,13 +12,14 @@ import kotlinx.cinterop.*
 actual interface SSLSession
 
 
-actual abstract class SSLEngine(val engine: CPointer<SSL>) {
+actual abstract class SSLEngine(internal val engine: CPointer<SSL>) {
     abstract fun unwrap(src: ByteBuffer, dst: WritableBuffers): SSLStatus
     abstract fun wrap(src: ByteBuffer, dst: WritableBuffers): SSLStatus
     abstract val finishedHandshake: Boolean
     actual abstract fun getUseClientMode(): Boolean
     actual abstract fun setUseClientMode(value: Boolean)
-
+    abstract fun setAlpnProtocols(protos: Collection<String>)
+    abstract fun getNegotiatedAlpnProtocol(): String?
 }
 
 actual open class SSLException(message: String) : IOException(message)
@@ -41,8 +43,38 @@ fun verifyCallback(preverifyOk: Int, x509Store: CPointer<X509_STORE_CTX>?): Int 
     engine?.handshakeError = str
     return preverifyOk
 }
-
 val verifyCallbackPtr = staticCFunction(::verifyCallback)
+
+fun alpnCallback(ssl: CPointer<SSL>?, out: CPointer<CPointerVar<UByteVar>>?, outLen: CPointer<UByteVar>?, inBuf: CPointer<UByteVar>?, inBufLen: UInt, arg: COpaquePointer?): Int {
+    val sslData = SSL_get_ex_data(ssl, SSLContext.engineIndex) ?: return SSL_TLSEXT_ERR_NOACK
+
+    val engine = sslData.asStableRef<SSLEngineImpl>().get()
+    if (engine.alpnprotos.isEmpty())
+        return SSL_TLSEXT_ERR_NOACK
+
+    val alpnBytes = inBuf!!.reinterpret<ByteVar>().readBytes(inBufLen.toInt())
+    val buf = ByteBufferList(alpnBytes)
+    try {
+        while (!buf.isEmpty) {
+            val protoLen = buf.readByte().toInt()
+            val proto = buf.readUtf8String(protoLen)
+
+            if (proto in engine.alpnprotos) {
+                // found a matching protocol, set teh outBuf to a pointer within inBuf
+                val protocolOffset = inBufLen.toInt() - buf.remaining() - protoLen
+                out!![0] = inBuf.plus(protocolOffset)
+                outLen!![0] = protoLen.toUByte()
+                return SSL_TLSEXT_ERR_OK
+            }
+        }
+    }
+    catch (exception: Exception) {
+        return SSL_TLSEXT_ERR_NOACK
+    }
+
+    return SSL_TLSEXT_ERR_NOACK
+}
+val alpnCallbackPtr = staticCFunction(::alpnCallback)
 
 actual class SSLContext(val ctx: CPointer<SSL_CTX> = SSL_CTX_new(SSLv23_method!!.invoke())!!) {
     companion object {
@@ -73,7 +105,7 @@ actual class SSLContext(val ctx: CPointer<SSL_CTX> = SSL_CTX_new(SSLv23_method!!
     }
 
     actual fun createSSLEngine(): SSLEngine {
-        return SSLEngineImpl(SSL_new(ctx)!!)
+        return SSLEngineImpl(ctx, SSL_new(ctx)!!)
     }
 
     actual fun createSSLEngine(host: String?, port: Int): SSLEngine {
@@ -93,7 +125,7 @@ enum class SSLStatus {
     SSL_ERROR_NONE, SSL_ERROR_WANT_READ, SSL_ERROR_WANT_WRITE
 }
 
-class SSLEngineImpl(engine: CPointer<SSL>) : SSLEngine(engine) {
+class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) : SSLEngine(engine) {
     val rbio = BIO_new(BIO_s_mem())
     val wbio = BIO_new(BIO_s_mem())
 
@@ -113,14 +145,70 @@ class SSLEngineImpl(engine: CPointer<SSL>) : SSLEngine(engine) {
         return clientMode!!
     }
 
-    override fun setUseClientMode(value: Boolean) {
-        if (clientMode != null)
-            throw SSLException("client/server mode already set to $clientMode")
-        clientMode = value
-        if (value)
+    private var hasInitialized = false
+    private fun ensureInitialized() {
+        if (hasInitialized)
+            return
+        hasInitialized = true
+        if (clientMode == null)
+            throw SSLException("client/server mode not specified")
+
+        if (clientMode!!)
             SSL_set_connect_state(engine)
         else
             SSL_set_accept_state(engine)
+
+        setupAlpn()
+    }
+
+    override fun setUseClientMode(value: Boolean) {
+        clientMode = value
+    }
+
+    internal fun encodeAlpn(): ByteArray {
+        // must encode the protos for wire format
+        val buf = ByteBufferList()
+        for (proto in alpnprotos) {
+            buf.put(proto.length.toByte())
+            buf.putUtf8String(proto)
+        }
+        return buf.readBytes();
+    }
+
+    private fun setupAlpn() {
+        if (alpnprotos.isEmpty())
+            return
+        if (clientMode!!) {
+            val encoded = encodeAlpn()
+            encoded.usePinned {
+                SSL_set_alpn_protos(engine, it.addressOf(0).reinterpret(), encoded.size.toUInt())
+            }
+            return
+        }
+
+        // openssl sets the alpn callback at the context level, which is odd, the callback
+        // at least returns the engine.
+        // no need to pass an arg, ssl ex data already has the info we need.
+        SSL_CTX_set_alpn_select_cb(ctx, alpnCallbackPtr, null)
+    }
+
+    val alpnprotos = mutableListOf<String>()
+    override fun setAlpnProtocols(protos: Collection<String>) {
+        alpnprotos.clear()
+        alpnprotos.addAll(protos)
+    }
+
+    override fun getNegotiatedAlpnProtocol(): String? {
+        val encoded = memScoped {
+            val encoded = alloc<CPointerVar<UByteVar>>()
+            val encodedLen = alloc<UIntVar>()
+            SSL_get0_alpn_selected(engine, encoded.ptr, encodedLen.ptr)
+            if (encodedLen.value.toInt() == 0)
+                return null
+            encoded.value!!.readBytes(encodedLen.value.toInt())
+        }
+
+        return encoded.stringFromUtf8()
     }
 
     private fun getErrorString(n: ULong): String {
@@ -157,6 +245,7 @@ class SSLEngineImpl(engine: CPointer<SSL>) : SSLEngine(engine) {
 
     override var finishedHandshake = false
     override fun unwrap(src: ByteBuffer, dst: WritableBuffers): SSLStatus {
+        ensureInitialized()
         // keep calling SSL_read to decrypt data until there's nothing left
         while (true) {
             val bytesConsumed = if (src.hasRemaining()) writeBio(src) else 0
@@ -181,6 +270,7 @@ class SSLEngineImpl(engine: CPointer<SSL>) : SSLEngine(engine) {
     }
 
     override fun wrap(src: ByteBuffer, dst: WritableBuffers): SSLStatus {
+        ensureInitialized()
         while (true) {
             val bytesConsumed = if (src.hasRemaining()) writeSSL(src) else 0
 

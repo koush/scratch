@@ -43,7 +43,6 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
                 }
             }
             catch (exception: Exception) {
-                println(exception)
                 sockets.removeValue(socketKey, keepAliveSocket)
             }
         }
@@ -51,7 +50,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
     }
 
     override suspend fun onResponseComplete(session: AsyncHttpClientSession) {
-        if (!session.request.uri.scheme.equals(scheme, true))
+        if (session.socketOwner != this)
             return
 
         // recycle keep alive sockets if possible.
@@ -65,7 +64,6 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
             return
         }
 
-        println("recycling socket")
         observeKeepaliveSocket(session.socketKey!!, KeepAliveSocket(session.socket!!, session.interrupt!!, session.socketReader!!))
     }
 
@@ -108,7 +106,6 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
 
         val keepaliveSocket = sockets.pop(socketKey)
         if (keepaliveSocket != null) {
-            println("using recycled socket")
             session.protocol = session.request.protocol.toLowerCase()
             session.socket = keepaliveSocket.socket
             session.interrupt = keepaliveSocket.interrupt
