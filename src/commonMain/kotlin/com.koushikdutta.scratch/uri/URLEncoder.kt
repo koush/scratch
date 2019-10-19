@@ -51,9 +51,6 @@ private fun String.toByteArray(): ByteArray {
 }
 private class Character {
     companion object {
-        fun isLetter(i: Int): Boolean {
-            return i.toChar().isLetter()
-        }
         fun forDigit(i: Int, radix: Int): Int {
             return i.toString(radix)[0].toInt()
         }
@@ -257,15 +254,9 @@ object URLEncoder {
                     var ch = Character.forDigit(ba[j].toInt() shr 4 and 0xF, 16)
                     // converting to use uppercase letter as part of
                     // the hex value if ch is a letter.
-                    if (Character.isLetter(ch)) {
-                        ch -= caseDiff
-                    }
                     out.append(ch.toChar())
                     ch = Character.forDigit(ba[j].toInt() and 0xF, 16)
-                    if (Character.isLetter(ch)) {
-                        ch -= caseDiff
-                    }
-                    out.append(ch.toChar())
+                    out.append(ch.toChar().toUpperCase())
                 }
                 charArrayWriter.reset()
                 needToChange = true
