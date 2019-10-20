@@ -33,7 +33,7 @@ class HttpTests {
         var requestsCompleted = 0
         async {
             val httpClient = AsyncHttpClient()
-            val reader = AsyncReader({pair.first.read(it)})
+            val reader = AsyncReader({ pair.first.read(it) })
 
             for (i in 1..3) {
                 val result = httpClient.execute(AsyncHttpRequest.GET("http://example/foo"), pair.first, reader)
@@ -66,7 +66,7 @@ class HttpTests {
         var requestsCompleted = 0
         async {
             val httpClient = AsyncHttpClient()
-            val reader = AsyncReader({pair.first.read(it)})
+            val reader = AsyncReader({ pair.first.read(it) })
 
             for (i in 1..3) {
                 val request =
@@ -100,7 +100,7 @@ class HttpTests {
         async {
             val httpClient = AsyncHttpClient()
             val socket = server.connect()
-            val reader = AsyncReader({socket.read(it)})
+            val reader = AsyncReader({ socket.read(it) })
 
             for (i in 1..3) {
                 val request =
@@ -144,7 +144,7 @@ class HttpTests {
         async {
             val client = AsyncHttpClient()
             val socket = server.connect()
-            val reader = AsyncReader({socket.read(it)})
+            val reader = AsyncReader({ socket.read(it) })
             val connected = client.execute(AsyncHttpRequest.GET("https://example.com/"), socket, reader)
             val buffer = ByteBufferList()
             // stream the data and digest it
@@ -201,7 +201,7 @@ class HttpTests {
         async {
             val client = AsyncHttpClient()
             val socket = server.connect()
-            val reader = AsyncReader({socket.read(it)})
+            val reader = AsyncReader({ socket.read(it) })
             val connected = client.execute(
                 AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)),
                 socket,
@@ -239,10 +239,66 @@ class HttpTests {
         async {
             val connection = Http2Connection(server.connect(), true)
             val stream =
-                connection.newStream(AsyncHttpRequest.POST("https://example.com/", body = Utf8StringBody("hello world")))
-            data = readAllString({stream.read(it)})
+                connection.newStream(
+                    AsyncHttpRequest.POST(
+                        "https://example.com/",
+                        body = Utf8StringBody("hello world")
+                    )
+                )
+            data = readAllString({ stream.read(it) })
         }
 
         assertEquals(data, "hello world")
+    }
+
+    @Test
+    fun testHttpPipeServerALot() {
+        val postLength = 1000000
+        val server = createAsyncPipeServerSocket()
+        val httpServer = AsyncHttpServer {
+            // would be cool to pipe hte request right back to the response
+            // without buffering, but the http spec does not work that way.
+            // entire request must be received before sending a response.
+            var len = 0
+            val buf = ByteBufferList()
+            while (it.body!!(buf)) {
+                len += buf.remaining()
+                buf.free()
+            }
+            assertEquals(postLength, len)
+            AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+        }
+
+        httpServer.listen(server)
+
+        var requestsCompleted = 0
+        val httpClient = AsyncHttpClient()
+        val random = Random.Default
+
+        for (i in 1..10000) {
+            async {
+                val body: AsyncRead = createContentLengthPipe(postLength.toLong(),
+                    AsyncReader {
+                        val buffer = allocateByteBuffer(10000)
+                        random.nextBytes(buffer.array())
+
+                        it.add(buffer)
+                        true
+                    })
+
+
+                val socket = server.connect()
+                val reader = AsyncReader({ socket.read(it) })
+
+                val request =
+                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = BinaryBody("application/binary", body))
+                val result = httpClient.execute(request, socket, reader)
+                val data = readAllString(result.body!!)
+                assertEquals(data, "hello world")
+                requestsCompleted++
+            }
+        }
+
+        assertEquals(requestsCompleted, 10000)
     }
 }

@@ -113,6 +113,8 @@ abstract class AsyncScheduler<S: AsyncScheduler<S>> {
     }
 
     suspend fun sleep(milliseconds: Long) {
+        if (milliseconds < 0)
+            throw IllegalArgumentException("negative sleep not allowed")
         suspendCoroutine<Unit> {
             postDelayed(milliseconds) {
                 it.resume(Unit)

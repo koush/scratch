@@ -98,8 +98,20 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, val local
         return queue
     }
 
-    internal fun accepted(server: AsyncEventLoop, selector: SelectorWrapper, channel: SocketChannel) {
-        queue.add(NIOSocket(server, channel, channel.register(selector.selector, SelectionKey.OP_READ)))
+    internal fun accepted() {
+//        server.post {
+            var sc: SocketChannel? = null
+            try {
+                sc = channel.accept()
+                if (sc == null)
+                    return
+                sc.configureBlocking(false)
+                queue.add(NIOSocket(server, sc, sc.register(server.mSelector.selector, SelectionKey.OP_READ)))
+            }
+            catch (e: IOException) {
+                closeQuietly(sc)
+            }
+//        }
     }
 }
 
@@ -269,6 +281,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
+    var attmept = 0
     suspend fun connect(socketAddress: InetSocketAddress): AsyncNetworkSocket {
         var ckey: SelectionKey? = null
         var socket: SocketChannel? = null
@@ -280,14 +293,25 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             suspendCoroutine<Unit> {
                 ckey.attach(it)
                 socket.connect(socketAddress)
+//                println("conn done")
             }
+
+            // for some reason this seems necessary (see testSocketsALot)
+            // must post, or it seems to just... hang? no more incoming connections.
+            // attempting to log stuff to diagnose issue in itself solves the problem.
+            // ie, slowing down how quickly the sockets are connected addresses some underlying race condition.
+            // but, given that the test itself is entirely single threaded and non-concurrent,
+            // it leads me to believe the underlying problem is in the SUN NIO implementation.
+//            post()
 
             if (!socket.finishConnect())
                 throw IOException("socket failed to connect")
 
+
             return AsyncNetworkSocket(this, socket, ckey)
         }
         catch (e: Throwable) {
+//            post()
             ckey?.cancel()
             closeQuietly(socket)
             throw e
@@ -325,6 +349,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             }
             catch (e: AsyncSelectorException) {
                 // these are wakeup exceptions
+                e.printStackTrace()
             }
             catch (e: NIOLoopShutdownException) {
                 break
@@ -385,19 +410,8 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         for (key in readyKeys) {
             try {
                 if (key.isAcceptable) {
-                    val channel = key.channel() as ServerSocketChannel
                     val socket = key.attachment() as AsyncNetworkServerSocket
-
-                    var sc: SocketChannel? = null
-                    try {
-                        sc = channel.accept()
-                        if (sc == null)
-                            continue
-                        sc.configureBlocking(false)
-                        socket.accepted(this, mSelector, sc)
-                    } catch (e: IOException) {
-                        closeQuietly(sc)
-                    }
+                    socket.accepted()
                 }
                 else if (key.isReadable) {
                     val socket = key.attachment() as AsyncNetworkSocket

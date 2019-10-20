@@ -230,7 +230,9 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
             connect.free()
         }
 
-        return UvSocket(this, socket.struct.reinterpret())
+        post()
+        val uvSocket = UvSocket(this, socket.struct.reinterpret())
+        return uvSocket
     }
 
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): UvServerSocket {

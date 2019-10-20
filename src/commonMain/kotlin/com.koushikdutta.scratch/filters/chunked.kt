@@ -27,7 +27,10 @@ val ChunkedInputPipe: AsyncReaderPipe = { reader ->
     // data: hexLength + CRLF   *
     // hexLength(0) + CRLF      (termination)
 
-    { buffer ->
+    var done = false
+    read@{ buffer ->
+        if (done)
+            return@read false
         if (!reader.readScan(temp, CRLF))
             throw Exception("stream ended before chunk length")
         val length = temp.readUtf8String().trim().toInt(16)
@@ -37,7 +40,8 @@ val ChunkedInputPipe: AsyncReaderPipe = { reader ->
         if (!reader.readScan(temp, CRLF))
             throw Exception("CRLF expected following data chunk")
         temp.free()
-        length != 0
+        done = length == 0
+        !done
     }
 }
 
