@@ -64,19 +64,15 @@ class Http2Tests {
         // 100 mb body
         val serverDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
+        val packetSize = 10000
         val body: AsyncRead = AsyncReader {
-                val buffer = allocateByteBuffer(10000)
-                random.nextBytes(buffer.array())
-                sent += buffer.remaining()
-                serverDigest.update(buffer.array())
-
-                it.add(buffer)
-                true
-            }.pipe(createContentLengthPipe(100000000))
-
-        Http2Connection(pair.second, false) {
-            AsyncHttpResponse.OK(body = BinaryBody(read = body))
-        }
+            it.putAllocatedBytes(packetSize) { bytes, bytesOffset ->
+                random.nextBytes(bytes, bytesOffset, bytesOffset + packetSize)
+                sent += packetSize
+                serverDigest.update(bytes, bytesOffset, bytesOffset + packetSize)
+            }
+            true
+        }.pipe(createContentLengthPipe(100000000))
 
         val clientDigest = CrappyDigest.getInstance()
         var received = 0
@@ -90,6 +86,10 @@ class Http2Tests {
                 received += byteArray.size
                 clientDigest.update(byteArray)
             }
+        }
+
+        Http2Connection(pair.second, false) {
+            AsyncHttpResponse.OK(body = BinaryBody(read = body))
         }
 
         val clientMd5 = clientDigest.digest()
@@ -114,13 +114,13 @@ class Http2Tests {
         val serverDigest = CrappyDigest.getInstance()
         val clientDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
+        val packetSize = 10000
         val body: AsyncRead = AsyncReader {
-                val buffer = allocateByteBuffer(10000)
-                random.nextBytes(buffer.array())
-                sent += buffer.remaining()
-                serverDigest.update(buffer.array())
-
-                it.add(buffer)
+                it.putAllocatedBytes(packetSize) { bytes, bytesOffset ->
+                    random.nextBytes(bytes, bytesOffset, bytesOffset + packetSize)
+                    sent += packetSize
+                    serverDigest.update(bytes, bytesOffset, bytesOffset + packetSize)
+                }
                 true
             }.pipe(createContentLengthPipe(100000000))
 

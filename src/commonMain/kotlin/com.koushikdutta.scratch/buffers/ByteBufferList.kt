@@ -182,6 +182,11 @@ class ByteBufferList : Buffers {
         require(remaining >= length) { "length" }
         var offset = 0
 
+
+        // after this buffer gives filled buffers to the target buffer,
+        // take all the empty buffers from the target.
+        into.giveReclaimedBuffers(freeBuffers)
+
         while (offset < length) {
             val b = buffers.removeFirst()
             val remaining = b.remaining()
@@ -209,10 +214,6 @@ class ByteBufferList : Buffers {
         }
 
         remaining -= length
-
-        // after this buffer gives filled buffers to the target buffer,
-        // take all the empty buffers from the target.
-        into.obtainAll(freeBuffers)
     }
 
     override fun read(into: WritableBuffers): Boolean {
@@ -503,16 +504,20 @@ class ByteBufferList : Buffers {
         return builder.toString()
     }
 
-    override fun reclaim(vararg buffers: ByteBuffer?) {
+    private fun reclaimInternal(vararg buffers: ByteBuffer?) {
         for (b in buffers) {
             // only wholly owned arrays can be reclaimed
             if (b == null || b.isDirect() || b.array().size != b.capacity() || b.arrayOffset() != 0 || b.capacity() > MAX_ITEM_SIZE || b.capacity() < MIN_ITEM_SIZE)
                 return
             freeBuffers.add(b)
         }
+    }
 
-        if (freeBuffers.size > 100)
-            throw AssertionError("ByteBufferList has reclaimed over 100 buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+    private val maxReclaimed = 500
+    override fun reclaim(vararg buffers: ByteBuffer?) {
+//        if (freeBuffers.size > maxReclaimed)
+//            throw AssertionError("ByteBufferList has reclaimed over $maxReclaimed buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+        reclaimInternal(*buffers)
     }
 
     override fun obtain(size: Int): ByteBuffer {
@@ -526,13 +531,15 @@ class ByteBufferList : Buffers {
         return ByteBufferList.obtain(size)
     }
 
-    override fun obtainAll(into: ArrayList<ByteBuffer>) {
+    override fun giveReclaimedBuffers(into: ArrayList<ByteBuffer>) {
+//        if (into.size > maxReclaimed)
+//            throw AssertionError("ByteBufferList has obtained over $maxReclaimed buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
         into.addAll(freeBuffers)
         freeBuffers.clear()
     }
 
-    override fun takeAll(from: AllocatingBuffers) {
-        from.obtainAll(freeBuffers)
+    override fun takeReclaimedBuffers(from: AllocatingBuffers) {
+        from.giveReclaimedBuffers(freeBuffers)
     }
 
     companion object {
@@ -541,8 +548,10 @@ class ByteBufferList : Buffers {
         var MIN_ITEM_SIZE = 1024
 
         var totalObtained = 0L
+        var totalObtainCount = 0
         fun obtain(size: Int): ByteBuffer {
             totalObtained += size
+            totalObtainCount++
             return allocateByteBuffer(max(8192, size))
         }
 

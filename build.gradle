@@ -87,6 +87,9 @@ kotlin {
 
                 implementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
                 implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
+
+                implementation group: 'io.netty', name: 'netty-all', version: '4.1.42.Final'
+
             }
         }
 //        jsMain {

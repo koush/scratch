@@ -3,7 +3,6 @@ package com.koushikdutta.scratch.tls
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.external.OkHostnameVerifier
-import java.lang.Integer.max
 import java.security.cert.X509Certificate
 import javax.net.ssl.*
 import javax.net.ssl.SSLHandshakeException
@@ -74,8 +73,13 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
                     continue
                 }
 
-
                 handleHandshakeStatus(result.handshakeStatus)
+
+                if ((result.handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING || result.handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED)
+                    && unfiltered.isEmpty) {
+                    // if there's no handshake, and also no data left, just bail.
+                    break
+                }
             }
 
             decryptAllocator.finishTracking()
@@ -142,7 +146,7 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
         encryptAllocator.finishTracking()
 
         // pass all free buffers upstream.
-        buffer.takeAll(encryptedWriteBuffer)
+        buffer.takeReclaimedBuffers(encryptedWriteBuffer)
     }
 
     var peerCertificates: Array<X509Certificate>? = null

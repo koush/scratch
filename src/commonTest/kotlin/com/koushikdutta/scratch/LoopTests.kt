@@ -291,12 +291,11 @@ class LoopTests {
                 async {
                     sleep(abs(random.nextLong()) % 5000)
                     val body = AsyncReader {
-                            val buffer = allocateByteBuffer(10000)
-                            random.nextBytes(buffer.array())
-
-                            it.add(buffer)
-                            true
-                        }.pipe(createContentLengthPipe(postLength.toLong()))
+                        it.putAllocatedBytes(10000) { bytes, bytesOffset ->
+                            random.nextBytes(bytes, bytesOffset, bytesOffset + 10000)
+                        }
+                        true
+                    }.pipe(createContentLengthPipe(postLength.toLong()))
 
 
                     val request =

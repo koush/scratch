@@ -103,7 +103,6 @@ internal class Http2Writer(
   }
 
   private fun sinkFlush() {
-    
   }
   
   fun flush() {

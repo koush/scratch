@@ -171,7 +171,8 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
     }
 
     private fun flushInputBuffer() {
-        allocator.finishTracking()
+        if (inputBuffer.isEmpty)
+            return
         if (!input.write(inputBuffer))
             key.interestOps(SelectionKey.OP_READ.inv() and key.interestOps())
     }
@@ -181,9 +182,10 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
             var read: Int
             do {
                 read = inputBuffer.putAllocatedBuffer(allocator.requestNextAllocation(), trackingSocketReader)
+                flushInputBuffer()
             }
             while (read > 0)
-            flushInputBuffer()
+            allocator.finishTracking()
 
             // clean close
             if (read < 0) {
@@ -192,6 +194,7 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
             }
         } catch (e: Exception) {
             flushInputBuffer()
+            allocator.finishTracking()
 
             // transport failure caused close
             closed = true

@@ -161,7 +161,6 @@ class TlsTests {
 
     @Test
     fun testTlsServerALot() {
-        println(ByteBufferList.totalObtained)
         val keypairCert = createSelfSignedCertificate("TestServer")
         val serverContext = createTLSContext()
         serverContext.init(keypairCert.first, keypairCert.second)
@@ -195,7 +194,6 @@ class TlsTests {
         }
 
         assertEquals(count, 5000000 * 10)
-        println(ByteBufferList.totalObtained)
     }
 
     @Test
@@ -207,11 +205,13 @@ class TlsTests {
         val server = createAsyncPipeServerSocket()
         val tlsServer = server.listenTls(serverContext)
 
+        // 100mb
+        val dataLen = 100000000
         var mid = 0L
         tlsServer.accept().receive {
             mid = ByteBufferList.totalObtained
             val buffer = ByteBufferList()
-            val random = TestUtils.createRandomRead(100000000)
+            val random = TestUtils.createRandomRead(dataLen)
             while (random(buffer)) {
                 write(buffer)
                 assertTrue(buffer.isEmpty)
@@ -226,7 +226,7 @@ class TlsTests {
             count += server.connect().connectTls("TestServer", 80, clientContext)::read.count()
         }
 
-        assertEquals(count, 100000000)
+        assertEquals(count, dataLen)
         // check handshake allocations
         assertTrue(mid - start < 250000)
         // check streaming allocations

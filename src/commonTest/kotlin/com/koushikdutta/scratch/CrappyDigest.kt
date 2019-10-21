@@ -5,8 +5,8 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 class CrappyDigest {
     var digest: Long = 0
     var count = 0
-    fun update(byteArray: ByteArray) {
-        for (b in byteArray) {
+    fun update(byteArray: ByteArray, startIndex: Int = 0, endIndex: Int = byteArray.size) {
+        for (b in byteArray.sliceArray(IntRange(startIndex, endIndex - 1))) {
             digest = digest xor (b.toLong() shl (count % (64 - 8)))
             count++
         }

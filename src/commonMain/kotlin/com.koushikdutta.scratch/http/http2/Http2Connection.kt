@@ -149,11 +149,11 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
     val reader = Http2Reader(socket, client, socketReader)
     val readerHandler = object : Http2Reader.Handler {
         override fun data(inFinished: Boolean, streamId: Int, source: BufferedSource, length: Int) {
-            updateConnectionFlowControl(length.toLong())
             // length isn't used here as the source is simply a buffer of length
             val stream = streams[streamId]!!
             // todo: stream null?
             stream.data(inFinished, source)
+            updateConnectionFlowControl(length.toLong())
         }
 
         override fun headers(inFinished: Boolean, streamId: Int, associatedStreamId: Int, headerBlock: List<Header>) {

@@ -122,15 +122,15 @@ class HttpTests {
         val random = Random.Default
         var sent = 0
         val serverDigest = CrappyDigest.getInstance()
+        val packetSize = 10000
         val body: AsyncRead = AsyncReader {
-                val buffer = allocateByteBuffer(10000)
-                random.nextBytes(buffer.array())
-                sent += buffer.remaining()
-                serverDigest.update(buffer.array())
-
-                it.add(buffer)
-                true
-            }.pipe(createContentLengthPipe(100000000))
+            it.putAllocatedBytes(packetSize) { bytes, bytesOffset ->
+                random.nextBytes(bytes, bytesOffset, bytesOffset + packetSize)
+                sent += packetSize
+                serverDigest.update(bytes, bytesOffset, bytesOffset + packetSize)
+            }
+            true
+        }.pipe(createContentLengthPipe(100000000))
 
         val server = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
@@ -172,15 +172,15 @@ class HttpTests {
         val serverDigest = CrappyDigest.getInstance()
         val clientDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
+        val packetSize = 10000
         val body: AsyncRead = AsyncReader {
-                val buffer = allocateByteBuffer(10000)
-                random.nextBytes(buffer.array())
-                sent += buffer.remaining()
-                serverDigest.update(buffer.array())
-
-                it.add(buffer)
-                true
-            }.pipe(createContentLengthPipe(100000000))
+            it.putAllocatedBytes(packetSize) { bytes, bytesOffset ->
+                random.nextBytes(bytes, bytesOffset, bytesOffset + packetSize)
+                sent += packetSize
+                serverDigest.update(bytes, bytesOffset, bytesOffset + packetSize)
+            }
+            true
+        }.pipe(createContentLengthPipe(100000000))
 
         var received = 0
         val server = createAsyncPipeServerSocket()
