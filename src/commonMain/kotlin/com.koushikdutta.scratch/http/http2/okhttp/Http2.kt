@@ -17,7 +17,7 @@ package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.http.http2.encodeUtf8
 
-object Http2 {
+internal object Http2 {
   val CONNECTION_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n".encodeUtf8()
 
   /** The initial max frame size, applied independently writing to, or reading from the peer. */

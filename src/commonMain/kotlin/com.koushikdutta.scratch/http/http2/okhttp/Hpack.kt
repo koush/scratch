@@ -35,7 +35,7 @@ import kotlin.jvm.JvmOverloads
  * fills, it is doubled.
  */
 @Suppress("NAME_SHADOWING")
-object Hpack {
+internal object Hpack {
   private const val PREFIX_4_BITS = 0x0f
   private const val PREFIX_5_BITS = 0x1f
   private const val PREFIX_6_BITS = 0x3f

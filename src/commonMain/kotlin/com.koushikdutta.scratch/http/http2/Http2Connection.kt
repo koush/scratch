@@ -9,7 +9,7 @@ import com.koushikdutta.scratch.http.http2.okhttp.*
 import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
 import com.koushikdutta.scratch.http.server.AsyncHttpResponseHandler
 
-class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielder: Cooperator? = null) : AsyncSocket {
+internal class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielder: Cooperator? = null) : AsyncSocket {
     val handler = AsyncHandler({connection.socket.await()})
     var headers: List<Header>? = null
     var trailers: List<Header>? = null
@@ -118,7 +118,7 @@ class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielde
 
 typealias Http2ConnectionClose = (exception: Exception?) -> Unit
 
-class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpResponseHandler? = null) {
+internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpResponseHandler? = null) {
     val handler = AsyncHandler({socket.await()})
     var lastGoodStreamId: Int = 0
     var isShutdown = false

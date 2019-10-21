@@ -35,7 +35,7 @@ import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_WINDOW_UPDATE
 
 /** Writes HTTP/2 transport frames. */
 @Suppress("NAME_SHADOWING")
-class Http2Writer(
+internal class Http2Writer(
         /** Creates a frame reader with max header table size of 4096. */
   private val sink: Buffer,
         private val client: Boolean

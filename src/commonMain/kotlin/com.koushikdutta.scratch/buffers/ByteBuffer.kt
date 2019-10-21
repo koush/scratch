@@ -1,5 +1,13 @@
 package com.koushikdutta.scratch.buffers
 
+expect fun ByteBuffer.order(): ByteOrder
+expect fun ByteBuffer.order(order: ByteOrder): ByteBuffer
+fun createByteBuffer(array: ByteArray): ByteBuffer {
+    return createByteBuffer(array, 0, array.size)
+}
+expect fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuffer
+expect fun allocateByteBuffer(length: Int): ByteBuffer
+
 enum class ByteOrder {
     LITTLE_ENDIAN {
         override fun getNumber(bytes: ByteArray, offset: Int, length: Int): Long {
@@ -45,6 +53,7 @@ enum class ByteOrder {
 }
 
 expect abstract class Buffer {
+    fun clear(): Buffer
     fun position(position: Int): Buffer
     fun flip(): Buffer
     fun position(): Int
@@ -83,15 +92,6 @@ expect abstract class ByteBuffer : Buffer {
     final override fun array(): ByteArray
     abstract fun duplicate(): ByteBuffer
 }
-expect fun ByteBuffer.order(): ByteOrder
-expect fun ByteBuffer.order(order: ByteOrder): ByteBuffer
-
-fun createByteBuffer(array: ByteArray): ByteBuffer {
-    return createByteBuffer(array, 0, array.size)
-}
-expect fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuffer
-expect fun allocateByteBuffer(length: Int): ByteBuffer
-
 
 abstract class BufferCommon(internal val capacity: Int) {
     protected var position = 0

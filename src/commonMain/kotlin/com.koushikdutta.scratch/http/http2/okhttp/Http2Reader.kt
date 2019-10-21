@@ -47,7 +47,7 @@ import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_WINDOW_UPDATE
  * This implementation assumes we do not send an increased [frame][Settings.getMaxFrameSize] to the
  * peer. Hence, we expect all frames to have a max length of [Http2.INITIAL_MAX_FRAME_SIZE].
  */
-class Http2Reader(
+internal class Http2Reader(
   /** Creates a frame reader with max header table size of 4096. */
   private val socket: AsyncSocket,
   private val client: Boolean,

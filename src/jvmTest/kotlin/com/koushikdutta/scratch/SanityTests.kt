@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch;
 
 import org.junit.Test;
+import java.nio.ByteBuffer
 import kotlin.test.assertEquals
 
 class SanityTests {

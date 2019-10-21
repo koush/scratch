@@ -1,9 +1,12 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.TestUtils.Companion.count
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.connect
+import com.koushikdutta.scratch.filters.ChunkedInputPipe
+import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.OK
@@ -13,6 +16,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
 import kotlin.coroutines.*
 import kotlin.math.abs
@@ -162,6 +166,54 @@ class LoopTests {
     }
 
     @Test
+    fun testServerALot() {
+        val server = createAsyncPipeServerSocket()
+
+        server.accept().receive {
+            val buffer = ByteBufferList()
+            val random = TestUtils.createRandomRead(1000000)
+            while (random(buffer)) {
+                write(buffer)
+                assertTrue(buffer.isEmpty)
+            }
+            close()
+        }
+
+        var count = 0
+        for (i in 1..100) {
+            async {
+                count += server.connect()::read.count()
+            }
+        }
+
+        assertEquals(count, 1000000 * 100)
+    }
+
+    @Test
+    fun testByteBufferAllocations() {
+        val start = ByteBufferList.totalObtained
+        val server = createAsyncPipeServerSocket()
+
+        server.accept().receive {
+            val buffer = ByteBufferList()
+            val random = TestUtils.createRandomRead(10000000)
+            while (random(buffer)) {
+                write(buffer)
+                assertTrue(buffer.isEmpty)
+            }
+            close()
+        }
+
+        var count = 0
+        async {
+            count += server.connect()::read.count()
+        }
+
+        assertEquals(count, 10000000)
+        assertTrue(ByteBufferList.totalObtained - start < 50000)
+    }
+
+    @Test
     fun testReadException() = networkContextTest(true) {
         val server = listen()
         server.accept().receive {
@@ -238,14 +290,13 @@ class LoopTests {
             for (i in 1..numRequests) {
                 async {
                     sleep(abs(random.nextLong()) % 5000)
-                    val body: AsyncRead = createContentLengthPipe(postLength.toLong(),
-                        AsyncReader {
+                    val body = AsyncReader {
                             val buffer = allocateByteBuffer(10000)
                             random.nextBytes(buffer.array())
 
                             it.add(buffer)
                             true
-                        })
+                        }.pipe(createContentLengthPipe(postLength.toLong()))
 
 
                     val request =

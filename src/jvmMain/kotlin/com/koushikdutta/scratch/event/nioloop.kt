@@ -8,7 +8,6 @@ import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.external.Log
 import java.io.Closeable
 import java.io.IOException
-import java.lang.IllegalArgumentException
 import java.lang.IllegalStateException
 import java.net.NetworkInterface
 import java.nio.channels.*
@@ -122,7 +121,7 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
     val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress
     private val inputBuffer = ByteBufferList()
     private var closed = false
-    private val allocator = Allocator()
+    private val allocator = AllocationTracker()
     private val input = object : NonBlockingWritePipe() {
         override fun writable() {
             key.interestOps(SelectionKey.OP_READ or key.interestOps())
@@ -164,15 +163,27 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
         closeInternal()
     }
 
+    private val trackingSocketReader: BuffersBufferWriter<Int> = {
+        val ret = channel.read(it)
+        if (ret > 0)
+            allocator.trackDataUsed(ret)
+        ret
+    }
+
+    private fun flushInputBuffer() {
+        allocator.finishTracking()
+        if (!input.write(inputBuffer))
+            key.interestOps(SelectionKey.OP_READ.inv() and key.interestOps())
+    }
+
     internal fun readable(): Int {
-        var total = 0
-        val b = allocator.allocate()
-        // keep track of the max mount read during this read cycle
-        // so we can be quicker about allocations during the next
-        // time this socket reads.
-        var read: Long
         try {
-            read = channel.read(b).toLong()
+            var read: Int
+            do {
+                read = inputBuffer.putAllocatedBuffer(allocator.requestNextAllocation(), trackingSocketReader)
+            }
+            while (read > 0)
+            flushInputBuffer()
 
             // clean close
             if (read < 0) {
@@ -180,30 +191,18 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
                 input.end()
             }
         } catch (e: Exception) {
+            flushInputBuffer()
+
             // transport failure caused close
             closed = true
-            read = -1
             input.end(e)
         }
 
         if (closed) {
             closeInternal()
         }
-        else {
-            total += read.toInt()
-        }
 
-        if (read > 0) {
-            allocator.track(read)
-            b.flip()
-            inputBuffer.add(b)
-            if (!input.write(inputBuffer))
-                key.interestOps(SelectionKey.OP_READ.inv() and key.interestOps())
-        }
-        else {
-            ByteBufferList.reclaim(b)
-        }
-        return total
+        return allocator.lastAlloc
     }
 
     internal fun writable() {
@@ -473,12 +472,12 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         fun parseInet4Address(address: String): Inet4Address {
             // necessary to prevent dns lookup
             require(Character.digit(address[0], 16) != -1) { "not an Inet4Address" }
-            return InetAddress.getAllByName(address) as Inet4Address
+            return InetAddress.getByName(address) as Inet4Address
         }
         fun parseInet6Address(address: String): Inet6Address {
             // necessary to prevent dns lookup
             require(address.contains(':')) { "not an Inet6Address" }
-            return InetAddress.getAllByName(address) as Inet6Address
+            return InetAddress.getByName(address) as Inet6Address
         }
         fun getInterfaceAddresses(): Array<InetAddress> {
             val ret = arrayListOf<InetAddress>()

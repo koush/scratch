@@ -5,32 +5,34 @@ package com.koushikdutta.scratch.buffers
 import kotlin.math.max
 import kotlin.math.min
 
-fun MutableList<ByteBuffer>.peekFirst(): ByteBuffer {
+private fun ArrayList<ByteBuffer>.peekFirst(): ByteBuffer {
     return get(0)
 }
-fun MutableList<ByteBuffer>.peekLast(): ByteBuffer {
+private fun ArrayList<ByteBuffer>.peekLast(): ByteBuffer {
     return get(size - 1)
 }
-fun MutableList<ByteBuffer>.removeFirst(): ByteBuffer {
+private fun ArrayList<ByteBuffer>.removeFirst(): ByteBuffer {
     return removeAt(0)
 }
-
-fun MutableList<ByteBuffer>.addFirst(byteBuffer: ByteBuffer) {
+private fun ArrayList<ByteBuffer>.addFirst(byteBuffer: ByteBuffer) {
     add(0, byteBuffer)
 }
 
-
 class ByteBufferList : Buffers {
-    private val mBuffers = mutableListOf<ByteBuffer>()
+    private val buffers = arrayListOf<ByteBuffer>()
+    private val freeBuffers = arrayListOf<ByteBuffer>()
     private var order = ByteOrder.BIG_ENDIAN
     private var remaining = 0
 
-    constructor() {}
+    init {
+        buffers.ensureCapacity(10)
+    }
+
+    constructor()
 
     constructor(vararg b: ByteBuffer) {
         addAll(*b)
     }
-
 
     constructor(buf: ByteArray) : super() {
         val b = createByteBuffer(buf)
@@ -46,8 +48,8 @@ class ByteBufferList : Buffers {
     }
 
     override fun readAll(): Array<ByteBuffer> {
-        val ret = mBuffers.toTypedArray<ByteBuffer>()
-        mBuffers.clear()
+        val ret = buffers.toTypedArray<ByteBuffer>()
+        buffers.clear()
         remaining = 0
         return ret
     }
@@ -57,11 +59,11 @@ class ByteBufferList : Buffers {
     }
 
     override fun peekShort(): Short {
-        return read(2).getShort(mBuffers.peekFirst().position())
+        return read(2).getShort(buffers.peekFirst().position())
     }
 
     override fun peek(): Byte {
-        return read(1).get(mBuffers.peekFirst().position())
+        return read(1).get(buffers.peekFirst().position())
     }
 
     override fun peekByteChar(): Char {
@@ -69,11 +71,11 @@ class ByteBufferList : Buffers {
     }
 
     override fun peekInt(): Int {
-        return read(4).getInt(mBuffers.peekFirst().position())
+        return read(4).getInt(buffers.peekFirst().position())
     }
 
     override fun peekLong(): Long {
-        return read(8).getLong(mBuffers.peekFirst().position())
+        return read(8).getLong(buffers.peekFirst().position())
     }
 
     override fun peekBytes(size: Int): ByteArray {
@@ -132,7 +134,7 @@ class ByteBufferList : Buffers {
         val reading = buffer.remaining()
 
         while (buffer.hasRemaining()) {
-            val b = mBuffers.peekFirst()
+            val b = buffers.peekFirst()
             if (buffer.remaining() < b.remaining()) {
                 val oldLimit = b.limit()
                 b.limit(b.position() + buffer.remaining())
@@ -153,7 +155,7 @@ class ByteBufferList : Buffers {
 
         var need = length
         while (need > 0) {
-            val b = mBuffers.peekFirst()
+            val b = buffers.peekFirst()
             val read = min(b.remaining(), need)
             if (bytes != null) {
                 b.get(bytes, offset, read)
@@ -164,7 +166,7 @@ class ByteBufferList : Buffers {
             need -= read
             offset += read
             if (b.remaining() == 0) {
-                mBuffers.removeFirst()
+                buffers.removeFirst()
                 reclaim(b)
             }
         }
@@ -181,7 +183,7 @@ class ByteBufferList : Buffers {
         var offset = 0
 
         while (offset < length) {
-            val b = mBuffers.removeFirst()
+            val b = buffers.removeFirst()
             val remaining = b.remaining()
 
             if (remaining == 0) {
@@ -196,7 +198,7 @@ class ByteBufferList : Buffers {
                 subset.limit(need)
                 b.get(subset.array(), 0, need)
                 into.add(subset)
-                mBuffers.addFirst(b)
+                buffers.addFirst(b)
                 break
             } else {
                 // this belongs to the new list
@@ -207,6 +209,10 @@ class ByteBufferList : Buffers {
         }
 
         remaining -= length
+
+        // after this buffer gives filled buffers to the target buffer,
+        // take all the empty buffers from the target.
+        into.obtainAll(freeBuffers)
     }
 
     override fun read(into: WritableBuffers): Boolean {
@@ -279,10 +285,10 @@ class ByteBufferList : Buffers {
     private fun read(count: Int): ByteBuffer {
         require(remaining >= count) { "count : $remaining/$count" }
 
-        var first: ByteBuffer = mBuffers.peekFirst()
+        var first: ByteBuffer = buffers.peekFirst()
         while (!first.hasRemaining()) {
-            reclaim(mBuffers.removeFirst())
-            first = mBuffers.peekFirst()
+            reclaim(buffers.removeFirst())
+            first = buffers.peekFirst()
         }
 
         if (first.remaining() >= count) {
@@ -295,7 +301,7 @@ class ByteBufferList : Buffers {
         var offset = 0
         var bb: ByteBuffer? = null
         while (offset < count) {
-            bb = mBuffers.removeFirst()
+            bb = buffers.removeFirst()
             val toRead = min(count - offset, bb.remaining())
             bb.get(bytes, offset, toRead)
             offset += toRead
@@ -307,8 +313,8 @@ class ByteBufferList : Buffers {
         // if there was still data left in the last buffer we popped
         // toss it back into the head
         if (bb != null && bb.remaining() > 0)
-            mBuffers.addFirst(bb)
-        mBuffers.addFirst(ret)
+            buffers.addFirst(bb)
+        buffers.addFirst(ret)
         return ret.order(order)
     }
 
@@ -328,11 +334,11 @@ class ByteBufferList : Buffers {
             reclaim(b)
             return this
         }
-        addRemaining(b.remaining())
+        remaining += b.remaining()
         // see if we can fit the entirety of the buffer into the end
         // of the current last buffer
-        if (mBuffers.size > 0) {
-            val last = mBuffers.peekLast()
+        if (buffers.size > 0) {
+            val last = buffers.peekLast()
             if (last.capacity() - last.limit() >= b.remaining()) {
                 last.mark()
                 last.position(last.limit())
@@ -345,7 +351,7 @@ class ByteBufferList : Buffers {
                 return this
             }
         }
-        mBuffers.add(b)
+        buffers.add(b)
         trim()
         return this
     }
@@ -355,11 +361,11 @@ class ByteBufferList : Buffers {
             reclaim(b)
             return this
         }
-        addRemaining(b.remaining())
+        remaining += b.remaining()
         // see if we can fit the entirety of the buffer into the beginning
         // of the current first buffer
-        if (mBuffers.size > 0) {
-            val first = mBuffers.peekFirst()
+        if (buffers.size > 0) {
+            val first = buffers.peekFirst()
             if (first.position() >= b.remaining()) {
                 first.position(first.position() - b.remaining())
                 first.mark()
@@ -369,38 +375,33 @@ class ByteBufferList : Buffers {
                 return this
             }
         }
-        mBuffers.addFirst(b)
+        buffers.addFirst(b)
         return this
     }
 
-    private fun addRemaining(remaining: Int) {
-        if (this.remaining >= 0)
-            this.remaining += remaining
-    }
-
     override fun free() {
-        while (mBuffers.size > 0) {
-            reclaim(mBuffers.removeFirst())
+        while (buffers.size > 0) {
+            reclaim(buffers.removeFirst())
         }
         remaining = 0
     }
 
     override fun readFirst(): ByteBuffer {
-        val ret = mBuffers.removeFirst()
+        val ret = buffers.removeFirst()
         remaining -= ret.remaining()
         return ret
     }
 
     private fun size(): Int {
-        return mBuffers.size
+        return buffers.size
     }
 
     // allocate or extend an existing buffer.
     // return the buffer with the mark set so position can be restored after writing.
-    private fun grow(length: Int): ByteBuffer {
-        if (!mBuffers.isEmpty()) {
-            val b = mBuffers.peekLast()
-            if (b.limit() + length < b.capacity()) {
+    private fun grow(length: Int, requireArray: Boolean = false): ByteBuffer {
+        if (!buffers.isEmpty()) {
+            val b = buffers.peekLast()
+            if (b.limit() + length <= b.capacity() && (!b.isDirect() || !requireArray)) {
                 b.mark()
                 b.position(b.limit())
                 b.limit(b.limit() + length)
@@ -412,7 +413,8 @@ class ByteBufferList : Buffers {
         val ret = obtain(length)
         ret.mark()
         ret.limit(length)
-        add(ret)
+        buffers.add(ret)
+        remaining += ret.remaining()
 
         return ret.order(order)
     }
@@ -446,6 +448,32 @@ class ByteBufferList : Buffers {
         return put(c.toByte())
     }
 
+    override fun putAllocatedBytes(allocate: Int, writer: BuffersArrayWriter): ByteBufferList {
+        val buffer = grow(allocate)
+        writer(buffer.array(), buffer.arrayOffset() + buffer.position())
+        return this
+    }
+
+    override fun <T> putAllocatedBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T {
+        val buffer = grow(allocate)
+        // the amount written may not be the same as the amount allocated.
+        // this will happen in the case of
+        // resolve that discrepency when tracking remaining.
+        try {
+            return writer(buffer)
+        }
+        finally {
+            // the writer may throw! so the adjustment needs to happen here.
+            // see how much was actually written.
+            val used = allocate - buffer.remaining()
+            // update the limit to the current write cursor
+            buffer.limit(buffer.position())
+            // reset hte position to the mark set in grow
+            buffer.reset()
+            remaining = remaining - allocate + used
+        }
+    }
+
     @UseExperimental(ExperimentalStdlibApi::class)
     override fun putUtf8String(s: String): ByteBufferList {
         add(s.encodeToByteArray())
@@ -456,7 +484,7 @@ class ByteBufferList : Buffers {
     @UseExperimental(ExperimentalStdlibApi::class)
     override fun peekUtf8String(): String {
         val builder = StringBuilder()
-        for (bb in mBuffers) {
+        for (bb in buffers) {
             val bytes: ByteArray
             val offset: Int
             val length: Int
@@ -475,14 +503,46 @@ class ByteBufferList : Buffers {
         return builder.toString()
     }
 
-    companion object {
-        val EMPTY_BYTEBUFFER = createByteBuffer(ByteArray(0))
-        var MAX_ITEM_SIZE = 1024 * 256
-
-        fun reclaim(b: ByteBuffer?) {
+    override fun reclaim(vararg buffers: ByteBuffer?) {
+        for (b in buffers) {
+            // only wholly owned arrays can be reclaimed
+            if (b == null || b.isDirect() || b.array().size != b.capacity() || b.arrayOffset() != 0 || b.capacity() > MAX_ITEM_SIZE || b.capacity() < MIN_ITEM_SIZE)
+                return
+            freeBuffers.add(b)
         }
 
+        if (freeBuffers.size > 100)
+            throw AssertionError("ByteBufferList has reclaimed over 100 buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+    }
+
+    override fun obtain(size: Int): ByteBuffer {
+        for ((index, b) in freeBuffers.withIndex()) {
+            if (size <= b.capacity()) {
+                freeBuffers.removeAt(index)
+                b.clear()
+                return b
+            }
+        }
+        return ByteBufferList.obtain(size)
+    }
+
+    override fun obtainAll(into: ArrayList<ByteBuffer>) {
+        into.addAll(freeBuffers)
+        freeBuffers.clear()
+    }
+
+    override fun takeAll(from: AllocatingBuffers) {
+        from.obtainAll(freeBuffers)
+    }
+
+    companion object {
+        val EMPTY_BYTEBUFFER = createByteBuffer(ByteArray(0))
+        var MAX_ITEM_SIZE = 65536
+        var MIN_ITEM_SIZE = 1024
+
+        var totalObtained = 0L
         fun obtain(size: Int): ByteBuffer {
+            totalObtained += size
             return allocateByteBuffer(max(8192, size))
         }
 

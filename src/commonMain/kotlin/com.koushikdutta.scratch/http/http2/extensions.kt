@@ -5,11 +5,11 @@ import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.createByteBuffer
 
-typealias BufferedSource = ReadableBuffers
-typealias BufferedSink = WritableBuffers
-typealias Buffer = ByteBufferList
+internal typealias BufferedSource = ReadableBuffers
+internal typealias BufferedSink = WritableBuffers
+internal typealias Buffer = ByteBufferList
 
-class ByteString {
+internal class ByteString {
     val bytes: ByteArray
     val string: String
     constructor(bytes: ByteArray) {
@@ -46,75 +46,75 @@ class ByteString {
     }
 }
 
-fun String.encodeUtf8() : ByteString {
+internal fun String.encodeUtf8() : ByteString {
     return ByteString(this)
 }
 
-fun ByteString.utf8(): String {
+internal fun ByteString.utf8(): String {
     return string
 }
 
-fun ByteString.toAsciiLowercase() : ByteString {
+internal fun ByteString.toAsciiLowercase() : ByteString {
     val lower = string.toLowerCase()
     return ByteString(lower)
 }
 
-fun BufferedSink.writeByte(byte: Int) {
+internal fun BufferedSink.writeByte(byte: Int) {
     put(byte.toByte())
 }
 
-fun BufferedSink.writeInt(int: Int) {
+internal fun BufferedSink.writeInt(int: Int) {
     putInt(int)
 }
 
-fun BufferedSink.writeShort(short: Int) {
+internal fun BufferedSink.writeShort(short: Int) {
     putShort(short.toShort())
 }
 
-fun BufferedSource.readByteString(): ByteString {
+internal fun BufferedSource.readByteString(): ByteString {
     return ByteString(this.readBytes())
 }
 
-fun BufferedSource.readByteString(length: Long): ByteString {
+internal fun BufferedSource.readByteString(length: Long): ByteString {
     return ByteString(this.readBytes(length.toInt()))
 }
 
-fun BufferedSource.exhausted(): Boolean {
+internal fun BufferedSource.exhausted(): Boolean {
     return isEmpty
 }
 
-fun BufferedSource.skip(length: Long) {
+internal fun BufferedSource.skip(length: Long) {
     this.skip(length.toInt())
 }
 
-fun BufferedSource.readMedium(): Int {
+internal fun BufferedSource.readMedium(): Int {
     return (readByte() and 0xff shl 16
             or (readByte() and 0xff shl 8)
             or (readByte() and 0xff))
 }
 
 
-fun BufferedSink.writeMedium(medium: Int) {
+internal fun BufferedSink.writeMedium(medium: Int) {
     writeByte(medium.ushr(16) and 0xff)
     writeByte(medium.ushr(8) and 0xff)
     writeByte(medium and 0xff)
 }
 
-fun BufferedSink.write(byteString: ByteString) {
+internal fun BufferedSink.write(byteString: ByteString) {
     add(ByteBufferList.deepCopy(createByteBuffer(byteString.bytes)))
 }
 
-fun BufferedSink.write(bytes: ByteArray) {
+internal fun BufferedSink.write(bytes: ByteArray) {
     add(ByteBufferList.deepCopy(createByteBuffer(bytes)))
 }
 
-fun BufferedSink.write(buffer: Buffer, length: Long) {
+internal fun BufferedSink.write(buffer: Buffer, length: Long) {
     buffer.read(this, length.toInt())
 }
 
-infix fun Byte.and(mask: Int): Int = toInt() and mask
-infix fun Short.and(mask: Int): Int = toInt() and mask
-infix fun Int.and(mask: Long): Long = toLong() and mask
+internal infix fun Byte.and(mask: Int): Int = toInt() and mask
+internal infix fun Short.and(mask: Int): Int = toInt() and mask
+internal infix fun Int.and(mask: Long): Long = toLong() and mask
 
 internal fun <T> Array<T>.arraycopy(sourcePos: Int, dest_arr: Array<T>, destPos: Int, len: Int) {
     copyInto(dest_arr, destPos, sourcePos, sourcePos + len)

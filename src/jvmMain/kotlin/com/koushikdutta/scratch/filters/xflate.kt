@@ -2,7 +2,8 @@ package com.koushikdutta.scratch.filters
 
 import com.koushikdutta.scratch.AsyncPipe
 import com.koushikdutta.scratch.AsyncRead
-import com.koushikdutta.scratch.buffers.Allocator
+import com.koushikdutta.scratch.buffers.AllocationTracker
+import com.koushikdutta.scratch.buffers.BuffersBufferWriter
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import java.lang.AssertionError
 import java.nio.ByteBuffer
@@ -16,7 +17,7 @@ private typealias xflate = (ByteArray, Int, Int) -> Int
 private typealias finish = () -> Unit
 
 private fun XflatePipe(read: AsyncRead, needsInput: needsInput, setInput: setInput, finished: finished, xflate: xflate, finish: finish): AsyncRead {
-    val allocator = Allocator()
+    val allocator = AllocationTracker()
     val temp = ByteBufferList()
 
     return read@{ buffer ->
@@ -31,44 +32,41 @@ private fun XflatePipe(read: AsyncRead, needsInput: needsInput, setInput: setInp
         }
 
         var recycle: ByteBuffer? = null
-        var output = allocator.allocate()
+
+        val bufferWriter: BuffersBufferWriter<Int> = {
+            val xflated = xflate(it.array(), it.arrayOffset() + it.position(), it.remaining())
+            allocator.trackDataUsed(xflated)
+            it.position(it.position() + xflated)
+            xflated
+        }
 
         while (true) {
-            val xflated = xflate(output.array(), output.arrayOffset() + output.position(), output.remaining())
+            val xflated = buffer.putAllocatedBuffer(allocator.requestNextAllocation(), bufferWriter)
 
             if (xflated == 0) {
-                // the xflate produced nothing, so maybe feed it input
-                if (!temp.hasRemaining()) {
-                    if (!needsInput())
-                        throw AssertionError("xflate needsInput expected")
+                // maybe we finished? quit for now and signal eos on next read.
+                if (finished())
                     break
-                }
 
-                // queue up another buffer
+                // if this xflate did not finish, this implies that more input is necessary.
+                if (!needsInput())
+                    throw AssertionError("xflate needsInput expected")
+
+                // wait for more buffers if necessary
+                if (!temp.hasRemaining())
+                    break
+
+                // queue up another buffer for xflate
                 val b = ByteBufferList.deepCopyIfDirect(temp.readFirst())
-                ByteBufferList.reclaim(recycle)
+                // processed buffers should be reclaimed by the xflater for future allocations
+                buffer.reclaim(recycle)
                 recycle = b
                 if (!b.hasRemaining())
                     continue
                 setInput(b.array(), b.arrayOffset() + b.position(), b.remaining())
             }
-
-            allocator.track(xflated.toLong())
-
-            output.position(output.position() + xflated)
-
-            if (!output.hasRemaining()) {
-                output.flip()
-                buffer.add(output)
-                output = allocator.allocate()
-            }
         }
-        output.flip()
-        buffer.add(output)
-
-        if (recycle != null)
-            ByteBufferList.reclaim(recycle)
-
+        buffer.reclaim(recycle)
         true
     }
 }

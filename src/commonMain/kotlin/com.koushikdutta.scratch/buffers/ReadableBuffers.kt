@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch.buffers
 
-interface ReadableBuffers {
-
+interface ReadableBuffers : AllocatingBuffers {
     val isEmpty: Boolean
         get() = remaining() == 0
 

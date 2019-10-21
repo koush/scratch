@@ -26,7 +26,7 @@ open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
                 requestBody = requestBody.pipe(ChunkedOutputPipe)
             }
             else {
-                requestBody = createContentLengthPipe(request.headers.contentLength!!, AsyncReader(requestBody))
+                requestBody = AsyncReader(requestBody).pipe(createContentLengthPipe(request.headers.contentLength!!))
             }
         }
         else {

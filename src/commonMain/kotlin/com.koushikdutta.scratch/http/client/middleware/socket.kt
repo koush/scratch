@@ -130,7 +130,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
         return true
     }
 
-    val http2Connections = mutableMapOf<String, Http2Connection>()
+    private val http2Connections = mutableMapOf<String, Http2Connection>()
     private suspend fun connectHttp2(session: AsyncHttpClientSession, connection: Http2Connection): Http2Stream {
         session.protocol = Protocol.HTTP_2.toString()
         val responseSocket = connection.newStream(session.request)

@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.AsyncReader
+import com.koushikdutta.scratch.AsyncReaderPipe
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedInputPipe
 import com.koushikdutta.scratch.http.Headers
@@ -12,20 +13,22 @@ import com.koushikdutta.scratch.pipe
 import kotlin.math.min
 
 
-fun createContentLengthPipe(contentLength: Long, reader: AsyncReader): AsyncRead {
+fun createContentLengthPipe(contentLength: Long): AsyncReaderPipe {
     require(contentLength >= 0) { "negative content length received: $contentLength" }
-
     var length = contentLength
     val temp = ByteBufferList()
-    return read@{
-        if (length == 0L)
-            return@read false
-        val toRead = min(Int.MAX_VALUE.toLong(), length)
-        if (!reader.readChunk(temp, toRead.toInt()))
-            throw Exception("stream ended before end of expected content length")
-        length -= temp.remaining()
-        temp.read(it)
-        true
+
+    return { reader ->
+        read@{
+            if (length == 0L)
+                return@read false
+            val toRead = min(Int.MAX_VALUE.toLong(), length)
+            if (!reader.readChunk(temp, toRead.toInt()))
+                throw Exception("stream ended before end of expected content length")
+            length -= temp.remaining()
+            temp.read(it)
+            true
+        }
     }
 }
 
@@ -43,7 +46,7 @@ fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRe
 
     val contentLength = headers.contentLength
     if (contentLength != null) {
-        read = createContentLengthPipe(contentLength, reader)
+        read = reader.pipe(createContentLengthPipe(contentLength))
     }
     else if ("chunked" == headers.transferEncoding) {
         read = reader.pipe(ChunkedInputPipe)

@@ -78,7 +78,7 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
                     responseBody = responseBody.pipe(ChunkedOutputPipe)
                 }
                 else {
-                    responseBody = createContentLengthPipe(response.headers.contentLength!!, AsyncReader(responseBody))
+                    responseBody = AsyncReader(responseBody).pipe(createContentLengthPipe(response.headers.contentLength!!))
                 }
             }
             else {

@@ -14,6 +14,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
+import com.koushikdutta.scratch.TestUtils.Companion.count
+
 
 class TlsTests {
     @Test
@@ -155,6 +157,80 @@ class TlsTests {
         }
 
         assertEquals(data, "hello worldhello world")
+    }
+
+    @Test
+    fun testTlsServerALot() {
+        println(ByteBufferList.totalObtained)
+        val keypairCert = createSelfSignedCertificate("TestServer")
+        val serverContext = createTLSContext()
+        serverContext.init(keypairCert.first, keypairCert.second)
+
+        val server = createAsyncPipeServerSocket()
+        val tlsServer = server.listenTls(serverContext)
+
+        tlsServer.accept().receive {
+            val buffer = ByteBufferList()
+            val random = TestUtils.createRandomRead(5000000)
+            var written = 0
+            while (random(buffer)) {
+                written += buffer.remaining()
+                write(buffer)
+                assertTrue(buffer.isEmpty)
+            }
+            assertEquals(written, 5000000)
+            close()
+        }
+
+        var count = 0
+        for (i in 1..10) {
+            async {
+                val clientContext = createTLSContext()
+                clientContext.init(keypairCert.second)
+
+                var got = server.connect().connectTls("TestServer", 80, clientContext)::read.count()
+                assertEquals(got, 5000000)
+                count += got
+            }
+        }
+
+        assertEquals(count, 5000000 * 10)
+        println(ByteBufferList.totalObtained)
+    }
+
+    @Test
+    fun testByteBufferAllocations() {
+        val start = ByteBufferList.totalObtained
+        val keypairCert = createSelfSignedCertificate("TestServer")
+        val serverContext = createTLSContext()
+        serverContext.init(keypairCert.first, keypairCert.second)
+        val server = createAsyncPipeServerSocket()
+        val tlsServer = server.listenTls(serverContext)
+
+        var mid = 0L
+        tlsServer.accept().receive {
+            mid = ByteBufferList.totalObtained
+            val buffer = ByteBufferList()
+            val random = TestUtils.createRandomRead(100000000)
+            while (random(buffer)) {
+                write(buffer)
+                assertTrue(buffer.isEmpty)
+            }
+            close()
+        }
+
+        var count = 0
+        async {
+            val clientContext = createTLSContext()
+            clientContext.init(keypairCert.second)
+            count += server.connect().connectTls("TestServer", 80, clientContext)::read.count()
+        }
+
+        assertEquals(count, 100000000)
+        // check handshake allocations
+        assertTrue(mid - start < 250000)
+        // check streaming allocations
+        assertTrue(ByteBufferList.totalObtained - mid < 80000)
     }
 
     @Test

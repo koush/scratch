@@ -64,8 +64,7 @@ class Http2Tests {
         // 100 mb body
         val serverDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
-        val body: AsyncRead = createContentLengthPipe(100000000,
-            AsyncReader {
+        val body: AsyncRead = AsyncReader {
                 val buffer = allocateByteBuffer(10000)
                 random.nextBytes(buffer.array())
                 sent += buffer.remaining()
@@ -73,7 +72,7 @@ class Http2Tests {
 
                 it.add(buffer)
                 true
-            })
+            }.pipe(createContentLengthPipe(100000000))
 
         Http2Connection(pair.second, false) {
             AsyncHttpResponse.OK(body = BinaryBody(read = body))
@@ -115,8 +114,7 @@ class Http2Tests {
         val serverDigest = CrappyDigest.getInstance()
         val clientDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
-        val body: AsyncRead = createContentLengthPipe(100000000,
-            AsyncReader {
+        val body: AsyncRead = AsyncReader {
                 val buffer = allocateByteBuffer(10000)
                 random.nextBytes(buffer.array())
                 sent += buffer.remaining()
@@ -124,7 +122,7 @@ class Http2Tests {
 
                 it.add(buffer)
                 true
-            })
+            }.pipe(createContentLengthPipe(100000000))
 
         var received = 0
         Http2Connection(pair.second, false) {

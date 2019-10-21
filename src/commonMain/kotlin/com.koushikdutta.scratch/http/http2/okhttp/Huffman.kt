@@ -28,7 +28,7 @@ import com.koushikdutta.scratch.http.http2.*
  *
  * [twitter_hpack]: https://github.com/twitter/hpack
  */
-object Huffman {
+internal object Huffman {
   // Appendix C: Huffman Codes
   // http://tools.ietf.org/html/draft-ietf-httpbis-header-compression-12#appendix-B
   private val CODES =

@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.http.*
@@ -121,8 +122,7 @@ class HttpTests {
         val random = Random.Default
         var sent = 0
         val serverDigest = CrappyDigest.getInstance()
-        val body: AsyncRead = createContentLengthPipe(100000000,
-            AsyncReader {
+        val body: AsyncRead = AsyncReader {
                 val buffer = allocateByteBuffer(10000)
                 random.nextBytes(buffer.array())
                 sent += buffer.remaining()
@@ -130,7 +130,7 @@ class HttpTests {
 
                 it.add(buffer)
                 true
-            })
+            }.pipe(createContentLengthPipe(100000000))
 
         val server = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
@@ -172,8 +172,7 @@ class HttpTests {
         val serverDigest = CrappyDigest.getInstance()
         val clientDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
-        val body: AsyncRead = createContentLengthPipe(100000000,
-            AsyncReader {
+        val body: AsyncRead = AsyncReader {
                 val buffer = allocateByteBuffer(10000)
                 random.nextBytes(buffer.array())
                 sent += buffer.remaining()
@@ -181,7 +180,7 @@ class HttpTests {
 
                 it.add(buffer)
                 true
-            })
+            }.pipe(createContentLengthPipe(100000000))
 
         var received = 0
         val server = createAsyncPipeServerSocket()
@@ -277,21 +276,11 @@ class HttpTests {
 
         for (i in 1..10000) {
             async {
-                val body: AsyncRead = createContentLengthPipe(postLength.toLong(),
-                    AsyncReader {
-                        val buffer = allocateByteBuffer(10000)
-                        random.nextBytes(buffer.array())
-
-                        it.add(buffer)
-                        true
-                    })
-
-
                 val socket = server.connect()
                 val reader = AsyncReader({ socket.read(it) })
 
                 val request =
-                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = BinaryBody("application/binary", body))
+                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = createRandomRead(postLength))
                 val result = httpClient.execute(request, socket, reader)
                 val data = readAllString(result.body!!)
                 assertEquals(data, "hello world")

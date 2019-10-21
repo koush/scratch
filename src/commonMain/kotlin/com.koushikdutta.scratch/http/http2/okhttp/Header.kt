@@ -20,7 +20,7 @@ import com.koushikdutta.scratch.http.http2.encodeUtf8
 import com.koushikdutta.scratch.http.http2.utf8
 
 /** HTTP header: the name is an ASCII string, but the value can be UTF-8. */
-data class Header(
+internal data class Header(
         /** Name in case-insensitive ASCII encoding. */
   val name: ByteString,
         /** Value in UTF-8 encoding. */
