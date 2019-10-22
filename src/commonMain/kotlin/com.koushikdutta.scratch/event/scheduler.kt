@@ -15,17 +15,18 @@ private fun PriorityQueue.addSorted(scheduled: Scheduled) {
     sortWith(Scheduler.INSTANCE)
 }
 
-abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope, CoroutineDispatcher() {
-    override val coroutineContext: CoroutineContext = EmptyCoroutineContext
+abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope {
     private var postCounter = 0
     internal val mQueue = arrayListOf<Scheduled>()
 
     protected val isQueueEmpty: Boolean
         get() = mQueue.isEmpty()
 
-    override fun dispatch(context: CoroutineContext, block: Runnable) {
-        post {
-            block.run()
+    override val coroutineContext: CoroutineContext = EmptyCoroutineContext + object : CoroutineDispatcher() {
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            post {
+                block.run()
+            }
         }
     }
 
@@ -97,8 +98,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope, Coroutine
     }
 
     suspend fun sleep(milliseconds: Long) {
-        if (milliseconds < 0)
-            throw IllegalArgumentException("negative sleep not allowed")
+        require(milliseconds >= 0) { "negative sleep not allowed" }
         suspendCoroutine<Unit> {
             postDelayed(milliseconds) {
                 it.resume(Unit)
@@ -112,6 +112,12 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope, Coroutine
             for (received in self) {
                 launch {
                     receiver(received)
+                }
+                .invokeOnCompletion {
+                    if (it != null)
+                        post {
+                            throw it
+                        }
                 }
             }
         }
@@ -134,10 +140,15 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope, Coroutine
 //            }
 //            wrappedBlock.startCoroutine(Continuation(EmptyCoroutineContext) {})
             block.startCoroutine(this as S, Continuation(EmptyCoroutineContext) { result ->
-                // deliver coroutine results and exceptions onto the scheduler, so coroutine resume
-                // doesn't cause confusing stack unwinding behavior during the throw
-                post {
+                // deliver coroutine exceptions onto the scheduler, so coroutine resume
+                // doesn't cause confusing stack unwinding behavior during the throw.
+                if (result.isSuccess) {
                     ret.setComplete(result)
+                }
+                else {
+                    post {
+                        ret.setComplete(result)
+                    }
                 }
             })
         }

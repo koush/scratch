@@ -1,8 +1,6 @@
 package com.koushikdutta.scratch
 
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlin.coroutines.*
 
 open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
@@ -74,19 +72,28 @@ class Cooperator {
     }
 }
 
+private class EmptyCoroutineDispatcher : CoroutineDispatcher(), ContinuationInterceptor {
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+        throw AssertionError("Empty Coroutine Dispatcher should never be dispatched")
+
+    }
+    override fun isDispatchNeeded(context: CoroutineContext): Boolean {
+        return false
+    }
+}
 
 /**
  * Create a coroutine executor that can be used to serialize
  * suspending calls.
  */
-class AsyncHandler private constructor(private val await: suspend() -> Unit) {
+class AsyncHandler(private val await: suspend() -> Unit) {
     private val queue = AsyncDequeueIterator<suspend() -> Unit>()
     private var blocked = false
-    val job = GlobalScope.launch {
-        val iter = queue.iterator()
-        while (iter.hasNext()) {
+    private val scope = CoroutineScope(EmptyCoroutineContext + EmptyCoroutineDispatcher())
+    val job = scope.launch {
+        for (block in queue) {
             await()
-            runBlock(iter.next())
+            runBlock(block)
         }
     }
 
