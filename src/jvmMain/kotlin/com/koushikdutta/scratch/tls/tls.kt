@@ -22,7 +22,7 @@ actual fun getDefaultSSLContext(): SSLContext {
     return javax.net.ssl.SSLContext.getDefault()
 }
 
-actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket {
+actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket, AsyncAffinity by socket {
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket::read)
     private val decryptAllocator = AllocationTracker()
@@ -207,10 +207,6 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
         return reader(buffer)
-    }
-
-    override suspend fun await() {
-        socket.await()
     }
 
     // need a reader to catch any overflow from the handshake

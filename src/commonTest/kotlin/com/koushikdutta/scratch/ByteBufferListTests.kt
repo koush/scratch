@@ -32,7 +32,6 @@ class ByteBufferListTests {
         var done = false
         val start = ByteBufferList.totalObtained
         async {
-            println(ByteBufferList.totalObtained)
             val chunked = TestUtils.createRandomRead(100000000)
                 .pipe(ChunkedOutputPipe)
             val length = AsyncReader(chunked)

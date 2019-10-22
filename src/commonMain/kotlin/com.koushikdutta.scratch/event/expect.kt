@@ -28,6 +28,6 @@ expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
 }
 
 expect class AsyncNetworkSocket: AsyncSocket
-expect class AsyncNetworkServerSocket : AsyncServerSocket {
+expect class AsyncNetworkServerSocket : AsyncServerSocket<AsyncNetworkSocket> {
     val localPort: Int
 }

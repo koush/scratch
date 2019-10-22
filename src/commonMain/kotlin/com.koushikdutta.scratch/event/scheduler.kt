@@ -1,10 +1,15 @@
 package com.koushikdutta.scratch.event
 
-import com.koushikdutta.scratch.AsyncResult
-import kotlin.coroutines.*
-import kotlin.math.min
-import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.AsyncAffinity
+import com.koushikdutta.scratch.AsyncIterable
+import com.koushikdutta.scratch.launch
+import com.koushikdutta.scratch.synchronized
 import kotlinx.coroutines.*
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
+import kotlin.math.min
 
 typealias AsyncServerRunnable = () -> Unit
 
@@ -15,20 +20,12 @@ private fun PriorityQueue.addSorted(scheduled: Scheduled) {
     sortWith(Scheduler.INSTANCE)
 }
 
-abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope {
+abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     private var postCounter = 0
     internal val mQueue = arrayListOf<Scheduled>()
 
     protected val isQueueEmpty: Boolean
         get() = mQueue.isEmpty()
-
-    override val coroutineContext: CoroutineContext = EmptyCoroutineContext + object : CoroutineDispatcher() {
-        override fun dispatch(context: CoroutineContext, block: Runnable) {
-            post {
-                block.run()
-            }
-        }
-    }
 
     protected fun lockAndRunQueue(): Long {
         var wait = QUEUE_EMPTY
@@ -123,39 +120,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope {
         }
     }
 
-    open fun <T> async(block: suspend S.() -> T): AsyncResult<T> {
-        val ret = AsyncResult<T>()
-        postImmediate {
-            //            val wrappedBlock: suspend() -> Unit = {
-//                try {
-//                    ret.setComplete(null, block(this as S))
-//                }
-//                catch (exception: Throwable) {
-//                    // deliver coroutine exceptions onto the scheduler, so coroutine resume
-//                    // doesn't cause confusing stack unwinding behavior during the throw
-//                    post {
-//                        ret.setComplete(exception, null)
-//                    }
-//                }
-//            }
-//            wrappedBlock.startCoroutine(Continuation(EmptyCoroutineContext) {})
-            block.startCoroutine(this as S, Continuation(EmptyCoroutineContext) { result ->
-                // deliver coroutine exceptions onto the scheduler, so coroutine resume
-                // doesn't cause confusing stack unwinding behavior during the throw.
-                if (result.isSuccess) {
-                    ret.setComplete(result)
-                }
-                else {
-                    post {
-                        ret.setComplete(result)
-                    }
-                }
-            })
-        }
-        return ret
-    }
-
-    suspend fun post() {
+    override suspend fun post() {
         suspendCoroutine<Unit> {
             post {
                 it.resume(Unit)
@@ -163,7 +128,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope {
         }
     }
 
-    suspend fun await() {
+    override suspend fun await() {
         if (isAffinityThread)
             return
         post()
@@ -223,14 +188,5 @@ internal class Scheduled(val server: AsyncScheduler<*>, val runnable: AsyncServe
             cancelled = server.mQueue.remove(this)
             cancelled
         }
-    }
-}
-
-fun <S: AsyncScheduler<S>> AsyncScheduler<S>.launch(
-    block: suspend S.() -> Unit
-): Job {
-    val self: S = this as S
-    return (this as CoroutineScope).launch {
-        block(self)
     }
 }

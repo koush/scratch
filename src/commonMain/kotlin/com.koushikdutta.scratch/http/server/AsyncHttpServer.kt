@@ -31,7 +31,7 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
         }
     }
 
-    private suspend fun acceptInternal(socket: AsyncSocket, reader: AsyncReader) {
+    suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) {
         try {
             val requestLine = reader.readScanUtf8String("\r\n")
             if (requestLine.isEmpty()) {
@@ -104,16 +104,8 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
         }
     }
 
-    fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) = async {
-        acceptInternal(socket, reader)
-    }
-
-    fun listen(server: AsyncServerSocket) = server.accept().receive {
-        try {
-            acceptInternal(this, AsyncReader({this.read(it)}))
-        }
-        catch (exception: Exception) {
-        }
+    fun listen(server: AsyncServerSocket<*>) = server.acceptAsync {
+        accept(this, AsyncReader({this.read(it)}))
     }
 
     companion object {

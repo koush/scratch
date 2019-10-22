@@ -12,7 +12,7 @@ interface AsyncIterator<out T> {
 
 class ValueHolder<T>(val value: T)
 
-class AsyncIteratorScope<T>(private val yielder: Cooperator) {
+class AsyncIteratorScope<T> internal constructor(private val yielder: Cooperator) {
     internal var hasValue = false
     internal var currentValue: ValueHolder<T>? = null
     suspend fun yield(value: T) {
@@ -25,7 +25,7 @@ class AsyncIteratorScope<T>(private val yielder: Cooperator) {
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val yielder = Cooperator()
     var done = false
-    val result = AsyncResult<Unit> {
+    val result = AsyncResultHolder<Unit> {
         done = true
         yielder.resume()
     }
@@ -39,8 +39,10 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
         override suspend fun hasNext(): Boolean {
             if (done)
                 return false
-            if (!scope.hasValue)
+            if (!scope.hasValue) {
                 yielder.yield()
+                result.rethrow()
+            }
             return !done
         }
 
@@ -86,14 +88,6 @@ fun <T> createAsyncIterable(block: suspend AsyncIteratorScope<T>.() -> Unit): As
     return object : AsyncIterable<T> {
         override fun iterator(): AsyncIterator<T> {
             return asyncIterator(block)
-        }
-    }
-}
-
-fun <T> AsyncIterable<T>.receive(receiver: suspend T.() -> Unit) = async {
-    for (received in this) {
-        async {
-            receiver(received)
         }
     }
 }

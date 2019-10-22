@@ -3,12 +3,15 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 
-class PipeSocket: AsyncSocket {
-    val yielder = Cooperator()
-    var pending: ReadableBuffers? = null
-    var closed = false
+private class PipeSocket: AsyncSocket {
+    private val yielder = Cooperator()
+    private var pending: ReadableBuffers? = null
+    private var closed = false
 
     override suspend fun await() {
+    }
+
+    override suspend fun post() {
     }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
@@ -61,17 +64,20 @@ fun createAsyncPipeSocketPair() : Pair<AsyncSocket, AsyncSocket> {
 }
 
 private class CompositeSocket(val input: AsyncRead, val output: AsyncWrite, val outputClose: suspend() -> Unit) : AsyncSocket {
-    override suspend fun await() {
-    }
-
     override suspend fun read(buffer: WritableBuffers): Boolean = input(buffer)
 
     override suspend fun write(buffer: ReadableBuffers) = output(buffer)
 
     override suspend fun close() = outputClose()
+
+    override suspend fun await() {
+    }
+
+    override suspend fun post() {
+    }
 }
 
-class AsyncPipeServerSocket : AsyncServerSocket {
+class AsyncPipeServerSocket : AsyncServerSocket<AsyncSocket> {
     val sockets = AsyncDequeueIterator<AsyncSocket>()
     var closed = false
 
@@ -85,6 +91,9 @@ class AsyncPipeServerSocket : AsyncServerSocket {
     }
 
     override suspend fun await() {
+    }
+
+    override suspend fun post() {
     }
 
     override fun accept(): AsyncIterable<out AsyncSocket> {

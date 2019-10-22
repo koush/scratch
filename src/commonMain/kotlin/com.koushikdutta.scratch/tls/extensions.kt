@@ -27,13 +27,9 @@ suspend fun AsyncSocket.connectTls(host: String, port: Int, context: SSLContext 
 }
 
 typealias CreateSSLEngine = () -> SSLEngine
-fun AsyncServerSocket.listenTls(createSSLEngine: CreateSSLEngine): AsyncServerSocket {
+fun AsyncServerSocket<*>.listenTls(createSSLEngine: CreateSSLEngine): AsyncServerSocket<AsyncTlsSocket> {
     val wrapped = this
-    return object: AsyncServerSocket {
-        override suspend fun await() {
-            wrapped.await()
-        }
-
+    return object: AsyncServerSocket<AsyncTlsSocket>, AsyncAffinity by wrapped  {
         override fun accept(): AsyncIterable<out AsyncTlsSocket> {
             val iterator = asyncIterator<AsyncTlsSocket> {
                 for (socket in wrapped.accept()) {
@@ -64,7 +60,7 @@ fun AsyncServerSocket.listenTls(createSSLEngine: CreateSSLEngine): AsyncServerSo
     }
 }
 
-fun AsyncServerSocket.listenTls(context: SSLContext = getDefaultSSLContext()): AsyncServerSocket {
+fun AsyncServerSocket<*>.listenTls(context: SSLContext = getDefaultSSLContext()): AsyncServerSocket<AsyncTlsSocket> {
     return this.listenTls {
         context.createSSLEngine()
     }

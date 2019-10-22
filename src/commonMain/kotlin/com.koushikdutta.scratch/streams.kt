@@ -3,6 +3,9 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import kotlinx.coroutines.*
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 
 /**
@@ -25,8 +28,20 @@ typealias AsyncWrite = suspend (buffer: ReadableBuffers) -> Unit
  */
 typealias AsyncPipe = (read: AsyncRead) -> AsyncRead
 
+/**
+ * An object with thread affinity.
+ */
 interface AsyncAffinity {
+    /**
+     * Ensure that coroutine execution is on the owner thread.
+     */
     suspend fun await()
+
+    /**
+     * Post (suspend and resume) execution onto the next loop of the owner thread queue.
+     * This clears the coroutine stack trace.
+     */
+    suspend fun post()
 }
 
 /**
@@ -46,7 +61,6 @@ interface AsyncSocket : AsyncAffinity {
     suspend fun write(buffer: ReadableBuffers)
     suspend fun close()
 }
-
 
 interface AsyncWrappingSocket : AsyncSocket {
     val socket: AsyncSocket
@@ -86,52 +100,6 @@ suspend fun AsyncRead.copy(asyncWrite: AsyncWrite) {
     val bytes = ByteBufferList()
     while (this(bytes)) {
         asyncWrite.drain(bytes)
-    }
-}
-
-fun AsyncWrite.writePipe(pipe: AsyncPipe): AsyncWrite {
-    val yielder = Cooperator()
-    var pending: ReadableBuffers? = null
-    var closed = false
-
-    val read: AsyncRead = {
-        // wait for a write
-        yielder.yield()
-        val ret = pending!!.read(it)
-        // finish the write
-        yielder.resume()
-        ret || !closed
-    }
-
-    val output = pipe(read)
-
-    val result = async {
-        try {
-            val buffer = ByteBufferList()
-            while (output(buffer)) {
-                this(buffer)
-            }
-        }
-        finally {
-            closed = true
-        }
-    }
-
-    val checkWriter = {
-        result.rethrow()
-        if (closed)
-            throw Exception("socket has been closed")
-    }
-
-    return {
-        checkWriter()
-
-        pending = it
-        // notify a read, and wait for the continuation
-        yielder.yield()
-        pending = null
-
-        checkWriter()
     }
 }
 

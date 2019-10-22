@@ -3,7 +3,42 @@ package com.koushikdutta.scratch
 import kotlinx.coroutines.*
 import kotlin.coroutines.*
 
-open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
+// these scopes and contexts are no ops. AsyncAffinity object methods are guarded by await() to ensure
+// thread affinity.
+internal class EmptyCoroutineDispatcher : CoroutineDispatcher() {
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+        throw AssertionError("EmptyCoroutineDispatcher should never be dispatched")
+
+    }
+    override fun isDispatchNeeded(context: CoroutineContext): Boolean {
+        return false
+    }
+}
+
+internal val asyncAffinityCoroutineContext = EmptyCoroutineContext + EmptyCoroutineDispatcher()
+
+internal val asyncAffinityCoroutineScope = object : CoroutineScope {
+    override val coroutineContext: CoroutineContext = asyncAffinityCoroutineContext
+}
+
+fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Deferred<T> {
+    val self = this
+    return asyncAffinityCoroutineScope.async {
+        await()
+        block(self)
+    }
+}
+
+fun <S: AsyncAffinity> S.launch(block: suspend S.() -> Unit): Job {
+    val self = this
+    return asyncAffinityCoroutineScope.launch {
+        await()
+        block(self)
+    }
+}
+
+
+internal open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
     var exception: Throwable? = null
         internal set
     var done = false
@@ -34,24 +69,12 @@ open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
     }
 }
 
-open class AsyncResult<T>(finalizer: () -> Unit = {}) : AsyncResultHolder<T>(finalizer) {
-    override fun onComplete() {
-        super.onComplete()
-        rethrow()
-    }
+internal fun <T> startSafeCoroutine(block: suspend() -> T) = com.koushikdutta.scratch.asyncAffinityCoroutineScope.async {
+    block()
 }
 
-internal fun <T> async(block: suspend() -> T): AsyncResult<T> {
-    val ret = AsyncResult<T>()
-    block.startCoroutine(Continuation(EmptyCoroutineContext) { result ->
-        ret.setComplete(result)
-        ret.rethrow()
-    })
-    return ret
-}
-
-class Cooperator {
-    private var waiting: Continuation<Unit>? = null
+internal class Cooperator {
+    internal var waiting: Continuation<Unit>? = null
     fun resume() {
         val resume = waiting
         waiting = null
@@ -62,23 +85,13 @@ class Cooperator {
         waiting = null
         resume?.resumeWithException(exception)
     }
-    suspend fun yield() {
+    suspend inline fun yield() {
         val resume = waiting
         waiting = null
         suspendCoroutine<Unit> { continuation ->
             waiting = continuation
             resume?.resume(Unit)
         }
-    }
-}
-
-private class EmptyCoroutineDispatcher : CoroutineDispatcher(), ContinuationInterceptor {
-    override fun dispatch(context: CoroutineContext, block: Runnable) {
-        throw AssertionError("Empty Coroutine Dispatcher should never be dispatched")
-
-    }
-    override fun isDispatchNeeded(context: CoroutineContext): Boolean {
-        return false
     }
 }
 

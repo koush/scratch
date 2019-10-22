@@ -1,15 +1,17 @@
 package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.tls.AsyncTlsSocket
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.tls.SSLContext
+import com.koushikdutta.scratch.tls.SSLEngine
 import org.conscrypt.Conscrypt
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLEngine
+
 
 // todo: move this into conscrypt specific library
-open class ConscryptMiddleware(context: SSLContext = getConscryptSSLContext()) : AsyncTlsSocketMiddleware(context) {
+open class ConscryptMiddleware(eventLoop: AsyncEventLoop, context: SSLContext = getConscryptSSLContext()) : AsyncTlsSocketMiddleware(eventLoop, context) {
     private val protocols = arrayOf("h2", "http/1.1")
 
     fun install(client: AsyncHttpClient) {

@@ -27,6 +27,10 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
         connection.socket.await()
     }
 
+    override suspend fun post() {
+        connection.socket.post()
+    }
+
     override suspend fun read(buffer: WritableBuffers): Boolean {
         return input.read(buffer)
     }
@@ -332,7 +336,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
     }
 
     fun failConnection(exception: Exception?) {
-        async {
+        startSafeCoroutine {
             try {
                 if (exception != null)
                     close(ErrorCode.PROTOCOL_ERROR, ErrorCode.PROTOCOL_ERROR, exception)
@@ -363,7 +367,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
             flush()
         }
 
-        async {
+        startSafeCoroutine {
             try {
                 if (readConnectionPreface)
                     reader.readConnectionPreface(readerHandler)
@@ -372,20 +376,20 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
             }
             catch (e: Exception) {
                 failConnection(e)
-                return@async
+                return@startSafeCoroutine
             }
 
             failConnection(null)
         }
     }
 
-    internal fun handleIncomingStream(request: Http2Stream) = async {
+    internal fun handleIncomingStream(request: Http2Stream) = startSafeCoroutine {
         if (requestListener == null) {
             handler.run {
                 writer.rstStream(request.streamId, ErrorCode.REFUSED_STREAM)
                 flush()
             }
-            return@async
+            return@startSafeCoroutine
         }
 
 

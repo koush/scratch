@@ -26,7 +26,7 @@ fun EventLoopClosedException(): Exception {
 
 actual typealias AsyncNetworkSocket = UvSocket
 
-class UvSocket(val loop: UvEventLoop, socket: uv_stream_t) : AsyncSocket {
+class UvSocket(val loop: UvEventLoop, socket: uv_stream_t) : AsyncSocket, AsyncAffinity by loop {
     internal val nio = object : NonBlockingWritePipe() {
         override fun writable() {
             uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
@@ -41,10 +41,6 @@ class UvSocket(val loop: UvEventLoop, socket: uv_stream_t) : AsyncSocket {
         socket.data = StableRef.create(this).asCPointer()
         // start reading.
         uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
-    }
-
-    override suspend fun await() {
-        loop.await()
     }
 
     internal val writeAlloc = Alloced<uv_write_t>(nativeHeap.alloc())
@@ -93,7 +89,7 @@ class UvSocket(val loop: UvEventLoop, socket: uv_stream_t) : AsyncSocket {
 
 actual typealias AsyncNetworkServerSocket = UvServerSocket
 
-class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int) : AsyncServerSocket {
+class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int) : AsyncServerSocket, AsyncAffinity by loop {
     internal val socket: AllocedHandle<uv_tcp_t> = AllocedHandle(loop, socket)
 
     init {
@@ -142,10 +138,6 @@ class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int
         await()
         socket.free()
         closeInternal()
-    }
-
-    override suspend fun await() {
-        loop.await()
     }
 
     internal fun closeInternal() {

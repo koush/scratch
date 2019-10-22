@@ -42,6 +42,9 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
         buffer.read(pending)
         yielder.resume()
 
+        // after the coroutine finishes, take back free buffers
+        buffer.takeReclaimedBuffers(pending)
+
         needsWritable = pending.remaining() >= highWaterMark
         return !needsWritable
     }
@@ -59,6 +62,9 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     suspend fun read(buffer: WritableBuffers): Boolean {
         // rethrow errors downstream
         result.rethrow()
+
+        // take free buffers before performing a read.
+        pending.takeReclaimedBuffers(buffer)
 
         // check if we have something to read
         if (pending.isEmpty) {
@@ -112,11 +118,10 @@ abstract class BlockingWritePipe {
     suspend fun write(buffer: ReadableBuffers) {
         buffer.read(pendingOutput)
         write(pendingOutput)
-        if (pendingOutput.isEmpty)
-            return
         while (pendingOutput.hasRemaining()) {
             yielder.yield()
             write(pendingOutput)
         }
+        buffer.takeReclaimedBuffers(pendingOutput)
     }
 }

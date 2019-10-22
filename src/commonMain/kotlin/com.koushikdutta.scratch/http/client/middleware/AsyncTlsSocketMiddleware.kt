@@ -1,10 +1,11 @@
 package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.tls.*
 
-open class AsyncTlsSocketMiddleware(val context: SSLContext = getDefaultSSLContext()) : AsyncSocketMiddleware() {
+open class AsyncTlsSocketMiddleware(eventLoop: AsyncEventLoop, val context: SSLContext = getDefaultSSLContext()) : AsyncSocketMiddleware(eventLoop) {
     override val scheme: String = "https"
     override val defaultPort = 443
 

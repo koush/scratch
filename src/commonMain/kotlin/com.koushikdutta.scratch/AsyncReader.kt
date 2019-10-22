@@ -130,6 +130,7 @@ class AsyncReader(val input: AsyncRead) {
      * Returns false if nothing was read, and no further data can be read.
      */
     suspend fun readChunk(buffer: WritableBuffers, length: Int): Boolean {
+        pending.takeReclaimedBuffers(buffer)
         if (pending.isEmpty) {
             if (!input(pending))
                 return false

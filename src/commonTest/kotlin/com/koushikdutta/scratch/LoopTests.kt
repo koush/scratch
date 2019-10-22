@@ -18,6 +18,9 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import kotlin.coroutines.*
 import kotlin.math.abs
 import kotlin.random.Random
@@ -26,25 +29,19 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-private class TimeoutException: Exception()
-private class ExpectedException: Exception()
-
 class LoopTests {
     private fun networkContextTest(failureExpected: Boolean = false, runner: suspend AsyncEventLoop.() -> Unit) {
         val networkContext = AsyncEventLoop()
 
         val result = networkContext.async {
-            try {
-                runner(networkContext)
-            }
-            finally {
-                networkContext.stop()
-            }
+            runner(networkContext)
+        }
+        result.invokeOnCompletion {
+            networkContext.stop()
         }
 
-        networkContext.postDelayed(10000) {
-            result.setComplete(Result.failure(TimeoutException()))
-            networkContext.stop()
+        networkContext.postDelayed(1000000) {
+            throw TimeoutException()
         }
 
         try {
@@ -72,8 +69,7 @@ class LoopTests {
         }
 
         networkContext.postDelayed(3000) {
-            result.setComplete(Result.failure(Exception()))
-            networkContext.stop()
+            throw TimeoutException()
         }
 
         try {
@@ -100,8 +96,7 @@ class LoopTests {
         }
 
         networkContext.postDelayed(1000) {
-            result.setComplete(Result.failure(TimeoutException()))
-            networkContext.stop()
+            throw TimeoutException()
         }
 
         try {
@@ -127,14 +122,13 @@ class LoopTests {
             }
         }
 
-        networkContext.postDelayed(10000000) {
-            result.setComplete(Result.failure(TimeoutException()))
-            networkContext.stop()
+        networkContext.postDelayed(1000) {
+            throw TimeoutException()
         }
 
         networkContext.run()
         result.rethrow()
-        assertEquals(result.value, 42)
+        assertEquals(result.getCompleted(), 42)
     }
 
     @Test
@@ -166,10 +160,10 @@ class LoopTests {
     }
 
     @Test
-    fun testServerALot() {
-        val server = createAsyncPipeServerSocket()
+    fun testServerALot() = networkContextTest {
+        val server = listen(0)
 
-        server.accept().receive {
+        server.acceptAsync {
             val buffer = ByteBufferList()
             val random = TestUtils.createRandomRead(1000000)
             while (random(buffer)) {
@@ -179,24 +173,28 @@ class LoopTests {
             close()
         }
 
+        val runs = 5
+
         var count = 0
-        for (i in 1..100) {
+        (0 until runs).map {
             async {
-                count += server.connect()::read.count()
+                val read = connect("127.0.0.1", server.localPort)::read.count()
+                count += read
             }
         }
+        .awaitAll()
 
-        assertEquals(count, 1000000 * 100)
+        assertEquals(count, 1000000 * runs)
     }
 
     @Test
-    fun testByteBufferAllocations() {
+    fun testByteBufferAllocations() = networkContextTest {
         val start = ByteBufferList.totalObtained
-        val server = createAsyncPipeServerSocket()
+        val server = listen(0)
 
-        server.accept().receive {
+        server.acceptAsync {
             val buffer = ByteBufferList()
-            val random = TestUtils.createRandomRead(10000000)
+            val random = TestUtils.createRandomRead(100000000)
             while (random(buffer)) {
                 write(buffer)
                 assertTrue(buffer.isEmpty)
@@ -204,13 +202,20 @@ class LoopTests {
             close()
         }
 
-        var count = 0
-        async {
-            count += server.connect()::read.count()
+        val count  = async {
+            connect("127.0.0.1", server.localPort)::read.count()
         }
+        .await()
 
-        assertEquals(count, 10000000)
-        assertTrue(ByteBufferList.totalObtained - start < 50000)
+        assertEquals(count, 100000000)
+        // socket should quickly hit a 64k read buffer max as the underlying allocator grows
+        // to handle the data rate.
+        // 10000 for write
+        // 1024 + 2048 + 4096 + 8192 + 16384 + 32768 + 65536 = 130048
+        // = 140048
+        // but it ends up being slightly better since the min allocation is 8192 anyways, and the smaller
+        // allocs are collapsed.
+        assertTrue(ByteBufferList.totalObtained - start < 150000)
     }
 
     @Test

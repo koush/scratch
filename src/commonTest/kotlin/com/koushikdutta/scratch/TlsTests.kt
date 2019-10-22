@@ -141,7 +141,7 @@ class TlsTests {
 
 
         var data = ""
-        tlsServer.accept().receive {
+        tlsServer.acceptAsync {
             data += readAllString({read(it)})
         }
 
@@ -168,7 +168,7 @@ class TlsTests {
         val server = createAsyncPipeServerSocket()
         val tlsServer = server.listenTls(serverContext)
 
-        tlsServer.accept().receive {
+        tlsServer.acceptAsync {
             val buffer = ByteBufferList()
             val random = TestUtils.createRandomRead(5000000)
             var written = 0
@@ -208,7 +208,7 @@ class TlsTests {
         // 100mb
         val dataLen = 100000000
         var mid = 0L
-        tlsServer.accept().receive {
+        tlsServer.acceptAsync {
             mid = ByteBufferList.totalObtained
             val buffer = ByteBufferList()
             val random = TestUtils.createRandomRead(dataLen)
@@ -228,6 +228,7 @@ class TlsTests {
 
         assertEquals(count, dataLen)
         // check handshake allocations
+        // these are big due to certs. oof.
         assertTrue(mid - start < 250000)
         // check streaming allocations
         assertTrue(ByteBufferList.totalObtained - mid < 80000)
@@ -244,7 +245,7 @@ class TlsTests {
 
 
         var data = ""
-        tlsServer.accept().receive {
+        tlsServer.acceptAsync {
             data += readAllString({read(it)})
         }
 

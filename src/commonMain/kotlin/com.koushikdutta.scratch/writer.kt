@@ -21,10 +21,15 @@ fun asyncWriter(block: suspend AsyncWriterScope.() -> Unit): AsyncRead {
     val scope = AsyncWriterScope(pending) {
         yielder.yield()
     }
-    val result = async {
+    val result = AsyncResultHolder<Unit>()
+
+    startSafeCoroutine {
         try {
             block(scope)
             eos = true
+        }
+        catch (exception: Throwable) {
+
         }
         finally {
             yielder.resume()

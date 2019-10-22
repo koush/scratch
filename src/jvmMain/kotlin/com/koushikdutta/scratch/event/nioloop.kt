@@ -48,15 +48,11 @@ private fun closeQuietly(vararg closeables: Closeable?) {
 }
 
 actual typealias AsyncNetworkServerSocket = NIOServerSocket
-class NIOServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket {
+class NIOServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket<AsyncNetworkSocket>, AsyncAffinity by server {
     private val key: SelectionKey = channel.register(server.mSelector.selector, SelectionKey.OP_ACCEPT)
 
     init {
         key.attach(this)
-    }
-
-    override suspend fun await() {
-        server.await()
     }
 
     private var closed = false
@@ -116,7 +112,7 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, val local
 
 actual typealias AsyncNetworkSocket = NIOSocket
 
-class NIOSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket {
+class NIOSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, AsyncAffinity by server {
     val localPort = channel.socket().localPort
     val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress
     private val inputBuffer = ByteBufferList()
@@ -146,10 +142,6 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
 
     init {
         key.attach(this)
-    }
-
-    override suspend fun await() {
-        server.await()
     }
 
     private fun closeInternal() {

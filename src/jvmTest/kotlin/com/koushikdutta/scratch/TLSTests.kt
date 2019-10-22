@@ -35,7 +35,7 @@ class TLSTests {
 
 
         var data = ""
-        tlsServer.accept().receive {
+        tlsServer.acceptAsync {
             data += readAllString(::read)
         }
 
@@ -57,6 +57,7 @@ class TLSTests {
     fun testHttp2Alpn() {
         val conscrypt = Conscrypt.newProvider()
         val keypairCert = createSelfSignedCertificate("TestServer")
+        val client = AsyncHttpClient()
 
         val serverContext = SSLContext.getInstance("TLS", conscrypt)
         serverContext.init(keypairCert.first, keypairCert.second)
@@ -73,7 +74,7 @@ class TLSTests {
         clientContext.init(keypairCert.second)
 
         var protocol = ""
-        val pipeMiddleware = object : ConscryptMiddleware(clientContext) {
+        val pipeMiddleware = object : ConscryptMiddleware(client.eventLoop, clientContext) {
             override suspend fun wrapTlsSocket(
                 session: AsyncHttpClientSession,
                 tlsSocket: AsyncTlsSocket,
@@ -106,7 +107,6 @@ class TLSTests {
 
         var data = ""
         async {
-            val client = AsyncHttpClient()
             pipeMiddleware.install(client)
             val connection =
                 client.execute(AsyncHttpRequest.POST("https://TestServer", body = Utf8StringBody("hello world")))

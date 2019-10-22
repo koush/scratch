@@ -3,11 +3,11 @@ package com.koushikdutta.scratch.http.client.middleware
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.InterruptibleRead
-import com.koushikdutta.scratch.async
 import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.add
 import com.koushikdutta.scratch.collections.pop
 import com.koushikdutta.scratch.collections.removeValue
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.connect
 import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.http.AsyncHttpRequest
@@ -18,13 +18,14 @@ import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
+import com.koushikdutta.scratch.launch
 
 private typealias IOException = Exception
 
 /**
  * Manages socket connection initiation and keep alive.
  */
-open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
+open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClientMiddleware() {
     protected open val scheme = "http"
     open val defaultPort = 80
 
@@ -32,8 +33,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
     private val sockets: Multimap<String, KeepAliveSocket> = mutableMapOf()
 
     private fun observeKeepaliveSocket(socketKey: String, keepAliveSocket: KeepAliveSocket) {
-        async {
-            keepAliveSocket.socket.await()
+        eventLoop.launch {
             try {
                 while (keepAliveSocket.observe) {
                     if (keepAliveSocket.socketReader.buffered > 0)
@@ -85,7 +85,7 @@ open class AsyncSocketMiddleware : AsyncHttpClientMiddleware() {
     }
 
     protected open suspend fun connectInternal(session: AsyncHttpClientSession, host: String, port: Int): AsyncSocket {
-        return session.eventLoop.connect(host, port)
+        return eventLoop.connect(host, port)
     }
 
     fun ensureSocketReader(session: AsyncHttpClientSession) {

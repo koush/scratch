@@ -26,52 +26,6 @@ abstract class AsyncFilter {
     }
 }
 
-abstract class AsyncWriteFilter(private val output: AsyncWrite): AsyncFilter() {
-    suspend fun write(buffer: ReadableBuffers) {
-        buffer.read(unfiltered)
-        invokeFilter()
-
-        while (filtered.hasRemaining()) {
-            filtered.read(outgoing)
-            output(outgoing)
-        }
-    }
-
-    /**
-     * Trigger an immediate filter and write. This is used in the event
-     * the filter needs to synthesize data with no corresponding input.
-     * The write must be able to handle concurrent invocations, such as using
-     * AsyncHandler to perform write serialization.
-     */
-    fun invokeWrite() = async {
-        write(ByteBufferList())
-    }
-}
-
-abstract class AsyncReadFilter(private val input: AsyncRead) : AsyncFilter() {
-    suspend fun read(buffer: WritableBuffers): Boolean {
-        var ret = input(unfiltered)
-        invokeFilter()
-        // end of stream is only reached if the input reached end of stream,
-        // and the outgoing and filtered buffers are empty.
-        ret = outgoing.read(buffer) or ret
-        ret = filtered.read(buffer) or ret
-        return ret
-    }
-
-    /**
-     * Perform a read call, but do not consume any data. Can be used to trigger
-     * downstream reads.
-     */
-    suspend fun read(): Boolean {
-        val temp = ByteBufferList()
-        if (!read(temp))
-            return false
-        outgoing.add(temp)
-        return true
-    }
-}
-
 /**
  * Create an AsyncRead that can be interrupted.
  * The interrupted read will return true to indicate more data is present,
@@ -92,7 +46,7 @@ class InterruptibleRead(private val input: AsyncRead) {
         if (exit)
             return
 
-        async {
+        startSafeCoroutine {
             val result = try {
                 try {
                     val ret = input(transient)
