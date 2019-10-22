@@ -1,5 +1,8 @@
 package com.koushikdutta.scratch
 
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlin.coroutines.*
 
 open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
@@ -14,13 +17,17 @@ open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
         finalizer()
     }
 
-    internal fun setComplete(result: Result<T>) {
-        if (result.isFailure)
-            this.exception = result.exceptionOrNull()
+    internal fun setComplete(exception: Throwable?, value: T?) {
+        if (exception != null)
+            this.exception = exception
         else
-            this.value = result.getOrNull()
+            this.value = value
         done = true
         onComplete()
+    }
+
+    internal fun setComplete(result: Result<T>) {
+        setComplete(result.exceptionOrNull(), result.getOrNull())
     }
 
     fun rethrow() {
@@ -52,6 +59,11 @@ class Cooperator {
         waiting = null
         resume?.resume(Unit)
     }
+    fun resumeWithException(exception: Throwable) {
+        val resume = waiting
+        waiting = null
+        resume?.resumeWithException(exception)
+    }
     suspend fun yield() {
         val resume = waiting
         waiting = null
@@ -67,17 +79,14 @@ class Cooperator {
  * Create a coroutine executor that can be used to serialize
  * suspending calls.
  */
-class AsyncHandler(private val await: suspend() -> Unit) {
+class AsyncHandler private constructor(private val await: suspend() -> Unit) {
     private val queue = AsyncDequeueIterator<suspend() -> Unit>()
     private var blocked = false
-
-    init {
-        async {
-            val iter = queue.iterator()
-            while (iter.hasNext()) {
-                await()
-                runBlock(iter.next())
-            }
+    val job = GlobalScope.launch {
+        val iter = queue.iterator()
+        while (iter.hasNext()) {
+            await()
+            runBlock(iter.next())
         }
     }
 

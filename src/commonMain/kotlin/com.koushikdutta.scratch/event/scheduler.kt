@@ -4,46 +4,30 @@ import com.koushikdutta.scratch.AsyncResult
 import kotlin.coroutines.*
 import kotlin.math.min
 import com.koushikdutta.scratch.*
+import kotlinx.coroutines.*
 
 typealias AsyncServerRunnable = () -> Unit
 
-private typealias PriorityQueue = ArrayList<AsyncScheduler.Scheduled>
+private typealias PriorityQueue = ArrayList<Scheduled>
 
-private fun PriorityQueue.addSorted(scheduled: AsyncScheduler.Scheduled) {
+private fun PriorityQueue.addSorted(scheduled: Scheduled) {
     this.add(scheduled)
     sortWith(Scheduler.INSTANCE)
 }
 
-abstract class AsyncScheduler<S: AsyncScheduler<S>> {
-    internal class Scheduled(val server: AsyncScheduler<*>, val runnable: AsyncServerRunnable, val time: Long) : Cancellable {
-        private var cancelled: Boolean = false
-
-        override val isDone: Boolean
-            get() {
-                return synchronized(server) {
-                    !cancelled && !server.mQueue.contains(this)
-                }
-            }
-
-        override val isCancelled: Boolean
-            get() {
-                return cancelled
-            }
-
-        override fun cancel(): Boolean {
-            return synchronized(server) {
-                cancelled = server.mQueue.remove(this)
-                cancelled
-            }
-        }
-    }
-
-
+abstract class AsyncScheduler<S : AsyncScheduler<S>> : CoroutineScope, CoroutineDispatcher() {
+    override val coroutineContext: CoroutineContext = EmptyCoroutineContext
     private var postCounter = 0
-    private val mQueue = arrayListOf<Scheduled>()
+    internal val mQueue = arrayListOf<Scheduled>()
 
     protected val isQueueEmpty: Boolean
         get() = mQueue.isEmpty()
+
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+        post {
+            block.run()
+        }
+    }
 
     protected fun lockAndRunQueue(): Long {
         var wait = QUEUE_EMPTY
@@ -103,7 +87,7 @@ abstract class AsyncScheduler<S: AsyncScheduler<S>> {
     }
 
     protected fun scheduleShutdown(runnable: AsyncServerRunnable) {
-        synchronized (this) {
+        synchronized(this) {
             mQueue.clear()
             mQueue.add(Scheduled(this, {
                 mQueue.clear()
@@ -122,11 +106,39 @@ abstract class AsyncScheduler<S: AsyncScheduler<S>> {
         }
     }
 
+    fun <T> AsyncIterable<T>.receive(receiver: suspend T.() -> Unit): Job {
+        val self = this
+        return launch {
+            for (received in self) {
+                launch {
+                    receiver(received)
+                }
+            }
+        }
+    }
+
     open fun <T> async(block: suspend S.() -> T): AsyncResult<T> {
         val ret = AsyncResult<T>()
         postImmediate {
+            //            val wrappedBlock: suspend() -> Unit = {
+//                try {
+//                    ret.setComplete(null, block(this as S))
+//                }
+//                catch (exception: Throwable) {
+//                    // deliver coroutine exceptions onto the scheduler, so coroutine resume
+//                    // doesn't cause confusing stack unwinding behavior during the throw
+//                    post {
+//                        ret.setComplete(exception, null)
+//                    }
+//                }
+//            }
+//            wrappedBlock.startCoroutine(Continuation(EmptyCoroutineContext) {})
             block.startCoroutine(this as S, Continuation(EmptyCoroutineContext) { result ->
-                ret.setComplete(result)
+                // deliver coroutine results and exceptions onto the scheduler, so coroutine resume
+                // doesn't cause confusing stack unwinding behavior during the throw
+                post {
+                    ret.setComplete(result)
+                }
             })
         }
         return ret
@@ -166,8 +178,8 @@ abstract class AsyncScheduler<S: AsyncScheduler<S>> {
     }
 }
 
-internal class Scheduler private constructor() : Comparator<AsyncScheduler.Scheduled> {
-    override fun compare(s1: AsyncScheduler.Scheduled, s2: AsyncScheduler.Scheduled): Int {
+internal class Scheduler private constructor() : Comparator<Scheduled> {
+    override fun compare(s1: Scheduled, s2: Scheduled): Int {
         // keep the smaller ones at the head, so they get tossed out quicker
         if (s1.time == s2.time)
             return 0
@@ -176,5 +188,38 @@ internal class Scheduler private constructor() : Comparator<AsyncScheduler.Sched
 
     companion object {
         var INSTANCE = Scheduler()
+    }
+}
+
+internal class Scheduled(val server: AsyncScheduler<*>, val runnable: AsyncServerRunnable, val time: Long) :
+    Cancellable {
+    private var cancelled: Boolean = false
+
+    override val isDone: Boolean
+        get() {
+            return synchronized(server) {
+                !cancelled && !server.mQueue.contains(this)
+            }
+        }
+
+    override val isCancelled: Boolean
+        get() {
+            return cancelled
+        }
+
+    override fun cancel(): Boolean {
+        return synchronized(server) {
+            cancelled = server.mQueue.remove(this)
+            cancelled
+        }
+    }
+}
+
+fun <S: AsyncScheduler<S>> AsyncScheduler<S>.launch(
+    block: suspend S.() -> Unit
+): Job {
+    val self: S = this as S
+    return (this as CoroutineScope).launch {
+        block(self)
     }
 }

@@ -129,11 +129,18 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
     }
     private val output = object : BlockingWritePipe() {
         override fun write(buffer: Buffers) {
-            val buffers = buffer.readAll()
-            channel.write(buffers)
-            buffer.addAll(*buffers)
-            if (buffer.hasRemaining())
-                key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
+            while (buffer.hasRemaining()) {
+                val before = buffer.remaining()
+                val buffers = buffer.readAll()
+                channel.write(buffers)
+                buffer.addAll(*buffers)
+                val after = buffer.remaining()
+                if (before == after) {
+                    key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
+                    break
+                }
+            }
+
         }
     }
 
@@ -191,6 +198,7 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
             if (read < 0) {
                 closed = true
                 input.end()
+                output.close()
             }
         } catch (e: Exception) {
             flushInputBuffer()
@@ -199,6 +207,7 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
             // transport failure caused close
             closed = true
             input.end(e)
+            output.close(e)
         }
 
         if (closed) {

@@ -94,8 +94,17 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
 abstract class BlockingWritePipe {
     private val yielder = Cooperator()
     private val pendingOutput = ByteBufferList()
+    private var exception: Throwable? = null
     fun writable() {
         yielder.resume()
+    }
+
+    fun close() = close(IOException("pipe closed"))
+    fun close(exception: Throwable) {
+        if(this.exception != null)
+            throw IllegalStateException("pipe already closed")
+        this.exception = exception
+        yielder.resumeWithException(exception)
     }
 
     abstract fun write(buffer: Buffers)
