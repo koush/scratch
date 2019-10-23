@@ -29,7 +29,7 @@ fun asyncWriter(block: suspend AsyncWriterScope.() -> Unit): AsyncRead {
             eos = true
         }
         catch (exception: Throwable) {
-
+            yielder.resumeWithException(exception)
         }
         finally {
             yielder.resume()

@@ -3,31 +3,13 @@ package com.koushikdutta.scratch
 import kotlinx.coroutines.*
 import kotlin.coroutines.*
 
-// these scopes and contexts are no ops. AsyncAffinity object methods are guarded by await() to ensure
-// thread affinity.
-internal class EmptyCoroutineDispatcher : CoroutineDispatcher() {
-    override fun dispatch(context: CoroutineContext, block: Runnable) {
-        throw AssertionError("EmptyCoroutineDispatcher should never be dispatched")
-
-    }
-    override fun isDispatchNeeded(context: CoroutineContext): Boolean {
-        return false
-    }
-}
-
-internal val asyncAffinityCoroutineContext = EmptyCoroutineContext + EmptyCoroutineDispatcher()
-
-internal val asyncAffinityCoroutineScope = object : CoroutineScope {
-    override val coroutineContext: CoroutineContext = asyncAffinityCoroutineContext
-}
-
 fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Deferred<T> {
     val deferred = CompletableDeferred<T>()
     startSafeCoroutine {
         try {
             deferred.complete(block())
         }
-        catch (exception: Exception) {
+        catch (exception: Throwable) {
             deferred.completeExceptionally(exception)
         }
     }
@@ -41,9 +23,8 @@ fun <S: AsyncAffinity> S.launch(block: suspend S.() -> Unit): Job {
             block()
             job.complete()
         }
-        catch (exception: Exception) {
+        catch (exception: Throwable) {
             job.completeExceptionally(exception)
-
         }
     }
     return job
@@ -51,7 +32,7 @@ fun <S: AsyncAffinity> S.launch(block: suspend S.() -> Unit): Job {
 
 
 internal open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
-    var exception: Exception? = null
+    var exception: Throwable? = null
         internal set
     var done = false
         internal set
@@ -64,9 +45,7 @@ internal open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {})
 
     internal fun setComplete(exception: Throwable?, value: T?) {
         if (exception != null) {
-            if (exception !is Exception)
-                throw exception
-            this.exception = exception as Exception
+            this.exception = exception
         }
         else {
             this.value = value
@@ -130,11 +109,12 @@ internal class Cooperator {
 class AsyncHandler(private val await: suspend() -> Unit) {
     private val queue = AsyncDequeueIterator<suspend() -> Unit>()
     private var blocked = false
-    private val scope = CoroutineScope(EmptyCoroutineContext + EmptyCoroutineDispatcher())
-    val job = scope.launch {
-        for (block in queue) {
-            await()
-            runBlock(block)
+    init {
+        startSafeCoroutine {
+            for (block in queue) {
+                await()
+                runBlock(block)
+            }
         }
     }
 
@@ -169,6 +149,7 @@ class AsyncHandler(private val await: suspend() -> Unit) {
                         block()
                     }
                     catch (t: Throwable) {
+                        // fine to catch Throwables here because it is monitored
                         it.resumeWithException(t)
                         return@post
                     }

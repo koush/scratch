@@ -30,9 +30,15 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
     }
 
     val scope = AsyncIteratorScope<T>(yielder)
-    block.startCoroutine(scope, Continuation(EmptyCoroutineContext) {
-        result.setComplete(it)
-    })
+    startSafeCoroutine {
+        try {
+            block(scope)
+            result.setComplete(null, Unit)
+        }
+        catch (throwable: Throwable) {
+            result.setComplete(throwable, null)
+        }
+    }
 
     return object: AsyncIterator<T> {
         override suspend fun hasNext(): Boolean {
@@ -101,6 +107,7 @@ open class AsyncDequeueIterator<T> : AsyncIterable<T> {
     private var exception: Throwable? = null
 
     protected open fun popped(value: T) {
+        println("pooped")
     }
 
     private val iter = asyncIterator<T> {

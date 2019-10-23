@@ -17,6 +17,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serv
     var observer: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit = { serverSocket, socket, throwable ->
         if (throwable != null) {
             println(unhandled)
+            serverSocket.post()
             throw AssertionError(unhandled)
         }
     }
@@ -43,7 +44,7 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
                     try {
                         block(socket)
                     }
-                    catch (throwable: Exception) {
+                    catch (throwable: Throwable) {
                         ret.observer(this, socket, throwable)
                         return@socketCoroutine
                     }
@@ -51,7 +52,7 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
                 }
             }
         }
-        catch (throwable: Exception) {
+        catch (throwable: Throwable) {
             ret.observer(this, null, throwable)
             return@startSafeCoroutine
         }
