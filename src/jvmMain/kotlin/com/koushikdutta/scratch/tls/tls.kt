@@ -161,7 +161,7 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
         if (!finishedHandshake && (engine.handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING || engine.handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED)) {
             if (engine.useClientMode) {
                 var trusted = true
-                var peerUnverifiedCause: Throwable? = null
+                var peerUnverifiedCause: Exception? = null
                 try {
                     trusted = false
                     if (engine.peerHost != null) {

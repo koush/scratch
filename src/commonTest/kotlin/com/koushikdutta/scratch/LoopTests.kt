@@ -49,6 +49,9 @@ class LoopTests {
             result.rethrow()
             assertTrue(!failureExpected)
         }
+        catch (exception: SafeCoroutineError) {
+            assertTrue(failureExpected)
+        }
         catch (exception: ExpectedException) {
             assertTrue(failureExpected)
         }
@@ -134,7 +137,7 @@ class LoopTests {
     @Test
     fun testEchoServer() = networkContextTest {
         val server = listen()
-        server.accept().receive {
+        server.acceptAsync {
             val buffer = ByteBufferList()
             while (read(buffer)) {
                 write(buffer)
@@ -149,7 +152,7 @@ class LoopTests {
     @Test
     fun testServerCrash() = networkContextTest(true) {
         val server = listen()
-        server.accept().receive {
+        server.acceptAsync {
             throw ExpectedException()
         }
         val client = connect("127.0.0.1", server.localPort)
@@ -221,7 +224,7 @@ class LoopTests {
     @Test
     fun testReadException() = networkContextTest(true) {
         val server = listen()
-        server.accept().receive {
+        server.acceptAsync {
             write(ByteBufferList().putUtf8String("hello"))
         }
         val client = connect("127.0.0.1", server.localPort)

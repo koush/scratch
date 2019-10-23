@@ -313,7 +313,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
             return AsyncNetworkSocket(this, socket, ckey)
         }
-        catch (e: Throwable) {
+        catch (e: Exception) {
 //            post()
             ckey?.cancel()
             closeQuietly(socket)

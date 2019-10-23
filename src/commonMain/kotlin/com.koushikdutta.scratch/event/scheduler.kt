@@ -1,12 +1,7 @@
 package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.AsyncAffinity
-import com.koushikdutta.scratch.AsyncIterable
-import com.koushikdutta.scratch.launch
 import com.koushikdutta.scratch.synchronized
-import kotlinx.coroutines.*
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.min
@@ -99,23 +94,6 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         suspendCoroutine<Unit> {
             postDelayed(milliseconds) {
                 it.resume(Unit)
-            }
-        }
-    }
-
-    fun <T> AsyncIterable<T>.receive(receiver: suspend T.() -> Unit): Job {
-        val self = this
-        return launch {
-            for (received in self) {
-                launch {
-                    receiver(received)
-                }
-                .invokeOnCompletion {
-                    if (it != null)
-                        post {
-                            throw it
-                        }
-                }
             }
         }
     }

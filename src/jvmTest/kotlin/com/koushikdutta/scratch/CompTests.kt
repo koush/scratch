@@ -11,7 +11,7 @@ class CompTests {
 //        loop.launch {
 //            val server = loop.listen(8080)
 //
-//            val ret = server.accept().receive {
+//            val ret = server.acceptAsync {
 //                val start = ByteBufferList.totalObtained
 //                val buffer = ByteBufferList()
 //                while (read(buffer)) {
@@ -36,14 +36,21 @@ class CompTests {
 //        loop.async {
 //            val server = loop.listen(8080)
 //
-//            server.accept().receive {
-//                val start = ByteBufferList.totalObtained
-//                val buffer = ByteBufferList()
-//                while (read(buffer)) {
-//                    write(buffer)
+//            server.acceptAsync {
+//                try {
+//                    val start = ByteBufferList.totalObtained
+//                    val buffer = ByteBufferList()
+//                    while (read(buffer)) {
+//                        write(buffer)
+//                    }
+//                    println("alloc: ${ByteBufferList.totalObtained - start}")
 //                }
-//                println("alloc: ${ByteBufferList.totalObtained - start}")
+//                finally {
+//                    println(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory())
+//
+//                }
 //            }
+//            .closeOnError()
 //        }
 //
 //        loop.run()

@@ -1,8 +1,6 @@
 package com.koushikdutta.scratch.http.client.middleware
 
-import com.koushikdutta.scratch.AsyncReader
-import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.InterruptibleRead
+import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.add
 import com.koushikdutta.scratch.collections.pop
@@ -18,7 +16,7 @@ import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
-import com.koushikdutta.scratch.launch
+import com.koushikdutta.scratch.startSafeCoroutine
 
 private typealias IOException = Exception
 
@@ -33,7 +31,8 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     private val sockets: Multimap<String, KeepAliveSocket> = mutableMapOf()
 
     private fun observeKeepaliveSocket(socketKey: String, keepAliveSocket: KeepAliveSocket) {
-        eventLoop.launch {
+        sockets.add(socketKey, keepAliveSocket)
+        startSafeCoroutine {
             try {
                 while (keepAliveSocket.observe) {
                     if (keepAliveSocket.socketReader.buffered > 0)
@@ -46,7 +45,6 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
                 sockets.removeValue(socketKey, keepAliveSocket)
             }
         }
-        sockets.add(socketKey, keepAliveSocket)
     }
 
     override suspend fun onResponseComplete(session: AsyncHttpClientSession) {

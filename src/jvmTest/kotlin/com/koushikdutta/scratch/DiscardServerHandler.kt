@@ -11,6 +11,11 @@ class DiscardServerHandler : ChannelInboundHandlerAdapter() { // (1)
         ctx.flush() // (2)
     }
 
+    override fun channelUnregistered(ctx: ChannelHandlerContext?) {
+        super.channelUnregistered(ctx)
+        println(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory())
+    }
+
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) { // (4)
         // Close the connection when an exception is raised.
         cause.printStackTrace()

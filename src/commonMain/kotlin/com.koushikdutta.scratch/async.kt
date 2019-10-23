@@ -22,24 +22,36 @@ internal val asyncAffinityCoroutineScope = object : CoroutineScope {
 }
 
 fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Deferred<T> {
-    val self = this
-    return asyncAffinityCoroutineScope.async {
-        await()
-        block(self)
+    val deferred = CompletableDeferred<T>()
+    startSafeCoroutine {
+        try {
+            deferred.complete(block())
+        }
+        catch (exception: Exception) {
+            deferred.completeExceptionally(exception)
+        }
     }
+    return deferred
 }
 
 fun <S: AsyncAffinity> S.launch(block: suspend S.() -> Unit): Job {
-    val self = this
-    return asyncAffinityCoroutineScope.launch {
-        await()
-        block(self)
+    val job = Job()
+    startSafeCoroutine {
+        try {
+            block()
+            job.complete()
+        }
+        catch (exception: Exception) {
+            job.completeExceptionally(exception)
+
+        }
     }
+    return job
 }
 
 
 internal open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
-    var exception: Throwable? = null
+    var exception: Exception? = null
         internal set
     var done = false
         internal set
@@ -51,10 +63,14 @@ internal open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {})
     }
 
     internal fun setComplete(exception: Throwable?, value: T?) {
-        if (exception != null)
-            this.exception = exception
-        else
+        if (exception != null) {
+            if (exception !is Exception)
+                throw exception
+            this.exception = exception as Exception
+        }
+        else {
             this.value = value
+        }
         done = true
         onComplete()
     }
@@ -69,8 +85,20 @@ internal open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {})
     }
 }
 
-internal fun <T> startSafeCoroutine(block: suspend() -> T) = com.koushikdutta.scratch.asyncAffinityCoroutineScope.async {
-    block()
+internal class SafeCoroutineError(throwable: Throwable): Error("startSafeCoroutine should not throw", throwable)
+
+internal fun startSafeCoroutine(block: suspend() -> Unit) {
+    val wrappedBlock : suspend() -> Unit = {
+        try {
+            block()
+        }
+        catch (throwable: Throwable) {
+            throw SafeCoroutineError(throwable)
+        }
+    }
+    wrappedBlock.startCoroutine(Continuation(EmptyCoroutineContext){
+        it.getOrThrow()
+    })
 }
 
 internal class Cooperator {
