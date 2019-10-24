@@ -2,8 +2,10 @@
 
 ## Building libuv and openssl
 
+```
 cd src/nativeInterop/cinterop
 ./checkout.sh
+```
 
 ## After Building, Run:
 
