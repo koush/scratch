@@ -35,7 +35,7 @@ class KotlinBugs {
     }
 
     @Test
-    fun testServerALot() = networkContextTest {
+    fun testCapturedVariableIncrementInSuspend() = networkContextTest {
         val server = listen(0)
 
         server.acceptAsync {
@@ -70,7 +70,7 @@ class KotlinBugs {
 
 
     @Test
-    fun testSocketsALotLeaveThemOpen() = networkContextTest{
+    fun testChainingSuspendSocketClose() = networkContextTest{
         val server = listen(0, null, 10000)
         val broken = true
         if (broken) {
