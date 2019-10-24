@@ -56,6 +56,7 @@ class KotlinBugs {
                 val broken = true
                 if (broken) {
                     count += connect("127.0.0.1", server.localPort).countBytes()
+                    println("looped")
                 }
                 else {
                     val read = connect("127.0.0.1", server.localPort).countBytes()
@@ -65,6 +66,7 @@ class KotlinBugs {
         }
         .awaitAll()
 
+        println("done")
         assertEquals(count, 1000000 * runs)
     }
 
