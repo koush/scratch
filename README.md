@@ -7,6 +7,12 @@ cd src/nativeInterop/cinterop
 ./checkout.sh
 ```
 
+## Build
+
+```
+gradle linkDebugTestNative
+```
+
 ## After Building, Run:
 
 ```
