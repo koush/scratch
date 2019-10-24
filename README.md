@@ -10,6 +10,8 @@ cd src/nativeInterop/cinterop
 ## Build
 
 ```
+# I build on mac, may need to set up a linux/windows multiplatform entry
+# Just change the macOS target to the appropriate in build.gradle.
 gradle linkDebugTestNative
 ```
 
