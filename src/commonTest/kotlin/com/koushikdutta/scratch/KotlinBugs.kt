@@ -52,7 +52,7 @@ class KotlinBugs {
         var count = 0
         (1..runs).map {
             async {
-                val broken = false
+                val broken = true
                 if (broken) {
                     count += connect("127.0.0.1", server.localPort).countBytes()
                 }
@@ -69,41 +69,19 @@ class KotlinBugs {
 
 
     @Test
-    fun testArrayAddFirst() {
-        var array = arrayListOf<Thing>()
-
-        for (i in 1 until 100000) {
-            val mod = i % 3
-            if (mod == 0) {
-                array.add(Thing())
+    fun testSocketsALotLeaveThemOpen() = networkContextTest{
+        val server = listen(0, null, 10000)
+        for (i in 1 until 5) {
+            val broken = true
+            if (broken) {
+                connect("127.0.0.1", server.localPort).close()
             }
-
-            array.sortWith(ThingSorter.INSTANCE)
-
-            var s: Thing? = null
-            if (i % 4 == 0) {
-                s = array.removeAt(0)
-                if (i % 8 == 0)
-                    array.add(0, s)
+            else {
+                val socket = connect("127.0.0.1", server.localPort)
+                socket.close()
             }
         }
-    }
-}
-
-class Thing {
-    var b: Boolean = true
-    var l : Long = Random.nextLong()
-}
-
-internal class ThingSorter private constructor() : Comparator<Thing> {
-    override fun compare(s1: Thing, s2: Thing): Int {
-        // keep the smaller ones at the head, so they get tossed out quicker
-        if (s1.l == s2.l)
-            return 0
-        return if (s1.l > s2.l) 1 else -1
+        assertTrue(true)
     }
 
-    companion object {
-        var INSTANCE = ThingSorter()
-    }
 }
