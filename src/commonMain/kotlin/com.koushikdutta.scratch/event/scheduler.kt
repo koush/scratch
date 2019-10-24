@@ -8,16 +8,48 @@ import kotlin.math.min
 
 typealias AsyncServerRunnable = () -> Unit
 
-private typealias PriorityQueue = ArrayList<Scheduled>
+// private typealias PriorityQueue = ArrayList<Scheduled>
+internal class PriorityQueue {
+    private var sorted = true
+    private fun sortIfNeeded() {
+        if (sorted)
+            return
+        queue.sortWith(Scheduler.INSTANCE)
+        sorted = true
+    }
 
-private fun PriorityQueue.addSorted(scheduled: Scheduled) {
-    this.add(scheduled)
-    sortWith(Scheduler.INSTANCE)
+    private val queue = arrayListOf<Scheduled>()
+    fun add(scheduled: Scheduled) {
+        queue.add(scheduled)
+        sorted = false
+    }
+    fun removeFirst(): Scheduled {
+        sortIfNeeded()
+        return queue.removeAt(0)
+    }
+    fun peek(): Scheduled {
+        sortIfNeeded()
+        return queue.first()
+    }
+    fun clear() {
+        sorted = true
+        queue.clear()
+    }
+    fun contains(scheduled: Scheduled) = queue.contains(scheduled)
+    fun remove(scheduled: Scheduled) = queue.remove(scheduled)
+    fun isEmpty() = queue.isEmpty()
+    val size: Int
+        get() = queue.size
 }
+
+// private fun PriorityQueue.addSorted(scheduled: Scheduled) {
+//     this.add(scheduled)
+//     sortWith(Scheduler.INSTANCE)
+// }
 
 abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     private var postCounter = 0
-    internal val mQueue = arrayListOf<Scheduled>()
+    internal val mQueue = PriorityQueue()
 
     protected val isQueueEmpty: Boolean
         get() = mQueue.isEmpty()
@@ -29,20 +61,19 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         while (true) {
             var run: Scheduled? = null
 
-            // synchronized(this) {
+            synchronized(this) {
                 val now = milliTime()
 
-                val queueSize = mQueue.size
                 if (mQueue.size > 0) {
-                    val s = mQueue.removeAt(0)
+                    val s = mQueue.removeFirst()
                     if (s.time <= now) {
                         run = s
                     } else {
                         wait = s.time - now
-                        mQueue.add(0, s)
+                        mQueue.add(s)
                     }
                 }
-            // }
+            }
 
             if (run == null)
                 break
@@ -70,11 +101,11 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
             else if (delay == 0L)
                 time = postCounter++.toLong()
             else if (mQueue.size > 0)
-                time = min(0, mQueue[0].time - 1)
+                time = min(0, mQueue.peek().time - 1)
             else
                 time = 0
             val s = Scheduled(this, runnable, time)
-            mQueue.addSorted(s)
+            mQueue.add(s)
             wakeup()
             s
         }

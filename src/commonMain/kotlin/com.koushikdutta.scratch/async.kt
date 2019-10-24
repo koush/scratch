@@ -16,7 +16,7 @@ fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Promise<T> {
     return deferred
 }
 
-internal class SafeCoroutineError(throwable: Throwable): Error("startSafeCoroutine should not throw", throwable)
+class SafeCoroutineError(throwable: Throwable): Error("startSafeCoroutine should not throw", throwable)
 
 internal fun startSafeCoroutine(block: suspend() -> Unit) {
     val wrappedBlock : suspend() -> Unit = {

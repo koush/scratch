@@ -7,6 +7,7 @@ import com.koushikdutta.scratch.event.connect
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.random.Random
 
 class KotlinBugs {
     private fun networkContextTest(failureExpected: Boolean = false, runner: suspend AsyncEventLoop.() -> Unit) {
@@ -66,4 +67,43 @@ class KotlinBugs {
         assertEquals(count, 1000000 * runs)
     }
 
+
+    @Test
+    fun testArrayAddFirst() {
+        var array = arrayListOf<Thing>()
+
+        for (i in 1 until 100000) {
+            val mod = i % 3
+            if (mod == 0) {
+                array.add(Thing())
+            }
+
+            array.sortWith(ThingSorter.INSTANCE)
+
+            var s: Thing? = null
+            if (i % 4 == 0) {
+                s = array.removeAt(0)
+                if (i % 8 == 0)
+                    array.add(0, s)
+            }
+        }
+    }
+}
+
+class Thing {
+    var b: Boolean = true
+    var l : Long = Random.nextLong()
+}
+
+internal class ThingSorter private constructor() : Comparator<Thing> {
+    override fun compare(s1: Thing, s2: Thing): Int {
+        // keep the smaller ones at the head, so they get tossed out quicker
+        if (s1.l == s2.l)
+            return 0
+        return if (s1.l > s2.l) 1 else -1
+    }
+
+    companion object {
+        var INSTANCE = ThingSorter()
+    }
 }

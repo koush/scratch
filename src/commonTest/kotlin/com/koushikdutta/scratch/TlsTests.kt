@@ -139,7 +139,6 @@ class TlsTests {
         val server = createAsyncPipeServerSocket()
         val tlsServer = server.listenTls(serverContext)
 
-
         var data = ""
         tlsServer.acceptAsync {
             data += readAllString({read(it)})

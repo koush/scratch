@@ -31,7 +31,7 @@ open class Promise<T> {
         callback(this)
     }
 
-    internal open fun onComplete() {
+    open fun onComplete() {
     }
 
     internal fun setComplete(exception: Throwable?, value: T?): Boolean {
@@ -54,7 +54,7 @@ open class Promise<T> {
         return true
     }
 
-    internal fun setComplete(result: Result<T>) {
+    fun setComplete(result: Result<T>) {
         setComplete(result.exceptionOrNull(), result.getOrNull())
     }
 
