@@ -49,6 +49,7 @@ class KotlinBugs {
         }
 
         val runs = 5
+        // this captured variable does not get seem to get updated properly
         var count = 0
         (1..runs).map {
             async {
@@ -71,15 +72,13 @@ class KotlinBugs {
     @Test
     fun testSocketsALotLeaveThemOpen() = networkContextTest{
         val server = listen(0, null, 10000)
-        for (i in 1 until 5) {
-            val broken = true
-            if (broken) {
-                connect("127.0.0.1", server.localPort).close()
-            }
-            else {
-                val socket = connect("127.0.0.1", server.localPort)
-                socket.close()
-            }
+        val broken = true
+        if (broken) {
+            connect("127.0.0.1", server.localPort).close()
+        }
+        else {
+            val socket = connect("127.0.0.1", server.localPort)
+            socket.close()
         }
         assertTrue(true)
     }
