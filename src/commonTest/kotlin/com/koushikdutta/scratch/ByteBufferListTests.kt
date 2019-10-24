@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.TestUtils.Companion.count
-import com.koushikdutta.scratch.buffers.Buffer
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedInputPipe
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
@@ -36,7 +35,7 @@ class ByteBufferListTests {
                 .pipe(ChunkedOutputPipe)
             val length = AsyncReader(chunked)
                 .pipe(ChunkedInputPipe)
-                .count()
+                .countBytes()
 
             // another read should still indicate eos
             assertEquals(length, 100000000)

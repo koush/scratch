@@ -21,7 +21,7 @@ fun asyncWriter(block: suspend AsyncWriterScope.() -> Unit): AsyncRead {
     val scope = AsyncWriterScope(pending) {
         yielder.yield()
     }
-    val result = AsyncResultHolder<Unit>()
+    val result = Promise<Unit>()
 
     startSafeCoroutine {
         try {

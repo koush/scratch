@@ -1,6 +1,6 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.TestUtils.Companion.count
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.test.Test
@@ -44,7 +44,7 @@ class PipeTests {
 
         var count = 0
         async {
-            count += server.connect()::read.count()
+            count += server.connect().countBytes()
         }
 
         assertEquals(count, 10000000)
@@ -68,7 +68,7 @@ class PipeTests {
         var count = 0
         for (i in 1..100) {
             async {
-                count += server.connect()::read.count()
+                count += server.connect().countBytes()
             }
         }
 

@@ -15,7 +15,7 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     private val yielder = Cooperator()
     private val pending = ByteBufferList()
     private var eos = false
-    private val result = AsyncResultHolder<Unit>(yielder::resume)
+    private val result = Promise<Unit>().setCallback { yielder.resume() }
     private val completion: Continuation<Unit> = Continuation(EmptyCoroutineContext) { completionResult ->
         check(!eos) { "NonBlockingOutputPipe has already been closed" }
         eos = true
@@ -28,6 +28,10 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
 
     fun end() {
         completion.resume(Unit)
+    }
+
+    fun obtain(size: Int): ByteBuffer {
+        return pending.obtain(size)
     }
 
     val hasEnded: Boolean

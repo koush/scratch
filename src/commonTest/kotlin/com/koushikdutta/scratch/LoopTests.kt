@@ -1,12 +1,9 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.TestUtils.Companion.count
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.connect
-import com.koushikdutta.scratch.filters.ChunkedInputPipe
-import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.OK
@@ -16,12 +13,10 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
-import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlin.coroutines.*
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.Test
@@ -36,7 +31,7 @@ class LoopTests {
         val result = networkContext.async {
             runner(networkContext)
         }
-        result.invokeOnCompletion {
+        result.setCallback {
             networkContext.stop()
         }
 
@@ -131,7 +126,7 @@ class LoopTests {
 
         networkContext.run()
         result.rethrow()
-        assertEquals(result.getCompleted(), 42)
+        assertEquals(result.value, 42)
     }
 
     @Test
@@ -163,6 +158,25 @@ class LoopTests {
     }
 
     @Test
+    fun testServerNotCrash() = networkContextTest {
+        val server = listen()
+        server.acceptAsync {
+            throw ExpectedException()
+        }
+        .closeOnError()
+        val client = connect("127.0.0.1", server.localPort)
+        try {
+            client.write(ByteBufferList().putUtf8String("hello!"))
+            val reader = AsyncReader({client.read(it)})
+                reader.readUtf8String(1)
+        }
+        catch (exception: IOException) {
+            return@networkContextTest
+        }
+        fail("IOException expected")
+    }
+
+    @Test
     fun testServerALot() = networkContextTest {
         val server = listen(0)
 
@@ -181,7 +195,7 @@ class LoopTests {
         var count = 0
         (0 until runs).map {
             async {
-                val read = connect("127.0.0.1", server.localPort)::read.count()
+                val read = connect("127.0.0.1", server.localPort).countBytes()
                 count += read
             }
         }
@@ -206,7 +220,7 @@ class LoopTests {
         }
 
         val count  = async {
-            connect("127.0.0.1", server.localPort)::read.count()
+            connect("127.0.0.1", server.localPort).countBytes()
         }
         .await()
 

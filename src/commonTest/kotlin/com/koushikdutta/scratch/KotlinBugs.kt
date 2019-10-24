@@ -1,10 +1,9 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.TestUtils.Companion.count
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.connect
-import kotlinx.coroutines.sync.Semaphore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -16,7 +15,7 @@ class KotlinBugs {
         val result = networkContext.async {
             runner(networkContext)
         }
-        result.invokeOnCompletion {
+        result.setCallback {
             networkContext.stop()
         }
 
@@ -49,26 +48,20 @@ class KotlinBugs {
         }
 
         val runs = 5
-        val wait = Semaphore(runs, runs)
-
         var count = 0
-        for (i in 1..runs) {
+        (1..runs).map {
             async {
                 val broken = false
                 if (broken) {
-                    count += connect("127.0.0.1", server.localPort)::read.count()
+                    count += connect("127.0.0.1", server.localPort).countBytes()
                 }
                 else {
-                    val read = connect("127.0.0.1", server.localPort)::read.count()
+                    val read = connect("127.0.0.1", server.localPort).countBytes()
                     count += read
                 }
             }
-            .invokeOnCompletion {
-                wait.release()
-            }
         }
-
-        wait.acquire(runs)
+        .awaitAll()
 
         assertEquals(count, 1000000 * runs)
     }

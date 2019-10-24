@@ -1,12 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
-import com.koushikdutta.scratch.http.http2.write
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.sync.Semaphore
 import kotlin.random.Random
 
 internal class ExpectedException: Exception()
@@ -25,7 +20,7 @@ class TestUtils {
             .pipe(createContentLengthPipe(length.toLong()))
         }
 
-        suspend fun AsyncRead.count(): Int {
+        suspend fun AsyncRead.countBytes(): Int {
             var ret = 0
             val buf = ByteBufferList()
             while (this(buf)) {
@@ -34,17 +29,21 @@ class TestUtils {
             }
             return ret
         }
+
+        suspend fun AsyncSocket.countBytes(): Int {
+            var ret = 0
+            val buf = ByteBufferList()
+            while (read(buf)) {
+                ret += buf.remaining()
+                buf.free()
+            }
+            return ret
+        }
     }
 }
 
-fun Deferred<*>.rethrow() {
-    val e = getCompletionExceptionOrNull()
-    if (e != null)
-        throw e
-}
-
-suspend fun Semaphore.acquire(numPermits: Int) {
-    for (i in 0 until numPermits) {
-        acquire()
+suspend fun Collection<Promise<*>>.awaitAll() {
+    for (promise in this) {
+        promise.await()
     }
 }

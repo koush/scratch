@@ -26,19 +26,18 @@ fun EventLoopClosedException(): Exception {
 
 actual typealias AsyncNetworkSocket = UvSocket
 
-class UvSocket(val loop: UvEventLoop, socket: uv_stream_t) : AsyncSocket, AsyncAffinity by loop {
+class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: AllocedHandle<uv_stream_t>) : AsyncSocket, AsyncAffinity by loop {
     internal val nio = object : NonBlockingWritePipe() {
         override fun writable() {
             uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
         }
     }
-    internal val socket: AllocedHandle<uv_stream_t> = AllocedHandle(loop, socket)
 
     init {
         // set a handle destructor to ensure the correspoding UvSocket is also cleaned up
-        loop.handles[socket.ptr] = ::closeInternal
+        loop.handles[this.socket] = ::closeInternal
         // socket handle data points to this instance
-        socket.data = StableRef.create(this).asCPointer()
+        socket.struct.data = StableRef.create(this).asCPointer()
         // start reading.
         uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
     }
@@ -69,9 +68,17 @@ class UvSocket(val loop: UvEventLoop, socket: uv_stream_t) : AsyncSocket, AsyncA
             buf.base = pinnedWrites!![i].addressOf(0)
             buf.len = writeBuffers!![i].remaining().toULong()
         }
-        return loop.safeSuspendCoroutine {
-            writeAlloc.struct.data = StableRef.create(it).asCPointer()
-            uv_write(writeAlloc.ptr, socket.ptr, bufsAlloc.array, bufsAlloc.length.toUInt(), writeCallbackPtr)
+        try {
+            return loop.safeSuspendCoroutine {
+                writeAlloc.struct.data = StableRef.create(it).asCPointer()
+                uv_write(writeAlloc.ptr, socket.ptr, bufsAlloc.array, bufsAlloc.length.toUInt(), writeCallbackPtr)
+            }
+        }
+        finally {
+            for (pinnedWrite in pinnedWrites!!) {
+                pinnedWrite.unpin()
+            }
+            buffer.reclaim(*writeBuffers!!)
         }
     }
 
@@ -89,12 +96,12 @@ class UvSocket(val loop: UvEventLoop, socket: uv_stream_t) : AsyncSocket, AsyncA
 
 actual typealias AsyncNetworkServerSocket = UvServerSocket
 
-class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int) : AsyncServerSocket, AsyncAffinity by loop {
+class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int) : AsyncServerSocket<UvSocket>, AsyncAffinity by loop {
     internal val socket: AllocedHandle<uv_tcp_t> = AllocedHandle(loop, socket)
 
     init {
         // set a handle destructor to ensure the correspoding UvSocket is also cleaned up
-        loop.handles[socket.ptr] = ::closeInternal
+        loop.handles[this.socket] = ::closeInternal
         // socket handle data points to this instance
         socket.data = StableRef.create(this).asCPointer()
     }
@@ -120,7 +127,7 @@ class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int
             }
 
             checkZero(uv_accept(socket.ptr.reinterpret(), client.ptr.reinterpret()), "accept failed")
-            yield(UvSocket(loop, client.struct.reinterpret()))
+            yield(UvSocket(loop, client as AllocedHandle<uv_stream_t>))
         }
     }
 
@@ -181,7 +188,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         try {
             checkZero(uv_tcp_init(loop.ptr, socket.ptr), "tcp init failed")
             // track the socket handle destruction, in case the event loop gets closed before the connect completes.
-            handles[socket.ptr] = { it.resumeWithException(EventLoopClosedException()) }
+            handles[socket] = { it.resumeWithException(EventLoopClosedException()) }
             socket.struct.data = StableRef.create(it).asCPointer()
 
             connect.value = nativeHeap.alloc()
@@ -223,7 +230,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         }
 
         post()
-        val uvSocket = UvSocket(this, socket.struct.reinterpret())
+        val uvSocket = UvSocket(this, socket as AllocedHandle<uv_stream_t>)
         return uvSocket
     }
 
@@ -289,7 +296,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
             val copy = HashMap(handles)
             handles.clear()
             for (handle in copy) {
-                uv_close(handle.key.reinterpret(), closeCallbackPtr)
+                handle.key.free()
                 handle.value()
             }
 
@@ -298,11 +305,11 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
     }
 
     internal val loop = Alloced<uv_loop_t>(nativeHeap.alloc())
-    private val wakeup = Alloced<uv_async_t>(nativeHeap.alloc())
+    private val wakeup = AllocedHandle<uv_async_t>(this, nativeHeap.alloc())
     private val timer = Alloced<uv_timer_t>(nativeHeap.alloc())
     private var running = false
     private val thisRef = StableRef.create(this).asCPointer()
-    internal val handles = mutableMapOf<CPointer<*>, () -> Unit>()
+    internal val handles = mutableMapOf<AllocedHandle<*>, () -> Unit>()
 
     override val isAffinityThread: Boolean = running
 
@@ -315,7 +322,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
 
     fun run() {
         checkZero(uv_async_init(loop.ptr, wakeup.ptr, asyncCallbackPtr), "uv_async_init failed")
-        handles[wakeup.ptr] = {}
+        handles[wakeup] = {}
 
         synchronized(this) {
             check(!running) { "loop already running" }

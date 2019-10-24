@@ -4,7 +4,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine
 
-internal open class AsyncResult<T>(finalizer: () -> Unit = {}) : AsyncResultHolder<T>(finalizer) {
+internal open class AsyncResult<T> : Promise<T>() {
     override fun onComplete() {
         super.onComplete()
         rethrow()

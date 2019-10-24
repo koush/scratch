@@ -9,7 +9,7 @@ actual class AsyncTlsSocket actual constructor(
     override val socket: AsyncSocket,
     val engine: SSLEngine,
     private val options: AsyncTlsOptions?
-) : AsyncWrappingSocket {
+) : AsyncWrappingSocket, AsyncAffinity by socket {
 
 
     private val socketRead = InterruptibleRead({socket.read(it)})
@@ -104,10 +104,6 @@ actual class AsyncTlsSocket actual constructor(
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
         return reader(buffer)
-    }
-
-    override suspend fun await() {
-        socket.await()
     }
 
     // need a reader to catch any overflow from the handshake

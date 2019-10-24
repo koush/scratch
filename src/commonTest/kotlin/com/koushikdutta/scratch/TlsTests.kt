@@ -14,7 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
-import com.koushikdutta.scratch.TestUtils.Companion.count
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 
 
 class TlsTests {
@@ -187,7 +187,7 @@ class TlsTests {
                 val clientContext = createTLSContext()
                 clientContext.init(keypairCert.second)
 
-                var got = server.connect().connectTls("TestServer", 80, clientContext)::read.count()
+                var got = server.connect().connectTls("TestServer", 80, clientContext).countBytes()
                 assertEquals(got, 5000000)
                 count += got
             }
@@ -223,7 +223,7 @@ class TlsTests {
         async {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
-            count += server.connect().connectTls("TestServer", 80, clientContext)::read.count()
+            count += server.connect().connectTls("TestServer", 80, clientContext).countBytes()
         }
 
         assertEquals(count, dataLen)

@@ -546,12 +546,14 @@ class ByteBufferList : Buffers {
         val EMPTY_BYTEBUFFER = createByteBuffer(ByteArray(0))
         var MAX_ITEM_SIZE = 65536
         var MIN_ITEM_SIZE = 1024
+        val totalObtained: Long
+            get() = totalObtained2
+            val totalObtainCount: Int
+            get() = totalObtainCount2
 
-        var totalObtained = 0L
-        var totalObtainCount = 0
         fun obtain(size: Int): ByteBuffer {
-            totalObtained += size
-            totalObtainCount++
+            totalObtained2 += size
+            totalObtainCount2++
             return allocateByteBuffer(max(8192, size))
         }
 
@@ -564,3 +566,6 @@ class ByteBufferList : Buffers {
         }
     }
 }
+
+internal var totalObtained2 = 0L
+internal var totalObtainCount2 = 0

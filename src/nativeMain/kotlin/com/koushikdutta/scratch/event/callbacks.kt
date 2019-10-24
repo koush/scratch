@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch.event
 
+import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.uv.*
 import kotlinx.cinterop.*
@@ -29,7 +30,7 @@ private fun connectCallback(connect: CPointer<uv_connect_t>?, status: Int) {
     if (status == 0)
         resume.resume(Unit)
     else
-        resume.resumeWithException(Exception("connect error: $status"))
+        resume.resumeWithException(IOException("connect error: $status"))
 }
 
 internal val connectCallbackPtr = staticCFunction(::connectCallback)
@@ -48,12 +49,11 @@ fun readCallback(handle: CPointer<uv_stream_s>?, size: Long, buf: CPointer<uv_bu
     socket.pinnedBuffer = null
 
     if (size < 0 || socket.nio.hasEnded) {
-        // todo: recycle buffer
         if (!socket.nio.hasEnded) {
             if (size.toInt() == UV_EOF)
                 socket.nio.end()
             else
-                socket.nio.end(Exception("read error: $size"))
+                socket.nio.end(IOException("read error: $size"))
         }
         return
     }
@@ -74,7 +74,7 @@ fun writeCallback(ptr: CPointer<uv_write_t>?, status: Int) {
     write.data = null
 
     if (status != 0) {
-        resume.resumeWithException(Exception("write error: $status"))
+        resume.resumeWithException(IOException("write error: $status"))
         return
     }
 
@@ -86,9 +86,9 @@ internal val writeCallbackPtr = staticCFunction(::writeCallback)
 fun allocBufferCallback(handle: CPointer<uv_handle_t>?, size: ULong, buf: CPointer<uv_buf_t>?) {
     val socket = handle!!.pointed.data!!.asStableRef<UvSocket>().get()
     if (socket.pinned != null)
-        throw Exception("pending allocation?")
+        throw IOException("pending allocation?")
 
-    val buffer = allocateByteBuffer(size.toInt())
+    val buffer = socket.nio.obtain(size.toInt())
     val pinned = buffer.array().pin()
     socket.pinnedBuffer = buffer
     socket.pinned = pinned
@@ -132,7 +132,7 @@ internal val addrInfoCallbackPtr = staticCFunction(::addrInfoCallback)
 fun listenCallback(stream: CPointer<uv_stream_t>?, status: Int) {
     val socket = stream!!.pointed.data!!.asStableRef<UvServerSocket>().get()
     if (status != 0)
-        socket.queue.end(Exception("listen failed: $status"))
+        socket.queue.end(IOException("listen failed: $status"))
     else
         socket.queue.add(socket)
 }

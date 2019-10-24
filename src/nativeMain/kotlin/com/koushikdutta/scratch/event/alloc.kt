@@ -67,7 +67,7 @@ internal class AllocedHandle<T: CStructVar>(val loop: AsyncEventLoop, value: T? 
     }
     override fun freePointer(value: T) {
         freeUvHandleData<Any>(value)
-        loop.handles.remove(value.ptr)
+        loop.handles.remove(this)
         uv_close(value.ptr.reinterpret(), closeCallbackPtr)
     }
 }

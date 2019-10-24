@@ -1,9 +1,5 @@
 package com.koushikdutta.scratch
 
-import kotlinx.coroutines.CompletableJob
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-
 /**
  * AsyncServerSocket accepts incoming AsyncSocket clients.
  */
@@ -13,7 +9,7 @@ interface AsyncServerSocket<T: AsyncSocket> : AsyncAffinity {
 }
 
 class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serverSocket: AsyncServerSocket<T>): AsyncAffinity by serverSocket {
-    private final val unhandled = "unhandled error in asyncAccept."
+    private val unhandled = "unhandled error in asyncAccept."
     var observer: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit = { serverSocket, socket, throwable ->
         if (throwable != null) {
             println(unhandled)
@@ -33,6 +29,15 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serv
                 serverSocket.close()
         }
     }
+    suspend fun invokeObserver(socket: T?, exception: Throwable?) {
+        try {
+            observer(serverSocket, socket, exception)
+        }
+        catch (throwable: Throwable) {
+            serverSocket.post()
+            throw AssertionError(unhandled)
+        }
+    }
 }
 
 fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit): AsyncAcceptObserver<T> {
@@ -45,18 +50,18 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
                         block(socket)
                     }
                     catch (throwable: Throwable) {
-                        ret.observer(this, socket, throwable)
+                        ret.invokeObserver(socket, throwable)
                         return@socketCoroutine
                     }
-                    ret.observer(this, socket, null)
+                    ret.invokeObserver(socket, null)
                 }
             }
         }
         catch (throwable: Throwable) {
-            ret.observer(this, null, throwable)
+            ret.invokeObserver(null, throwable)
             return@startSafeCoroutine
         }
-        ret.observer(this, null, null)
+        ret.invokeObserver(null, null)
     }
 
     return ret

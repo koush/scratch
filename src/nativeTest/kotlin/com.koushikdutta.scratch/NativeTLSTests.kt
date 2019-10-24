@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.OK
@@ -35,7 +36,7 @@ class NativeTLSTests {
         clientContext.init(keypairCert.second)
 
         var protocol = ""
-        val pipeMiddleware = object : OpenSSLMiddleware(clientContext) {
+        val pipeMiddleware = object : OpenSSLMiddleware(AsyncEventLoop.default, clientContext) {
             override suspend fun wrapTlsSocket(
                 session: AsyncHttpClientSession,
                 tlsSocket: AsyncTlsSocket,

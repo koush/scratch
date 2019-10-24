@@ -134,6 +134,11 @@ abstract class BufferCommon(internal val capacity: Int) {
         this.position = mark
         return this
     }
+    fun clear(): BufferCommon {
+        this.position = 0
+        this.limit = capacity
+        return this
+    }
     abstract fun array(): Any
     abstract fun arrayOffset(): Int
     abstract fun isDirect(): Boolean

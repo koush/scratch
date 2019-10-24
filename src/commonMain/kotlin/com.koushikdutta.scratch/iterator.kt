@@ -1,9 +1,5 @@
 package com.koushikdutta.scratch
 
-import kotlin.coroutines.Continuation
-import kotlin.coroutines.EmptyCoroutineContext
-import kotlin.coroutines.startCoroutine
-
 interface AsyncIterator<out T> {
     suspend operator fun next(): T
     suspend operator fun hasNext(): Boolean
@@ -24,7 +20,8 @@ class AsyncIteratorScope<T> internal constructor(private val yielder: Cooperator
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val yielder = Cooperator()
     var done = false
-    val result = AsyncResultHolder<Unit> {
+    val result = Promise<Unit>()
+    .setCallback {
         done = true
         yielder.resume()
     }
@@ -107,7 +104,6 @@ open class AsyncDequeueIterator<T> : AsyncIterable<T> {
     private var exception: Throwable? = null
 
     protected open fun popped(value: T) {
-        println("pooped")
     }
 
     private val iter = asyncIterator<T> {

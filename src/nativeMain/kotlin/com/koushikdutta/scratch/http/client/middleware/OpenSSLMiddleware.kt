@@ -1,11 +1,12 @@
 package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.tls.*
 
-open class OpenSSLMiddleware(context: SSLContext = getDefaultSSLContext()) : AsyncTlsSocketMiddleware(context) {
+open class OpenSSLMiddleware(eventLoop: AsyncEventLoop, context: SSLContext = getDefaultSSLContext()) : AsyncTlsSocketMiddleware(eventLoop, context) {
     fun install(client: AsyncHttpClient) {
         client.middlewares.add(0, this)
     }

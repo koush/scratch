@@ -29,9 +29,10 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         while (true) {
             var run: Scheduled? = null
 
-            synchronized(this) {
+            // synchronized(this) {
                 val now = milliTime()
 
+                val queueSize = mQueue.size
                 if (mQueue.size > 0) {
                     val s = mQueue.removeAt(0)
                     if (s.time <= now) {
@@ -41,7 +42,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
                         mQueue.add(0, s)
                     }
                 }
-            }
+            // }
 
             if (run == null)
                 break

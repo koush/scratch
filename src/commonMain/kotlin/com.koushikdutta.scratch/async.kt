@@ -1,67 +1,19 @@
 package com.koushikdutta.scratch
 
-import kotlinx.coroutines.*
 import kotlin.coroutines.*
 
-fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Deferred<T> {
-    val deferred = CompletableDeferred<T>()
+fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Promise<T> {
+    val deferred = Promise<T>()
     startSafeCoroutine {
         try {
-            deferred.complete(block())
+            await()
+            deferred.setComplete(null, block())
         }
         catch (exception: Throwable) {
-            deferred.completeExceptionally(exception)
+            deferred.setComplete(exception, null)
         }
     }
     return deferred
-}
-
-fun <S: AsyncAffinity> S.launch(block: suspend S.() -> Unit): Job {
-    val job = Job()
-    startSafeCoroutine {
-        try {
-            block()
-            job.complete()
-        }
-        catch (exception: Throwable) {
-            job.completeExceptionally(exception)
-        }
-    }
-    return job
-}
-
-
-internal open class AsyncResultHolder<T>(private var finalizer: () -> Unit = {}) {
-    var exception: Throwable? = null
-        internal set
-    var done = false
-        internal set
-    var value: T? = null
-        internal set
-
-    internal open fun onComplete() {
-        finalizer()
-    }
-
-    internal fun setComplete(exception: Throwable?, value: T?) {
-        if (exception != null) {
-            this.exception = exception
-        }
-        else {
-            this.value = value
-        }
-        done = true
-        onComplete()
-    }
-
-    internal fun setComplete(result: Result<T>) {
-        setComplete(result.exceptionOrNull(), result.getOrNull())
-    }
-
-    fun rethrow() {
-        if (exception != null)
-            throw exception!!
-    }
 }
 
 internal class SafeCoroutineError(throwable: Throwable): Error("startSafeCoroutine should not throw", throwable)
