@@ -3,6 +3,8 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.event.InetAddress
+import com.koushikdutta.scratch.event.InetSocketAddress
 import com.koushikdutta.scratch.event.connect
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
@@ -334,5 +336,32 @@ class LoopTests {
         }
 
         assertEquals(requestsCompleted, numRequests)
+    }
+
+    @Test
+    fun testDatagram() = networkContextTest {
+        val socket1 = createDatagram()
+        val socket2 = createDatagram()
+        socket1.connect(InetSocketAddress(socket2.localPort))
+
+        // connected write
+        val writeBuffer = ByteBufferList()
+        writeBuffer.putUtf8String("hello world")
+        socket1.write(writeBuffer)
+
+        // connectionless read
+        val buffer = ByteBufferList()
+        val address = socket2.receivePacket(buffer)
+        assertEquals(buffer.readUtf8String(), "hello world")
+        assertEquals(address.getPort(), socket1.localPort)
+
+        // connectionless write
+        buffer.putUtf8String("ok hi")
+        socket2.sendPacket(address, buffer)
+
+        // connected read
+        val receiveBuffer = ByteBufferList()
+        socket1.read(receiveBuffer)
+        assertEquals(receiveBuffer.readUtf8String(), "ok hi")
     }
 }

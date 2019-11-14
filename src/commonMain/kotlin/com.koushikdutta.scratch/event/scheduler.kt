@@ -8,7 +8,6 @@ import kotlin.math.min
 
 typealias AsyncServerRunnable = () -> Unit
 
-// private typealias PriorityQueue = ArrayList<Scheduled>
 internal class PriorityQueue {
     private var sorted = true
     private fun sortIfNeeded() {
@@ -41,11 +40,6 @@ internal class PriorityQueue {
     val size: Int
         get() = queue.size
 }
-
-// private fun PriorityQueue.addSorted(scheduled: Scheduled) {
-//     this.add(scheduled)
-//     sortWith(Scheduler.INSTANCE)
-// }
 
 abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     private var postCounter = 0
@@ -87,6 +81,9 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
 
     fun postDelayed(delay: Long, runnable: AsyncServerRunnable): Cancellable {
         return synchronized(this) {
+            if (stopping)
+                return SimpleCancellable.CANCELLED
+
             // Calculate when to run this queue item:
             // If there is a delay (non-zero), add it to the current time
             // When delay is zero, ensure that this follows all other
@@ -111,12 +108,19 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         }
     }
 
+    private var stopping = false
     protected fun scheduleShutdown(runnable: AsyncServerRunnable) {
         synchronized(this) {
+            stopping = true
             mQueue.clear()
             mQueue.add(Scheduled(this, {
-                mQueue.clear()
-                runnable()
+                try {
+                    runnable()
+                }
+                finally {
+                    mQueue.clear()
+                    stopping = false
+                }
             }, 0))
         }
     }

@@ -53,7 +53,7 @@ class KotlinBugs {
         var count = 0
         (1..runs).map {
             async {
-                val broken = true
+                val broken = false
                 if (broken) {
                     count += connect("127.0.0.1", server.localPort).countBytes()
                     println("looped")
@@ -74,7 +74,7 @@ class KotlinBugs {
     @Test
     fun testChainingSuspendSocketClose() = networkContextTest{
         val server = listen(0, null, 10000)
-        val broken = true
+        val broken = false
         if (broken) {
             connect("127.0.0.1", server.localPort).close()
         }

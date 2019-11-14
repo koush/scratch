@@ -133,8 +133,7 @@ open class AsyncDequeueIterator<T> : AsyncIterable<T> {
         hasEnded = true
     }
 
-    var hasEnded = false
-        private set
+    private var hasEnded = false
     fun end() {
         endInternal()
         yielder.resume()

@@ -4,18 +4,18 @@ package com.koushikdutta.scratch.event
 
 
 import com.koushikdutta.scratch.*
-import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.external.Log
 import java.io.Closeable
 import java.io.IOException
-import java.lang.IllegalStateException
 import java.net.NetworkInterface
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
 import java.util.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.coroutines.*
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 actual typealias InetAddress = java.net.InetAddress
 actual typealias Inet4Address = java.net.Inet4Address
@@ -33,7 +33,7 @@ private suspend fun Executor.await() {
     }
 }
 
-private fun closeQuietly(vararg closeables: Closeable?) {
+internal fun closeQuietly(vararg closeables: Closeable?) {
     for (closeable in closeables) {
         try {
             closeable?.close()
@@ -44,182 +44,6 @@ private fun closeQuietly(vararg closeables: Closeable?) {
             // like ArrayStoreException
         }
 
-    }
-}
-
-actual typealias AsyncNetworkServerSocket = NIOServerSocket
-class NIOServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket<AsyncNetworkSocket>, AsyncAffinity by server {
-    private val key: SelectionKey = channel.register(server.mSelector.selector, SelectionKey.OP_ACCEPT)
-
-    init {
-        key.attach(this)
-    }
-
-    private var closed = false
-    override suspend fun close() {
-        closeQuietly(channel)
-        try {
-            key.cancel()
-        }
-        catch (e: Exception) {
-        }
-        if (!closed) {
-            closed = true
-            queue.end()
-        }
-    }
-
-    val backlog: Int = 65535
-    private var isAccepting = true
-    private val queue = object : AsyncDequeueIterator<NIOSocket>() {
-        override fun popped(value: AsyncNetworkSocket) {
-            if (!isAccepting && size < backlog) {
-                isAccepting = true
-                key.interestOps(SelectionKey.OP_ACCEPT)
-            }
-        }
-
-        override fun add(value: AsyncNetworkSocket) {
-            if (isAccepting && size >= backlog) {
-                isAccepting = false
-                key.interestOps(0)
-            }
-
-            super.add(value)
-        }
-    }
-
-    override fun accept(): AsyncIterable<AsyncNetworkSocket> {
-        return queue
-    }
-
-    internal fun accepted() {
-//        server.post {
-            var sc: SocketChannel? = null
-            try {
-                sc = channel.accept()
-                if (sc == null)
-                    return
-                sc.configureBlocking(false)
-                queue.add(NIOSocket(server, sc, sc.register(server.mSelector.selector, SelectionKey.OP_READ)))
-            }
-            catch (e: IOException) {
-                closeQuietly(sc)
-            }
-//        }
-    }
-}
-
-actual typealias AsyncNetworkSocket = NIOSocket
-
-class NIOSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, AsyncAffinity by server {
-    val localPort = channel.socket().localPort
-    val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress
-    private val inputBuffer = ByteBufferList()
-    private var closed = false
-    private val allocator = AllocationTracker()
-    private val input = object : NonBlockingWritePipe() {
-        override fun writable() {
-            key.interestOps(SelectionKey.OP_READ or key.interestOps())
-        }
-    }
-    private val output = object : BlockingWritePipe() {
-        override fun write(buffer: Buffers) {
-            while (buffer.hasRemaining()) {
-                val before = buffer.remaining()
-                val buffers = buffer.readAll()
-                channel.write(buffers)
-                buffer.addAll(*buffers)
-                val after = buffer.remaining()
-                if (before == after) {
-                    key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
-                    break
-                }
-            }
-
-        }
-    }
-
-    init {
-        key.attach(this)
-    }
-
-    private fun closeInternal() {
-        closeQuietly(channel)
-        try {
-            key.cancel()
-        }
-        catch (e: Exception) {
-        }
-
-        if (!closed) {
-            closed = true
-            input.end()
-        }
-    }
-
-    override suspend fun close() {
-        closeInternal()
-    }
-
-    private val trackingSocketReader: BuffersBufferWriter<Int> = {
-        val ret = channel.read(it)
-        if (ret > 0)
-            allocator.trackDataUsed(ret)
-        ret
-    }
-
-    private fun flushInputBuffer() {
-        if (inputBuffer.isEmpty)
-            return
-        if (!input.write(inputBuffer))
-            key.interestOps(SelectionKey.OP_READ.inv() and key.interestOps())
-    }
-
-    internal fun readable(): Int {
-        try {
-            var read: Int
-            do {
-                read = inputBuffer.putAllocatedBuffer(allocator.requestNextAllocation(), trackingSocketReader)
-                flushInputBuffer()
-            }
-            while (read > 0)
-            allocator.finishTracking()
-
-            // clean close
-            if (read < 0) {
-                closed = true
-                input.end()
-                output.close()
-            }
-        } catch (e: Exception) {
-            flushInputBuffer()
-            allocator.finishTracking()
-
-            // transport failure caused close
-            closed = true
-            input.end(e)
-            output.close(e)
-        }
-
-        if (closed) {
-            closeInternal()
-        }
-
-        return allocator.lastAlloc
-    }
-
-    internal fun writable() {
-        key.interestOps(SelectionKey.OP_WRITE.inv() and key.interestOps())
-        output.writable()
-    }
-
-    override suspend fun read(buffer: WritableBuffers): Boolean {
-        return input.read(buffer)
-    }
-
-    override suspend fun write(buffer: ReadableBuffers) {
-        output.write(buffer)
     }
 }
 
@@ -266,6 +90,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncNetworkServerSocket {
         await()
+
         var closeableServer: ServerSocketChannel? = null
         try {
             closeableServer = ServerSocketChannel.open()
@@ -284,8 +109,33 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    var attmept = 0
+    suspend fun createDatagram(port: Int = 0, address: InetAddress? = null): AsyncDatagramSocket {
+        await()
+
+        var ckey: SelectionKey? = null
+        var socket: DatagramChannel? = null
+        try {
+            socket = DatagramChannel.open()
+            socket!!.configureBlocking(false)
+            val inetSocketAddress: InetSocketAddress
+            if (address == null)
+                inetSocketAddress = InetSocketAddress(port)
+            else
+                inetSocketAddress = InetSocketAddress(address, port)
+            socket.socket().bind(inetSocketAddress)
+            ckey = socket.register(mSelector.selector, SelectionKey.OP_READ)
+            return AsyncDatagramSocket(this, socket, ckey)
+        }
+        catch (e: Exception) {
+            ckey?.cancel()
+            closeQuietly(socket)
+            throw e
+        }
+    }
+
     suspend fun connect(socketAddress: InetSocketAddress): AsyncNetworkSocket {
+        await()
+
         var ckey: SelectionKey? = null
         var socket: SocketChannel? = null
         try {
@@ -296,10 +146,9 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             suspendCoroutine<Unit> {
                 ckey.attach(it)
                 socket.connect(socketAddress)
-//                println("conn done")
             }
 
-            // for some reason this seems necessary (see testSocketsALot)
+            // for some reason this seems necessary? (see testSocketsALot)
             // must post, or it seems to just... hang? no more incoming connections.
             // attempting to log stuff to diagnose issue in itself solves the problem.
             // ie, slowing down how quickly the sockets are connected addresses some underlying race condition.
@@ -314,7 +163,6 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             return AsyncNetworkSocket(this, socket, ckey)
         }
         catch (e: Exception) {
-//            post()
             ckey?.cancel()
             closeQuietly(socket)
             throw e
@@ -352,7 +200,6 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             }
             catch (e: AsyncSelectorException) {
                 // these are wakeup exceptions
-                e.printStackTrace()
             }
             catch (e: NIOLoopShutdownException) {
                 break
@@ -417,11 +264,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                     socket.accepted()
                 }
                 else if (key.isReadable) {
-                    val socket = key.attachment() as AsyncNetworkSocket
+                    val socket = key.attachment() as NIOChannel
                     val transmitted = socket.readable()
                 }
                 else if (key.isWritable) {
-                    val socket = key.attachment() as AsyncNetworkSocket
+                    val socket = key.attachment() as NIOChannel
                     socket.writable()
                 }
                 else if (key.isConnectable) {
