@@ -5,6 +5,7 @@ package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.external.Log
+import com.sun.org.apache.xpath.internal.operations.Bool
 import java.io.Closeable
 import java.io.IOException
 import java.net.NetworkInterface
@@ -109,7 +110,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    suspend fun createDatagram(port: Int = 0, address: InetAddress? = null): AsyncDatagramSocket {
+    suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket {
         await()
 
         var ckey: SelectionKey? = null
@@ -122,6 +123,8 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 inetSocketAddress = InetSocketAddress(port)
             else
                 inetSocketAddress = InetSocketAddress(address, port)
+            if (reuseAddress)
+                socket.socket().reuseAddress = true
             socket.socket().bind(inetSocketAddress)
             ckey = socket.register(mSelector.selector, SelectionKey.OP_READ)
             return AsyncDatagramSocket(this, socket, ckey)

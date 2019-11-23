@@ -34,7 +34,7 @@ interface StringDecoder {
     fun decode(s: String): String
 }
 
-fun parseStringMultimap(value: String, delimiter: String, unquote: Boolean, decoder: StringDecoder?): StringMultimap {
+fun parseStringMultimap(value: String?, delimiter: String, unquote: Boolean, decoder: StringDecoder?): StringMultimap {
     return parseStringMultimap(value, delimiter, "=", unquote, decoder)
 }
 
@@ -88,6 +88,6 @@ val URL_DECODER: StringDecoder = object : StringDecoder {
     }
 }
 
-fun parseUrlEncoded(query: String): StringMultimap {
+fun parseUrlEncoded(query: String?): StringMultimap {
     return parseStringMultimap(query, "&", false, URL_DECODER)
 }

@@ -107,6 +107,7 @@ kotlin {
 //            }
 //            languageSettings {
 //                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+//                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
 //                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
 //                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
 //            }

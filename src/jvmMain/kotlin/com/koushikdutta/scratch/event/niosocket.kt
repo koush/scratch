@@ -108,6 +108,12 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
         key.attach(this)
     }
 
+    var broadcast: Boolean
+        get() = channel.socket().broadcast
+        set(value) {
+            channel.socket().broadcast = value
+        }
+
     override fun writable() {
         key.interestOps(SelectionKey.OP_WRITE.inv() and key.interestOps())
         output.writable()
@@ -126,30 +132,33 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
     override fun readable(): Int {
         var total = 0
         try {
-            while (true) {
-                val buffer = pending.obtain(channel.socket().receiveBufferSize)
-                val address: InetSocketAddress
-                if (!channel.isConnected) {
-                    address = channel.receive(buffer) as java.net.InetSocketAddress
-                    if (address == null) {
-                        pending.reclaim(buffer)
-                        iterable.end()
-                        break
-                    }
+            val buffer = pending.obtain(8192 * 2)
+            val address: InetSocketAddress?
+            if (!channel.isConnected) {
+                address = channel.receive(buffer) as java.net.InetSocketAddress?
+                if (address == null) {
+                    pending.reclaim(buffer)
+                    iterable.end()
+                    return total
                 }
-                else {
-                    val read = channel.read(buffer)
-                    if (read < 0) {
-                        pending.reclaim(buffer)
-                        iterable.end()
-                        break
-                    }
-                    address = channel.socket().remoteSocketAddress as InetSocketAddress
-                }
-                buffer.flip()
-                total += buffer.remaining()
-                iterable.add(NIODatagramPacket(address, buffer))
             }
+            else {
+                val read = channel.read(buffer)
+                if (read == 0) {
+                    pending.reclaim(buffer)
+                    return total
+                }
+                if (read < 0) {
+                    pending.reclaim(buffer)
+                    iterable.end()
+                    return total
+                }
+                address = channel.socket().remoteSocketAddress as InetSocketAddress
+            }
+            buffer.flip()
+            total += buffer.remaining()
+            iterable.add(NIODatagramPacket(address, buffer))
+
         }
         catch (exception: Exception) {
             iterable.end(exception)

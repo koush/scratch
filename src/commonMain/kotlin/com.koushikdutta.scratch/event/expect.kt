@@ -23,7 +23,7 @@ expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
     fun run()
     suspend fun getAllByName(host: String): Array<InetAddress>
     suspend fun connect(socketAddress: InetSocketAddress): AsyncNetworkSocket
-    suspend fun createDatagram(port: Int = 0, address: InetAddress? = null): AsyncDatagramSocket
+    suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncNetworkServerSocket
     // todo: should be suspend
     fun stop()
