@@ -41,6 +41,7 @@ expect class AsyncNetworkSocket: AsyncSocket {
 }
 expect class AsyncNetworkServerSocket : AsyncServerSocket<AsyncNetworkSocket> {
     val localPort: Int
+    val localAddress: InetAddress
 }
 
 expect class AsyncDatagramSocket: AsyncSocket {

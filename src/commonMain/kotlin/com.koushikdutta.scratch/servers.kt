@@ -9,12 +9,10 @@ interface AsyncServerSocket<T: AsyncSocket> : AsyncAffinity {
 }
 
 class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serverSocket: AsyncServerSocket<T>): AsyncAffinity by serverSocket {
-    private val unhandled = "unhandled error in asyncAccept."
     var observer: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit = { serverSocket, socket, throwable ->
         if (throwable != null) {
-            println(unhandled)
             serverSocket.post()
-            throw AssertionError(unhandled)
+            throw UnhandledAsyncExceptionError(throwable)
         }
     }
     suspend fun observe(block: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit) {
@@ -35,7 +33,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serv
         }
         catch (throwable: Throwable) {
             serverSocket.post()
-            throw AssertionError(unhandled)
+            throwUnhandledAsyncException(throwable)
         }
     }
 }
@@ -50,6 +48,7 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
                         block(socket)
                     }
                     catch (throwable: Throwable) {
+                        rethrowUnhandledAsyncException(throwable)
                         ret.invokeObserver(socket, throwable)
                         return@socketCoroutine
                     }
@@ -58,6 +57,7 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
             }
         }
         catch (throwable: Throwable) {
+            rethrowUnhandledAsyncException(throwable)
             ret.invokeObserver(null, throwable)
             return@startSafeCoroutine
         }

@@ -103,7 +103,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 InetSocketAddress(address, port)
             server!!.socket().bind(isa, backlog)
 
-            return AsyncNetworkServerSocket(this, server.socket().localPort, closeableServer!!)
+            return AsyncNetworkServerSocket(this, closeableServer!!)
         } catch (e: IOException) {
             closeQuietly(closeableServer)
             throw e

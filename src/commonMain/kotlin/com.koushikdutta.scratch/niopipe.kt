@@ -82,7 +82,7 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
 
             // still empty? bail. empty data but not eos is valid.
             if (pending.isEmpty)
-                return eos
+                return !eos
         }
 
         // at this point the buffer must have something

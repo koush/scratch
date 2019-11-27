@@ -10,30 +10,45 @@ fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Promise<T> {
             deferred.setComplete(null, block())
         }
         catch (exception: Throwable) {
+            rethrowUnhandledAsyncException(exception)
             deferred.setComplete(exception, null)
         }
     }
     return deferred
 }
 
-class SafeCoroutineError(throwable: Throwable): Error("startSafeCoroutine should not throw", throwable)
+class UnhandledAsyncExceptionError(throwable: Throwable): Error(throwable)
+fun rethrowUnhandledAsyncException(throwable: Throwable) {
+    if (throwable is UnhandledAsyncExceptionError)
+        throw throwable
+}
+fun throwUnhandledAsyncException(throwable: Throwable) {
+    rethrowUnhandledAsyncException(throwable)
+    throw UnhandledAsyncExceptionError(throwable)
+}
 
+/**
+ * callers of this internal function MUST rethrow UnhandledAsyncExceptionError
+ */
+@Deprecated(message = "deprecated for caller note: callers of this internal function MUST rethrow UnhandledAsyncExceptionError")
 internal fun startSafeCoroutine(block: suspend() -> Unit) {
     val wrappedBlock : suspend() -> Unit = {
         try {
             block()
         }
-        catch (throwable: Throwable) {
-            throw SafeCoroutineError(throwable)
+        catch (exception: Exception) {
+            // ensure exceptions get converted to errors and rethrown,
+            throw UnhandledAsyncExceptionError(exception)
         }
     }
     wrappedBlock.startCoroutine(Continuation(EmptyCoroutineContext){
+        // todo: put onto event loop if its unhandled.
         it.getOrThrow()
     })
 }
 
-internal class Cooperator {
-    internal var waiting: Continuation<Unit>? = null
+class Cooperator {
+    var waiting: Continuation<Unit>? = null
     fun resume() {
         val resume = waiting
         waiting = null

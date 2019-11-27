@@ -3,6 +3,7 @@ package com.koushikdutta.scratch
 interface AsyncIterator<out T> {
     suspend operator fun next(): T
     suspend operator fun hasNext(): Boolean
+    fun rethrow()
 }
 
 class ValueHolder<T>(val value: T)
@@ -33,11 +34,16 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
             result.setComplete(null, Unit)
         }
         catch (throwable: Throwable) {
+            rethrowUnhandledAsyncException(throwable)
             result.setComplete(throwable, null)
         }
     }
 
     return object: AsyncIterator<T> {
+        override fun rethrow() {
+            result.rethrow()
+        }
+
         override suspend fun hasNext(): Boolean {
             if (done)
                 return false
@@ -127,23 +133,29 @@ open class AsyncDequeueIterator<T> : AsyncIterable<T> {
     val size: Int
         get() = deque.size
 
-    private fun endInternal() {
+    private fun checkEnd() {
         if (hasEnded)
-            throw IllegalStateException("done already called")
+            throw IllegalStateException("end already called")
+    }
+
+    private fun endInternal() {
+        checkEnd()
         hasEnded = true
+        yielder.resume()
     }
 
     private var hasEnded = false
     fun end() {
         endInternal()
-        yielder.resume()
     }
     fun end(exception: Throwable) {
-        endInternal()
         this.exception = exception
+        endInternal()
     }
 
     open fun add(value: T) {
+        checkEnd()
+        iter.rethrow()
         deque.add(value)
         yielder.resume()
     }

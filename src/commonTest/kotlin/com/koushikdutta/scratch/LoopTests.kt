@@ -3,7 +3,6 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.event.InetAddress
 import com.koushikdutta.scratch.event.InetSocketAddress
 import com.koushikdutta.scratch.event.connect
 import com.koushikdutta.scratch.http.AsyncHttpRequest
@@ -46,7 +45,7 @@ class LoopTests {
             result.rethrow()
             assertTrue(!failureExpected)
         }
-        catch (exception: SafeCoroutineError) {
+        catch (exception: UnhandledAsyncExceptionError) {
             assertTrue(failureExpected)
         }
         catch (exception: ExpectedException) {

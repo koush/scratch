@@ -10,8 +10,10 @@ import java.nio.channels.SocketChannel
 
 
 actual typealias AsyncNetworkServerSocket = NIOServerSocket
-class NIOServerSocket internal constructor(val server: AsyncEventLoop, val localPort: Int, private val channel: ServerSocketChannel) : AsyncServerSocket<AsyncNetworkSocket>, AsyncAffinity by server {
+class NIOServerSocket internal constructor(val server: AsyncEventLoop, private val channel: ServerSocketChannel) : AsyncServerSocket<AsyncNetworkSocket>, AsyncAffinity by server {
     private val key: SelectionKey = channel.register(server.mSelector.selector, SelectionKey.OP_ACCEPT)
+    val localAddress: InetAddress = channel.socket().inetAddress!!
+    val localPort = channel.socket().localPort
 
     init {
         key.attach(this)
@@ -84,6 +86,7 @@ private data class NIODatagramPacket(val remoteAddress: InetSocketAddress, val d
 
 class NIODatagram internal constructor(val server: AsyncEventLoop, private val channel: DatagramChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by server {
     val localPort = channel.socket().localPort
+    val localAddress = channel.socket().localAddress!!
     private val output = object : BlockingWritePipe() {
         override fun write(buffer: Buffers) {
             while (buffer.hasRemaining()) {
@@ -161,7 +164,10 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
 
         }
         catch (exception: Exception) {
+            closed = true
+            closeInternal()
             iterable.end(exception)
+            output.close(exception)
         }
 
         return total
@@ -217,6 +223,7 @@ actual typealias AsyncNetworkSocket = NIOSocket
 
 class NIOSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by server {
     val localPort = channel.socket().localPort
+    val localAddress = channel.socket().localAddress
     val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress
     private val inputBuffer = ByteBufferList()
     private var closed = false
@@ -247,7 +254,7 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
         key.attach(this)
     }
 
-    private fun closeInternal() {
+    private fun closeInternal(t: Throwable?) {
         closeQuietly(channel)
         try {
             key.cancel()
@@ -257,13 +264,20 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
 
         if (!closed) {
             closed = true
-            input.end()
+            if (t == null) {
+                input.end()
+                output.close()
+            }
+            else {
+                input.end(t)
+                output.close(t)
+            }
         }
     }
 
     override suspend fun close() {
         await()
-        closeInternal()
+        closeInternal(null)
     }
 
     private val trackingSocketReader: BuffersBufferWriter<Int> = {
@@ -293,22 +307,14 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
 
             // clean close
             if (read < 0) {
-                closed = true
-                input.end()
-                output.close()
+                closeInternal(null)
             }
         } catch (e: Exception) {
             flushInputBuffer()
             allocator.finishTracking()
 
             // transport failure caused close
-            closed = true
-            input.end(e)
-            output.close(e)
-        }
-
-        if (closed) {
-            closeInternal()
+            closeInternal(e)
         }
 
         return allocator.lastAlloc

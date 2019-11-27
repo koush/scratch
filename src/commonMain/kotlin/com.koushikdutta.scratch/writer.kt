@@ -29,6 +29,7 @@ fun asyncWriter(block: suspend AsyncWriterScope.() -> Unit): AsyncRead {
             eos = true
         }
         catch (exception: Throwable) {
+            rethrowUnhandledAsyncException(exception)
             yielder.resumeWithException(exception)
         }
         finally {

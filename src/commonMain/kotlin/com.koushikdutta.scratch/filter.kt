@@ -55,6 +55,7 @@ class InterruptibleRead(private val input: AsyncRead) {
                     reading = false
                 }
             } catch (t: Throwable) {
+                rethrowUnhandledAsyncException(t)
                 ReadResult(true, null, t)
             }
 

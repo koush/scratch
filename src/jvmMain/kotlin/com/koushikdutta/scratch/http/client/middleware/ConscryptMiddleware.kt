@@ -2,12 +2,16 @@ package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.tls.AsyncTlsSocket
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.tls.AsyncTlsSocket
 import com.koushikdutta.scratch.tls.SSLContext
 import com.koushikdutta.scratch.tls.SSLEngine
 import org.conscrypt.Conscrypt
+import java.security.KeyStore
+import java.security.SecureRandom
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.TrustManagerFactory
 
 
 // todo: move this into conscrypt specific library
@@ -36,7 +40,12 @@ open class ConscryptMiddleware(eventLoop: AsyncEventLoop, context: SSLContext = 
 
     companion object {
         fun getConscryptSSLContext(): SSLContext {
-            return SSLContext.getInstance("Default", Conscrypt.newProvider())
+            val provider = Conscrypt.newProvider()
+            val context = SSLContext.getInstance("TLS", provider)
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), provider)
+            tmf.init(null as KeyStore?)
+            context.init(null, tmf.trustManagers, SecureRandom())
+            return context
         }
     }
 }

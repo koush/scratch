@@ -42,6 +42,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
                 }
             }
             catch (exception: Exception) {
+                rethrowUnhandledAsyncException(exception)
                 sockets.removeValue(socketKey, keepAliveSocket)
             }
         }

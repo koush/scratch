@@ -344,6 +344,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
                     close(ErrorCode.NO_ERROR, ErrorCode.NO_ERROR, null)
             }
             catch (exception: Exception) {
+                rethrowUnhandledAsyncException(exception)
             }
         }
     }
@@ -375,6 +376,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
                 }
             }
             catch (e: Exception) {
+                rethrowUnhandledAsyncException(e)
                 failConnection(e)
                 return@startSafeCoroutine
             }
