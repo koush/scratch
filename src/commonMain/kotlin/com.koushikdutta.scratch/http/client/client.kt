@@ -3,11 +3,13 @@ package com.koushikdutta.scratch.http.client
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.InterruptibleRead
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.GET
+import com.koushikdutta.scratch.http.POST
 import com.koushikdutta.scratch.http.client.middleware.*
-import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.uri.URI
 
 
 enum class AsyncHttpRequestMethods {
@@ -96,10 +98,6 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         }
     }
 
-    suspend fun execute(uri: String): AsyncHttpResponse {
-        return execute(AsyncHttpRequest.GET(uri))
-    }
-
     suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
         val session = AsyncHttpClientSession(this, request)
         return execute(session)
@@ -120,4 +118,16 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
             middleware.onResponseComplete(session)
         }
     }
+}
+
+suspend fun AsyncHttpClient.execute(method: String, uri: String): AsyncHttpResponse {
+    return execute(AsyncHttpRequest(URI.create(uri), method))
+}
+
+suspend fun AsyncHttpClient.get(uri: String): AsyncHttpResponse {
+    return execute(AsyncHttpRequest.GET(uri))
+}
+
+suspend fun AsyncHttpClient.post(uri: String): AsyncHttpResponse {
+    return execute(AsyncHttpRequest.POST(uri))
 }

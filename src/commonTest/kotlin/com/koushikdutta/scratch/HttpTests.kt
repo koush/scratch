@@ -2,7 +2,6 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
@@ -134,7 +133,7 @@ class HttpTests {
 
         val server = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
-            AsyncHttpResponse.OK(body = BinaryBody(read = body))
+            AsyncHttpResponse.OK(body = BinaryBody(body = body))
         }
 
         httpServer.listen(server)
@@ -202,7 +201,7 @@ class HttpTests {
             val socket = server.connect()
             val reader = AsyncReader({ socket.read(it) })
             val connected = client.execute(
-                AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)),
+                AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(body = body)),
                 socket,
                 reader
             )

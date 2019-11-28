@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
@@ -89,7 +88,7 @@ class Http2Tests {
         }
 
         Http2Connection(pair.second, false) {
-            AsyncHttpResponse.OK(body = BinaryBody(read = body))
+            AsyncHttpResponse.OK(body = BinaryBody(body = body))
         }
 
         val clientMd5 = clientDigest.digest()
@@ -140,7 +139,7 @@ class Http2Tests {
         async {
             val client = Http2Connection(pair.first, true)
             val connected =
-                client.newStream(AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)))
+                client.newStream(AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(body = body)))
             val data = readAllString({connected.read(it)})
             assertEquals(data, "hello world")
         }

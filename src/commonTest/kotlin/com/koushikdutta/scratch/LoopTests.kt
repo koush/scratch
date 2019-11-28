@@ -322,7 +322,7 @@ class LoopTests {
 
 
                     val request =
-                        AsyncHttpRequest(URI.create("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody("application/binary", body))
+                        AsyncHttpRequest(URI.create("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
                     val result = httpClient.execute(request)
                     val data = readAllString(result.body!!)
                     assertEquals(data, "hello world")
