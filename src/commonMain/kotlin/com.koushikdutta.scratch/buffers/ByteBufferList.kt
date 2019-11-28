@@ -222,7 +222,7 @@ class ByteBufferList : Buffers {
         return hadData
     }
 
-    operator fun get(length: Int): ByteBufferList {
+    fun get(length: Int): ByteBufferList {
         val ret = ByteBufferList()
         read(ret, length)
         ret.order(order)
