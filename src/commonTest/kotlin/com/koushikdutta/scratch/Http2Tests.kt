@@ -88,7 +88,7 @@ class Http2Tests {
         }
 
         Http2Connection(pair.second, false) {
-            AsyncHttpResponse.OK(body = BinaryBody(body = body))
+            AsyncHttpResponse.OK(body = BinaryBody(read = body))
         }
 
         val clientMd5 = clientDigest.digest()
@@ -139,7 +139,7 @@ class Http2Tests {
         async {
             val client = Http2Connection(pair.first, true)
             val connected =
-                client.newStream(AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(body = body)))
+                client.newStream(AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)))
             val data = readAllString({connected.read(it)})
             assertEquals(data, "hello world")
         }

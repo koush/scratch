@@ -1,5 +1,7 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.buffers.ByteBuffer
+
 interface AsyncIterator<out T> {
     suspend operator fun next(): T
     suspend operator fun hasNext(): Boolean
@@ -173,6 +175,15 @@ fun AsyncIterator<AsyncRead>.join(): AsyncRead {
         if (!read!!(it))
             read = null
 
+        true
+    }
+}
+
+fun AsyncIterator<ByteBuffer>.createAsyncRead(): AsyncRead {
+    return read@{
+        if (!hasNext())
+            return@read false
+        it.add(next())
         true
     }
 }

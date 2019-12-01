@@ -29,10 +29,12 @@ class RouterTests {
             ok3
         }
 
-        assertEquals(router(AsyncHttpRequest(URI.create("/"))), ok1)
-        assertEquals(router(AsyncHttpRequest(URI.create("/foo"))), ok2)
-        assertEquals(router(AsyncHttpRequest(URI.create("/bar"), "POST")), ok3)
-        assertEquals(router(AsyncHttpRequest(URI.create("/404"))), null)
+        async {
+            assertEquals(router(AsyncHttpRequest(URI.create("/"))), ok1)
+            assertEquals(router(AsyncHttpRequest(URI.create("/foo"))), ok2)
+            assertEquals(router(AsyncHttpRequest(URI.create("/bar"), "POST")), ok3)
+            assertEquals(router(AsyncHttpRequest(URI.create("/404"))), null)
+        }
     }
 
     @Test
@@ -56,13 +58,15 @@ class RouterTests {
             ok3
         }
 
-        assertEquals(router(AsyncHttpRequest(URI.create("/test/foo?query=ignored"))), ok1)
-        assertEquals(router(AsyncHttpRequest(URI.create("/foo/bar?query"))), ok2)
+        async {
+            assertEquals(router(AsyncHttpRequest(URI.create("/test/foo?query=ignored"))), ok1)
+            assertEquals(router(AsyncHttpRequest(URI.create("/foo/bar?query"))), ok2)
 
-        assertEquals(router(AsyncHttpRequest(URI.create("/asvasd"), "PUT")), ok3)
-        assertEquals(router(AsyncHttpRequest(URI.create("/fofffy"), "PUT")), ok3)
-        assertEquals(router(AsyncHttpRequest(URI.create("/asdggg"), "PUT")), ok3)
-        assertEquals(router(AsyncHttpRequest(URI.create("/q"), "PUT")), ok3)
+            assertEquals(router(AsyncHttpRequest(URI.create("/asvasd"), "PUT")), ok3)
+            assertEquals(router(AsyncHttpRequest(URI.create("/fofffy"), "PUT")), ok3)
+            assertEquals(router(AsyncHttpRequest(URI.create("/asdggg"), "PUT")), ok3)
+            assertEquals(router(AsyncHttpRequest(URI.create("/q"), "PUT")), ok3)
+        }
     }
 
 }

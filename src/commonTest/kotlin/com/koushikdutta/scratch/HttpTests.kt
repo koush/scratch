@@ -133,7 +133,7 @@ class HttpTests {
 
         val server = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
-            AsyncHttpResponse.OK(body = BinaryBody(body = body))
+            AsyncHttpResponse.OK(body = BinaryBody(read = body))
         }
 
         httpServer.listen(server)
@@ -201,7 +201,7 @@ class HttpTests {
             val socket = server.connect()
             val reader = AsyncReader({ socket.read(it) })
             val connected = client.execute(
-                AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(body = body)),
+                AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)),
                 socket,
                 reader
             )
