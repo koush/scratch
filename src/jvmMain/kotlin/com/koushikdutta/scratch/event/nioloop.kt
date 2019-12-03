@@ -59,11 +59,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
     override val isAffinityThread: Boolean
         get() = affinity === Thread.currentThread()
 
-    fun stop() {
-        stop(false)
-    }
-
-    fun stop(wait: Boolean) {
+    fun stop(wait: Boolean = false) {
         //        Log.i(LOGTAG, "****AsyncServer is shutting down.****");
         var semaphore: Semaphore? = null
         var isAffinityThread = false

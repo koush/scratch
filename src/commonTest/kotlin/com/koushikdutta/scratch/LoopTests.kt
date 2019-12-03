@@ -363,4 +363,10 @@ class LoopTests {
         socket1.read(receiveBuffer)
         assertEquals(receiveBuffer.readUtf8String(), "ok hi")
     }
+
+    @Test
+    fun testStops() = networkContextTest {
+        stop(true)
+        stop(true)
+    }
 }

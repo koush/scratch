@@ -286,7 +286,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         uv_timer_start(timer.ptr, timerCallbackPtr, timeout.toULong(), 0)
     }
 
-    fun stop() {
+    fun stop(wait: Boolean = false) {
         if (!running)
             return
 
