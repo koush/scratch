@@ -7,10 +7,12 @@ import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.external.Log
 import com.sun.org.apache.xpath.internal.operations.Bool
 import java.io.Closeable
+import java.io.File
 import java.io.IOException
 import java.net.NetworkInterface
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
+import java.nio.file.OpenOption
 import java.util.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
@@ -166,6 +168,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             closeQuietly(socket)
             throw e
         }
+    }
+
+    suspend fun openFile(file: File, vararg openOptions: OpenOption, defaultReadLength: Int = 16384): AsyncRandomAccessStorage {
+        await()
+        return NIOFileFactory.instance.open(this, file, defaultReadLength, *openOptions)
     }
 
     suspend fun getAllByName(host: String): Array<InetAddress> {

@@ -41,26 +41,59 @@ interface AsyncAffinity {
     suspend fun post()
 }
 
-/**
- * AsyncSocket provides an AsyncRead and AsyncWrite.
- */
-interface AsyncSocket : AsyncAffinity {
-    /**
-     * If this socket has a i/o thread affinity, this will resume the coroutine onto it.
-     * Can be used to perform "simultaneous" reads/writes, without managing serialization:
-     * val handler = AsyncHandler(socket::await)
-     * // later...
-     * handler.post/run {
-     *   socket.write(buffer)
-     * }
-     */
-    suspend fun read(buffer: WritableBuffers): Boolean
-    suspend fun write(buffer: ReadableBuffers)
+interface AsyncResource : AsyncAffinity {
     suspend fun close()
 }
 
+interface AsyncInput : AsyncResource {
+    suspend fun read(buffer: WritableBuffers): Boolean
+}
+
+interface AsyncOutput : AsyncResource {
+    suspend fun write(buffer: ReadableBuffers)
+}
+
+/**
+ * AsyncSocket provides an AsyncRead and AsyncWrite.
+ * Must be closed to free the underlying resources.
+ */
+interface AsyncSocket : AsyncInput, AsyncOutput
+
+/**
+ * AsyncSocket that filters another AsyncSocket.
+ * For example, bidirectional chunk encoding or SSL encryption.
+ */
 interface AsyncWrappingSocket : AsyncSocket {
     val socket: AsyncSocket
+}
+
+/**
+ * AsyncRandomAccessInput provides random access read access to
+ * resources. The resource may be locally stored, like a file, or remotely
+ * retrieved, like an http resource.
+ */
+interface AsyncRandomAccessInput : AsyncInput {
+    var defaultReadLength: Int
+    suspend fun size(): Long
+    suspend fun getPosition(): Long
+    suspend fun setPosition(position: Long)
+    suspend fun readPosition(position: Long, length: Int, buffer: WritableBuffers): Boolean
+    override suspend fun read(buffer: WritableBuffers): Boolean {
+        return readPosition(getPosition(), defaultReadLength, buffer)
+    }
+}
+
+/**
+ * AsyncRandomAccessStorage provides random access read and write to
+ * resources. The resource may be locally stored, like a file, or remotely
+ * modified, like a network file or http resource.
+ */
+interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
+    suspend fun writePosition(position: Long, buffer: ReadableBuffers) {
+        setPosition(position)
+        write(buffer)
+    }
+    suspend fun truncate(size: Long)
 }
 
 /**
