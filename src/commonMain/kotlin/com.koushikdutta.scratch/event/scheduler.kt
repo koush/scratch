@@ -22,6 +22,10 @@ internal class PriorityQueue {
         queue.add(scheduled)
         sorted = false
     }
+    fun addFirst(scheduled: Scheduled) {
+        queue.add(0, scheduled)
+        sorted = false
+    }
     fun removeFirst(): Scheduled {
         sortIfNeeded()
         return queue.removeAt(0)
@@ -64,7 +68,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
                         run = s
                     } else {
                         wait = s.time - now
-                        mQueue.add(s)
+                        mQueue.addFirst(s)
                     }
                 }
             }
