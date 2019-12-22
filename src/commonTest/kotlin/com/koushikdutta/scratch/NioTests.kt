@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.test.Test
@@ -56,5 +57,16 @@ class NioTests {
         }
 
         assertEquals(data, "Hello WorldHello WorldHello World")
+    }
+
+    @Test
+    fun testReadBuffer() {
+        val buffer = ByteBufferList()
+        async {
+            // should immediately fill the buffer with 10mb
+            val random = createRandomRead(10000000)
+            random(buffer)
+        }
+        assertEquals(buffer.remaining(), 10000000)
     }
 }

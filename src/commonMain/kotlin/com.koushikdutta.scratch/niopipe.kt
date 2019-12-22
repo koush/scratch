@@ -95,6 +95,40 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     }
 }
 
+fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
+    val self = this
+    val pipe = object : NonBlockingWritePipe(highWaterMark) {
+        init {
+            triggerRead()
+        }
+
+        val buffer = ByteBufferList()
+        fun triggerRead() {
+            startSafeCoroutine {
+                try {
+                    while (true) {
+                        if (!self(buffer)) {
+                            end()
+                            break;
+                        }
+                        if (!write(buffer))
+                            break
+                    }
+                }
+                catch (throwable: Throwable) {
+                    end(throwable)
+                }
+            }
+        }
+
+        override fun writable() {
+            triggerRead()
+        }
+    }
+
+    return pipe::read
+}
+
 /**
  * This class pipes AsyncWrite calls to nonblocking write calls.
  * The abstract write method writes as much data as the transport can handle
