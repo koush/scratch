@@ -162,7 +162,7 @@ class Multipart : AsyncHttpMessageBody {
 }
 
 class Part(val headers: Headers = Headers(), val body: AsyncRead) {
-    constructor(headers: Headers = Headers(), body: AsyncHttpMessageBody) : this(headers, body.read){
+    constructor(headers: Headers = Headers(), body: AsyncHttpMessageBody) : this(headers, body.read) {
         headers.contentLength = body.contentLength
     }
 

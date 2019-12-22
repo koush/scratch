@@ -26,7 +26,7 @@ expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
     suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncNetworkServerSocket
     // todo: should be suspend
-    fun stop(wait: Boolean = false)
+    fun stop(wait: Boolean)
 
     companion object {
         fun parseInet4Address(address: String): Inet4Address
