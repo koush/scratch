@@ -98,11 +98,12 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
 fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
     val self = this
     val pipe = object : NonBlockingWritePipe(highWaterMark) {
+        val buffer = ByteBufferList()
+
         init {
             triggerRead()
         }
 
-        val buffer = ByteBufferList()
         fun triggerRead() {
             startSafeCoroutine {
                 try {

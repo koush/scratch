@@ -64,7 +64,7 @@ class NioTests {
         val buffer = ByteBufferList()
         async {
             // should immediately fill the buffer with 10mb
-            val random = createRandomRead(10000000)
+            val random = createRandomRead(20000000).buffer(10000000)
             random(buffer)
         }
         assertEquals(buffer.remaining(), 10000000)
