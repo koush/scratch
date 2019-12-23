@@ -223,8 +223,8 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    private fun runLoop() {
-//                Log.i(LOGTAG, "Keys: " + mSelector.keys().size)
+    private fun runQueue() {
+        //                Log.i(LOGTAG, "Keys: " + mSelector.keys().size)
         var needsSelect = true
 
         // run the queue to populate the selector with keys
@@ -264,7 +264,9 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             // can ignore these exceptions, they spawn from wakeups
             throw AsyncSelectorException(e)
         }
+    }
 
+    private fun runSelector() {
         // process whatever keys are ready
         val readyKeys = mSelector.selector.selectedKeys()
         for (key in readyKeys) {
@@ -295,6 +297,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
         // need to clear or the events seem to show up again
         readyKeys.clear()
+    }
+
+    private fun runLoop() {
+        runQueue()
+        runSelector()
     }
 
     private fun shutdownKeys() {
