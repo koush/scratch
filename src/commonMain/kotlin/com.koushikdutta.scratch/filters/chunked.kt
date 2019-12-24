@@ -20,57 +20,40 @@ payload to send
 
 val CRLF = byteArrayOf(0x0d, 0x0a)
 
-val ChunkedInputPipe: AsyncReaderPipe = { reader ->
-    val temp = ByteBufferList();
-
-    // hexLength + CRLF         *
-    // data: hexLength + CRLF   *
+val ChunkedInputPipe: AsyncReaderPipe = { reader, yield ->
+    // hexLength(variable length) + CRLF
+    // data(hexLength) + CRLF
+    // [repeat above]
     // hexLength(0) + CRLF      (termination)
 
-    var done = false
-    read@{ buffer ->
-        if (done)
-            return@read false
+    val temp = ByteBufferList()
+    while (true) {
         if (!reader.readScan(temp, CRLF))
             throw Exception("stream ended before chunk length")
         val length = temp.readUtf8String().trim().toInt(16)
         require(length >= 0) { "negative length chunk encountered" }
-        if (!reader.readLength(buffer, length))
+        if (!reader.readLength(temp, length))
             throw Exception("read ended before chunk completed")
+        yield(temp)
         if (!reader.readScan(temp, CRLF))
             throw Exception("CRLF expected following data chunk")
-        temp.free()
-        done = length == 0
-        !done
+        if (length == 0)
+            break
     }
 }
 
-val ChunkedOutputPipe: AsyncPipe = { read ->
+val ChunkedOutputPipe: AsyncPipe = { read, yield ->
     val temp = ByteBufferList()
-    var sentEos = false
+    val buffer = ByteBufferList()
 
-    // hexLength + CRLF         *
-    // data: hexLength + CRLF   *
-    // hexLength(0) + CRLF      (termination)
-
-    read@{ buffer ->
-        if (!read(temp)) {
-            if (!sentEos) {
-                sentEos = true
-                buffer.putUtf8String("0\r\n\r\n")
-                return@read true
-            }
-            return@read false
-        }
-
-        // an empty read is valid, but an empty chunk is not. just trigger another read.
+    while (read(temp)) {
         if (temp.isEmpty)
-            return@read true
-
+            continue
         buffer.putUtf8String("${temp.remaining().toString(16).toUpperCase()}\r\n")
         buffer.add(temp)
         buffer.putUtf8String("\r\n")
-
-        true
+        yield(buffer)
     }
+    buffer.putUtf8String("0\r\n\r\n")
+    yield(buffer)
 }

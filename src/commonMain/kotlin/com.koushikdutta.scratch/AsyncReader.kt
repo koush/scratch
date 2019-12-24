@@ -3,6 +3,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import kotlin.math.min
 
@@ -194,8 +195,8 @@ class AsyncReader(val input: AsyncRead) {
      * Returns the AsyncRead that outputs the filtered data.
      */
     fun pipe(pipe: AsyncReaderPipe): AsyncRead {
-        return pipe(this)
+        return genericPipe(this, pipe)
     }
 }
 
-typealias AsyncReaderPipe = (reader: AsyncReader) -> AsyncRead
+typealias AsyncReaderPipe = suspend (reader: AsyncReader, yield: suspend (buffer: ReadableBuffers) -> Unit) -> Unit

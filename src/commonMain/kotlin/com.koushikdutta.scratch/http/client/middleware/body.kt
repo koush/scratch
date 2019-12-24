@@ -18,17 +18,13 @@ fun createContentLengthPipe(contentLength: Long): AsyncReaderPipe {
     var length = contentLength
     val temp = ByteBufferList()
 
-    return { reader ->
-        read@{
-            if (length == 0L)
-                return@read false
-            temp.takeReclaimedBuffers(it)
+    return { reader, yield ->
+        while (length > 0L) {
             val toRead = min(Int.MAX_VALUE.toLong(), length)
             if (!reader.readChunk(temp, toRead.toInt()))
                 throw Exception("stream ended before end of expected content length")
             length -= temp.remaining()
-            temp.read(it)
-            true
+            yield(temp)
         }
     }
 }

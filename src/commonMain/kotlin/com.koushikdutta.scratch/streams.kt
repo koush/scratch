@@ -20,10 +20,13 @@ typealias AsyncRead = suspend (buffer: WritableBuffers) -> Boolean
  */
 typealias AsyncWrite = suspend (buffer: ReadableBuffers) -> Unit
 
+
 /**
  * A pipe: Given a read, return a read.
  */
-typealias AsyncPipe = (read: AsyncRead) -> AsyncRead
+typealias AsyncPipeYield = suspend (buffer: ReadableBuffers) -> Unit
+typealias AsyncPipe = suspend (read: AsyncRead, yield: AsyncPipeYield) -> Unit
+internal typealias GenericAsyncPipe<T> = suspend (read: T, yield: suspend (buffer: ReadableBuffers) -> Unit) -> Unit
 
 /**
  * An object with thread affinity.
@@ -96,12 +99,48 @@ interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
     suspend fun truncate(size: Long)
 }
 
+internal fun <T> genericPipe(read: T, pipe: GenericAsyncPipe<T>): AsyncRead {
+    val yielder = Cooperator()
+    val buffer = ByteBufferList()
+    val value = Promise<Unit>()
+
+    startSafeCoroutine {
+        try {
+            // start out paused, waiting for a read.
+            yielder.yield()
+            pipe(read) {
+                // called back every time there's data. grab it, and wait for the next read call.
+                it.read(buffer)
+                yielder.yield()
+            }
+            value.setComplete(null, Unit)
+            yielder.resume()
+        }
+        catch (throwable: Throwable) {
+            value.setComplete(throwable, null)
+            yielder.resumeWithException(throwable)
+        }
+    }
+
+    return read@{
+        value.rethrow()
+        if (value.value != null)
+            return@read false
+
+        buffer.takeReclaimedBuffers(it)
+        yielder.yield()
+        buffer.read(it)
+
+        true
+    }
+}
+
 /**
  * Stream this data through a pipe.
  * Returns the AsyncRead that outputs the filtered data.
  */
 fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
-    return pipe(this)
+    return genericPipe(this, pipe)
 }
 
 fun ReadableBuffers.reader(): AsyncRead {

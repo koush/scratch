@@ -26,12 +26,10 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket::read)
     private val decryptAllocator = AllocationTracker()
-    private val decryptedRead = (socketRead::read as AsyncRead).pipe { read ->
+    private val decryptedRead = (socketRead::read as AsyncRead).pipe { read, yield ->
         val unfiltered = ByteBufferList();
-        decrypt@{ filtered ->
-            if (!read(unfiltered) && unfiltered.isEmpty)
-                return@decrypt false
-
+        val filtered = ByteBufferList()
+        while (read(unfiltered) || !unfiltered.isEmpty) {
             // SSLEngine.unwrap
             while (true) {
                 // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
@@ -76,15 +74,14 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
                 handleHandshakeStatus(result.handshakeStatus)
 
                 if ((result.handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING || result.handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED)
-                    && unfiltered.isEmpty) {
+                        && unfiltered.isEmpty) {
                     // if there's no handshake, and also no data left, just bail.
                     break
                 }
             }
 
             decryptAllocator.finishTracking()
-
-            true
+            yield(filtered)
         }
     }
 
