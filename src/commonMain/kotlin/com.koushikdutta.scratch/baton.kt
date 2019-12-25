@@ -12,10 +12,10 @@ private data class BatonData<T>(val throwable: Throwable?, val value: T?, val lo
 private data class BatonTossData<T, R>(val throwable: Throwable?, val value: T?, val lockResult: R?)
 private data class BatonContinuationLockedData<T>(val continuation: Continuation<BatonResult<T>>?, val data: BatonData<T>?)
 private data class BatonContinuationData<T, R>(val continuation: Continuation<BatonResult<T>>?, val data: BatonData<T>?, val lockResult: R?)
+private data class BatonWaiter<T>(val continuation: Continuation<BatonResult<T>>?, val data: BatonData<T>)
 
 class Baton<T> {
-    private var waiter: Continuation<BatonResult<T>>? = null
-    private var waiting: BatonData<T>? = null
+    private var batonWaiter: BatonWaiter<T>? = null
     private var finishData: BatonData<T>? = null
 
     private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonLock<T>? = null, tossLock: BatonTossLock<T, R>? = null, finish: Boolean = false, continuation: Continuation<BatonResult<T>?>?): BatonTossData<T, R>? {
@@ -27,18 +27,16 @@ class Baton<T> {
                 else
                     BatonContinuationLockedData(null, finishData)
             }
-            else if (waiter != null) {
+            else if (batonWaiter != null) {
                 // value already available
-                val resume = waiter
-                val current = waiting!!
-                waiter = null
-                waiting = null
+                val resume = batonWaiter!!
+                batonWaiter = null
                 if (finish) {
                     finishData = BatonData(throwable, value, lock)
-                    BatonContinuationLockedData(resume, null)
+                    BatonContinuationLockedData(resume.continuation, null)
                 }
                 else {
-                    BatonContinuationLockedData(resume, current)
+                    BatonContinuationLockedData(resume.continuation, resume.data)
                 }
             }
             else if (finish) {
@@ -47,8 +45,7 @@ class Baton<T> {
             }
             else {
                 // need to wait for value
-                waiter = continuation
-                waiting = BatonData(throwable, value, lock)
+                batonWaiter = BatonWaiter(continuation, BatonData(throwable, value, lock))
                 BatonContinuationLockedData(null, null)
             }
 
