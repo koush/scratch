@@ -13,6 +13,7 @@ import kotlin.coroutines.resumeWithException
 abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     private var needsWritable = false
     private val yielder = Cooperator()
+    private val baton = Baton<Unit>()
     private val pending = ByteBufferList()
     private var eos = false
     private val result = Promise<Unit>().setCallback { yielder.resume() }
@@ -43,11 +44,16 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
      * will be called once the reader has sufficiently drained the buffer.
      */
     fun write(buffer: ReadableBuffers): Boolean {
+//        baton.toss(Unit) {
+//            buffer.read(pending)
+//            needsWritable = pending.remaining() >= highWaterMark
+//        }
+
         buffer.read(pending)
         yielder.resume()
 
         // after the coroutine finishes, take back free buffers
-        buffer.takeReclaimedBuffers(pending)
+//        buffer.takeReclaimedBuffers(pending)
 
         needsWritable = pending.remaining() >= highWaterMark
         return !needsWritable
@@ -56,6 +62,10 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
+        baton.pass(Unit) {
+
+        }
+
         // rethrow errors downstream
         result.rethrow()
 
