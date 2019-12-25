@@ -6,7 +6,7 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 data class BatonResult<T>(val value: T, val resumed: Boolean)
-typealias BatonLock<T> = (result: BatonResult<T>) -> Unit
+typealias BatonLock<T> = (result: Result<BatonResult<T>>) -> Unit
 typealias BatonTossLock<T, R> = (result: Result<BatonResult<T>>?) -> R
 private data class BatonData<T>(val throwable: Throwable?, val value: T?, val lock: BatonLock<T>?)
 private data class BatonTossData<T, R>(val throwable: Throwable?, val value: T?, val lockResult: R?)
@@ -57,14 +57,17 @@ class Baton<T> {
             if (data != null) {
                 if (data.throwable == null) {
                     val batonResult = BatonResult(data.value!!, true)
+                    val result = Result.success(batonResult)
                     lockResult = tossLock?.invoke(Result.success(batonResult))
-                    lock?.invoke(batonResult)
+                    lock?.invoke(result)
                 }
                 else {
                     lockResult = tossLock?.invoke(Result.failure(data.throwable))
                 }
                 if (throwable == null)
-                    data.lock?.invoke(BatonResult(value!!, false))
+                    data.lock?.invoke(Result.success(BatonResult(value!!, false)))
+                else
+                    data.lock?.invoke(Result.failure(throwable))
             }
             else {
                 lockResult = tossLock?.invoke(null)
@@ -86,10 +89,6 @@ class Baton<T> {
             else
                 resume?.resume(BatonResult(value!!, false))
         }
-        // dead code. finish should not pass a continuation. left here for consistency in case that changes back.
-//        else if (finish) {
-//            continuation?.resume(null)
-//        }
 
         if (data != null)
             return BatonTossData(data.throwable, data.value, cdata.lockResult)

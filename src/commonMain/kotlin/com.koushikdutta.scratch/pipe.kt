@@ -21,7 +21,7 @@ private class PipeSocket: AsyncSocket {
         while (true) {
             val result = baton.passResult(pipeReadRequest) {
                 // handle the buffer transfer inside the baton lock
-                it.value.write?.read(buffer)
+                it.getOrNull()?.value?.write?.read(buffer)
             }
 
             if (result.value.closed)
