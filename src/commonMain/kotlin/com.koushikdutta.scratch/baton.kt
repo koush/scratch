@@ -18,7 +18,7 @@ class Baton<T> {
     private var batonWaiter: BatonWaiter<T>? = null
     private var finishData: BatonData<T>? = null
 
-    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonLock<T>? = null, tossLock: BatonTossLock<T, R>? = null, finish: Boolean = false, continuation: Continuation<BatonResult<T>?>?): BatonTossData<T, R>? {
+    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonLock<T>? = null, tossLock: BatonTossLock<T, R>? = null, finish: Boolean = false, continuation: Continuation<BatonResult<T>>?): BatonTossData<T, R>? {
         val cdata = synchronized(this) {
             val cdata =
             if (finishData != null) {
@@ -100,7 +100,7 @@ class Baton<T> {
         return data
     }
 
-    private suspend fun pass(throwable: Throwable?, value: T?, lock: BatonLock<T>? = null, finish: Boolean = false): BatonResult<T>? = suspendCoroutine {
+    private suspend fun pass(throwable: Throwable?, value: T?, lock: BatonLock<T>? = null, finish: Boolean = false): BatonResult<T> = suspendCoroutine {
         passInternal<Unit>(throwable, value, lock, null, finish, it)
     }
 
