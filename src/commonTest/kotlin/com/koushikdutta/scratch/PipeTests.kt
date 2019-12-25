@@ -10,20 +10,6 @@ import kotlin.test.fail
 
 class PipeTests {
     @Test
-    fun testPipeException() {
-        val pair = createAsyncPipeSocketPair()
-        async {
-            pair.second.read(ByteBufferList())
-            throw Exception("whoops")
-        }
-
-        async {
-            pair.first.write(ByteBufferList().putUtf8String("hello world"))
-            println("ok dok")
-        }
-    }
-
-    @Test
     fun testPipeServer() {
         val server = createAsyncPipeServerSocket()
 
