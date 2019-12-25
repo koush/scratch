@@ -146,19 +146,6 @@ class LoopTests {
     }
 
     @Test
-    fun testServerCrash() = networkContextTest(true) {
-        val server = listen()
-        server.acceptAsync {
-            throw ExpectedException()
-        }
-        val client = connect("127.0.0.1", server.localPort)
-        client.write(ByteBufferList().putUtf8String("hello!"))
-        val reader = AsyncReader({client.read(it)})
-        reader.readUtf8String(1)
-        fail("exception expected")
-    }
-
-    @Test
     fun testServerNotCrash() = networkContextTest {
         val server = listen()
         server.acceptAsync {

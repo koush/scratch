@@ -8,70 +8,73 @@ interface AsyncIterator<out T> {
     fun rethrow()
 }
 
-class ValueHolder<T>(val value: T)
+internal class AsyncIteratorMessage<T>(val throwable: Throwable? = null, val value: T? = null, val done: Boolean = false, val hasNext: Boolean = false, val next: Boolean = false, val resuming: Boolean = false)
+class AsyncIteratorScope<T> internal constructor(private val baton: Baton<AsyncIteratorMessage<T>>) {
+    private val resumingMessage = AsyncIteratorMessage<T>(resuming = true)
 
-class AsyncIteratorScope<T> internal constructor(private val yielder: Cooperator) {
-    internal var hasValue = false
-    internal var currentValue: ValueHolder<T>? = null
+    private fun validateMessage(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
+        if (!message.hasNext && !message.next)
+            throw Exception("iterator hasNext/next called before completion of prior invocation")
+        return message
+    }
+
+    suspend fun waitNext() {
+        // wait for iterator to start/resume, other side will need to request again.
+        validateMessage(baton.pass(resumingMessage))
+    }
+
     suspend fun yield(value: T) {
-        hasValue = true
-        currentValue = ValueHolder(value)
-        yielder.yield()
+        val state = AsyncIteratorMessage(value = value)
+        // service hasNext requests until next is called
+        while (!validateMessage(baton.pass(state)).next) {
+        }
+        waitNext()
     }
 }
 
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
-    val yielder = Cooperator()
-    var done = false
-    val result = Promise<Unit>()
-    .setCallback {
-        done = true
-        yielder.resume()
-    }
-
-    val scope = AsyncIteratorScope<T>(yielder)
+    val baton = Baton<AsyncIteratorMessage<T>>()
+    val scope = AsyncIteratorScope<T>(baton)
     startSafeCoroutine {
         try {
+            scope.waitNext()
             block(scope)
-            result.setComplete(null, Unit)
+            baton.finish(AsyncIteratorMessage(done = true))
         }
         catch (throwable: Throwable) {
             rethrowUnhandledAsyncException(throwable)
-            result.setComplete(throwable, null)
+            baton.raise(throwable)
+            baton.finish(AsyncIteratorMessage(throwable = throwable, done = true))
         }
     }
 
     return object: AsyncIterator<T> {
         override fun rethrow() {
-            result.rethrow()
+            baton.rethrow()
+        }
+
+        private fun validateMessage(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
+            if (message.hasNext || message.next)
+                throw Exception("iterator hasNext/next called before completion of prior invocation")
+            return message
+        }
+
+        private suspend fun checkResumeNext(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
+            val result = validateMessage(baton.pass(message))
+            if (result.resuming)
+                return validateMessage(baton.pass(message))
+            return result
         }
 
         override suspend fun hasNext(): Boolean {
-            if (done)
-                return false
-            if (!scope.hasValue) {
-                yielder.yield()
-                result.rethrow()
-            }
-            return !done
+            return !checkResumeNext(AsyncIteratorMessage(hasNext = true)).done
         }
 
         override suspend fun next(): T {
-            if (done)
+            val next = checkResumeNext(AsyncIteratorMessage(next = true))
+            if (next.done)
                 throw NoSuchElementException()
-
-            if (!scope.hasValue) {
-                yielder.yield()
-                result.rethrow()
-            }
-
-            if (done)
-                throw NoSuchElementException()
-
-            val ret = scope.currentValue
-            scope.currentValue = null
-            scope.hasValue = false
-            return ret!!.value
+            return next.value!!
         }
     }
 }

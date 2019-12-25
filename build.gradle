@@ -25,6 +25,7 @@ kotlin {
         kotlinOptions {
         }
         kotlinOptions.freeCompilerArgs = [
+                "-Xallow-result-return-type",
                 "-Xallow-kotlin-package",
                 "-Xmulti-platform",
                 "-Xuse-experimental=kotlin.Experimental",

@@ -3,11 +3,13 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 
-private class PipeSocket: AsyncSocket {
-    private val yielder = Cooperator()
-    private var pending: ReadableBuffers? = null
-    private var closed = false
+private data class PipeData(val write: ReadableBuffers? = null, val closed: Boolean = false)
 
+private val pipeReadRequest = PipeData()
+private val pipeClosedRequest = PipeData(closed = true)
+
+private class PipeSocket: AsyncSocket {
+    private val baton = Baton<PipeData>()
     override suspend fun await() {
     }
 
@@ -15,35 +17,45 @@ private class PipeSocket: AsyncSocket {
     }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
-        if (closed)
-            return false
-        if (pending == null) {
-            yielder.yield()
-            if (closed)
-                return false
-        }
+        // wait for a write
+        while (true) {
+            val result = baton.passResult(pipeReadRequest) {
+                // handle the buffer transfer inside the baton lock
+                it.value.write?.read(buffer)
+            }
 
-        val ret = pending!!.read(buffer)
-        pending = null
-        yielder.resume()
-        return ret || !closed
+            if (result.value.closed)
+                return false
+
+            if (result.value.write == null) {
+                // cancel previous read requests on double read calls
+                if (!result.resumed)
+                    return true
+                else
+                    continue
+            }
+            // got a write request, so continue on.
+            break
+        }
+        return true
     }
 
     override suspend fun write(buffer: ReadableBuffers) {
-        if (closed)
-            throw Exception("pipe closed")
-        if (buffer.isEmpty)
-            return
-        pending = buffer
-        yielder.yield()
-        pending = null
-        if (closed)
+        val result = baton.pass(PipeData(write = buffer))
+        if (result.closed)
             throw Exception("pipe closed")
     }
 
     override suspend fun close() {
-        closed = true
-        yielder.resume()
+        startSafeCoroutine {
+            while (true) {
+                val result = baton.passResult(pipeClosedRequest)
+                // prevent double close looping by ending the coroutine that
+                // resumed
+                if (result.value.closed && result.resumed)
+                    break
+            }
+        }
     }
 }
 
@@ -51,7 +63,7 @@ fun createAsyncPipeSocket(): AsyncSocket {
     return PipeSocket()
 }
 
-fun createAsyncPipeSocketPair() : Pair<AsyncSocket, AsyncSocket> {
+fun createAsyncPipeSocketPair() : Pair<PairedPipeSocket, PairedPipeSocket> {
     val p1 = createAsyncPipeSocket()
     val p2 = createAsyncPipeSocket()
 
@@ -60,10 +72,10 @@ fun createAsyncPipeSocketPair() : Pair<AsyncSocket, AsyncSocket> {
         p2.close()
     }
 
-    return Pair(CompositeSocket({p1.read(it)}, {p2.write(it)}, close), CompositeSocket({p2.read(it)}, {p1.write(it)}, close))
+    return Pair(PairedPipeSocket({p1.read(it)}, {p2.write(it)}, close), PairedPipeSocket({p2.read(it)}, {p1.write(it)}, close))
 }
 
-private class CompositeSocket(val input: AsyncRead, val output: AsyncWrite, val outputClose: suspend() -> Unit) : AsyncSocket {
+class PairedPipeSocket(val input: AsyncRead, val output: AsyncWrite, val outputClose: suspend() -> Unit) : AsyncSocket {
     override suspend fun read(buffer: WritableBuffers): Boolean = input(buffer)
 
     override suspend fun write(buffer: ReadableBuffers) = output(buffer)

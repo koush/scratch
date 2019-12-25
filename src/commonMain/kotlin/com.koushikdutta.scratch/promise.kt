@@ -9,10 +9,27 @@ typealias PromiseCallback<T> = (Promise<T>) -> Unit
 open class Promise<T> {
     var exception: Throwable? = null
         internal set
-    private var done = false
+    var done = false
+        internal set
     var value: T? = null
         internal set
     private var callback: PromiseCallback<T>? = null
+
+    constructor()
+    constructor(block: suspend () -> T) {
+        startSafeCoroutine {
+            val result =
+            try {
+                block()
+            }
+            catch (throwable: Throwable) {
+                rethrowUnhandledAsyncException(throwable)
+                setComplete(throwable, null)
+                return@startSafeCoroutine
+            }
+            setComplete(null, result)
+        }
+    }
 
     fun setCallback(callback: PromiseCallback<T>): Promise<T> {
         val done = synchronized(this) {

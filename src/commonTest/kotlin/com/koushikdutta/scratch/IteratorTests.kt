@@ -1,8 +1,6 @@
 package com.koushikdutta.scratch
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.fail
+import kotlin.test.*
 
 class IteratorTests {
     @Test
@@ -22,6 +20,49 @@ class IteratorTests {
         assertEquals(sum, 12)
     }
 
+
+    @Test
+    fun testIterator2() {
+        val iter = asyncIterator<Int> {
+            yield(3)
+            yield(4)
+            yield(5)
+        }
+
+        var sum = 0
+        async {
+            sum += iter.next()
+            sum += iter.next()
+            sum += iter.next()
+            assertFalse(iter.hasNext())
+            assertFalse(iter.hasNext())
+        }
+        assertEquals(sum, 12)
+    }
+
+    @Test
+    fun testIteratorEnd() {
+        val iter = asyncIterator<Int> {
+            yield(3)
+            yield(4)
+            yield(5)
+        }
+
+        var sum = 0
+        async {
+            sum += iter.next()
+            sum += iter.next()
+            sum += iter.next()
+            try {
+                sum += iter.next()
+            }
+            catch (no: NoSuchElementException) {
+                return@async
+            }
+            fail("Exception expected")
+        }
+        assertEquals(sum, 12)
+    }
     @Test
     fun testIteratorException() {
         val iter = createAsyncIterable<Int> {
@@ -38,7 +79,7 @@ class IteratorTests {
                     sum += i
                 }
             }
-                .rethrow()
+            .rethrow()
         }
         catch (exception: Exception) {
             assertEquals(sum, 12)

@@ -36,7 +36,9 @@ internal fun startSafeCoroutine(block: suspend() -> Unit) {
         try {
             block()
         }
-        catch (exception: Exception) {
+        catch (exception: Throwable) {
+//            println(exception)
+            exitProcess(UnhandledAsyncExceptionError(exception))
             // ensure exceptions get converted to errors and rethrown,
             throw UnhandledAsyncExceptionError(exception)
         }
@@ -47,24 +49,129 @@ internal fun startSafeCoroutine(block: suspend() -> Unit) {
     })
 }
 
+data class BatonResult<T>(val value: T, val resumed: Boolean)
+typealias BatonLock<T> = (result: BatonResult<T>) -> Unit
+private class BatonData<T>(val throwable: Throwable?, val value: T?, val lock: BatonLock<T>?)
+
+class Baton<T> {
+    private var waiter: Continuation<BatonResult<T>>? = null
+    private var waiting: BatonData<T>? = null
+    private var finishData: BatonData<T>? = null
+
+    private suspend fun pass(throwable: Throwable?, value: T?, lock: BatonLock<T>? = null, finish: Boolean = false): BatonResult<T>? = suspendCoroutine {
+        val pair = synchronized(this) {
+            val pair =
+            if (finishData != null) {
+                if (finish)
+                    Pair(null, BatonData<T>(Exception("Baton already closed"), null, null))
+                else
+                    Pair(null, finishData)
+            }
+            else if (waiter != null) {
+                // value already available
+                val resume = waiter
+                val current = waiting!!
+                waiter = null
+                waiting = null
+                if (finish) {
+                    finishData = BatonData(throwable, value, lock)
+                    Pair(resume, null)
+                }
+                else {
+                    Pair(resume, current)
+                }
+            }
+            else if (finish) {
+                finishData = BatonData(throwable, value, lock)
+                Pair(null, null)
+            }
+            else {
+                // need to wait for value
+                waiter = it
+                waiting = BatonData(throwable, value, lock)
+                Pair(null, null)
+            }
+
+            val data = pair.second
+            if (data != null) {
+                if (data.throwable == null)
+                    lock?.invoke(BatonResult(data.value!!, true))
+                if (throwable == null)
+                    data.lock?.invoke(BatonResult(value!!, false))
+            }
+
+            pair
+        }
+        // resume outside of the synchronized lock
+        val data = pair.second
+        if (data != null) {
+            if (data.throwable != null)
+                it.resumeWithException(data.throwable)
+            else
+                it.resume(BatonResult(data.value!!, true))
+
+            val resume = pair.first
+            if (throwable != null)
+                resume?.resumeWithException(throwable)
+            else
+                resume?.resume(BatonResult(value!!, false))
+        }
+        else if (finish) {
+            it.resume(null)
+        }
+    }
+
+    fun rethrow() {
+        if (finishData?.throwable != null)
+            throw finishData!!.throwable!!
+    }
+
+    suspend fun finish(value: T) {
+        pass(null, value, finish = true)
+    }
+
+    suspend fun finish(throwable: Throwable) {
+        pass(throwable, null, finish = true)
+    }
+
+    suspend fun pass(value: T): T {
+        return pass(null, value)!!.value
+    }
+
+    suspend fun passResult(value: T, lock: BatonLock<T>? = null): BatonResult<T> {
+        return pass(null, value, lock)!!
+    }
+
+    suspend fun raise(throwable: Throwable): T {
+        return pass(throwable, null)!!.value
+    }
+
+    suspend fun raiseResult(throwable: Throwable, lock: BatonLock<T>? = null): BatonResult<T> {
+        return pass(throwable, null, lock)!!
+    }
+}
+
 class Cooperator {
     var waiting: Continuation<Unit>? = null
-    fun resume() {
+    private fun updateWaitingLocked(update: Continuation<Unit>?): Continuation<Unit>? {
         val resume = waiting
-        waiting = null
-        resume?.resume(Unit)
+        waiting = update
+        return resume
+    }
+    private fun updateWaiting(update: Continuation<Unit>?): Continuation<Unit>? {
+        synchronized(this) {
+            return updateWaitingLocked(update)
+        }
+    }
+    fun resume() {
+        updateWaiting(null)?.resume(Unit)
     }
     fun resumeWithException(exception: Throwable) {
-        val resume = waiting
-        waiting = null
-        resume?.resumeWithException(exception)
+        updateWaiting(null)?.resumeWithException(exception)
     }
-    suspend inline fun yield() {
-        val resume = waiting
-        waiting = null
+    suspend fun yield() {
         suspendCoroutine<Unit> { continuation ->
-            waiting = continuation
-            resume?.resume(Unit)
+            updateWaiting(continuation)?.resume(Unit)
         }
     }
 }
