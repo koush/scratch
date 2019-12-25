@@ -86,7 +86,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     fun postDelayed(delay: Long, runnable: AsyncServerRunnable): Cancellable {
         return synchronized(this) {
             if (stopping)
-                return SimpleCancellable.CANCELLED
+                return Cancellable.CANCELLED
 
             // Calculate when to run this queue item:
             // If there is a delay (non-zero), add it to the current time

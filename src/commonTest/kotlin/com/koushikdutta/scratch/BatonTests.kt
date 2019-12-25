@@ -144,4 +144,41 @@ class BatonTests {
 
         assertEquals(done, 3)
     }
+
+    @Test
+    fun testBatonFinishThrow() {
+        val baton = Baton<Int>()
+        var done = 0
+        async {
+            assertEquals(baton.pass(4), 1)
+            assertEquals(baton.pass(5), 2)
+            assertEquals(baton.pass(6), 3)
+
+            baton.raiseFinish(BatonTestException())
+            done++
+        }
+        async {
+            assertEquals(baton.pass(1), 4)
+            assertEquals(baton.pass(2), 5)
+            assertEquals(baton.pass(3), 6)
+
+            try {
+                baton.pass(0)
+            }
+            catch (throwable: BatonTestException) {
+                done++
+                try {
+                    baton.pass(0)
+                }
+                catch (throwable: BatonTestException) {
+                    done++
+                    return@async
+                }
+                fail("exception expected")
+            }
+            fail("exception expected")
+        }
+
+        assertEquals(done, 3)
+    }
 }

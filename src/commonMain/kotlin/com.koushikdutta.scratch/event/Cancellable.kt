@@ -18,4 +18,14 @@ interface Cancellable {
      * @return The return value is whether the operation cancelled successfully.
      */
     fun cancel(): Boolean
+
+    companion object {
+        val CANCELLED = object : Cancellable {
+            override val isDone: Boolean = false
+            override val isCancelled: Boolean = true
+            override fun cancel(): Boolean {
+                return true
+            }
+        }
+    }
 }

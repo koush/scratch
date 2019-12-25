@@ -53,14 +53,6 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
         return !needsWritable
     }
 
-    fun write(buffer: ByteBuffer): Boolean {
-        pending.add(buffer)
-        yielder.resume()
-
-        needsWritable = pending.remaining() >= highWaterMark
-        return !needsWritable
-    }
-
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
@@ -152,7 +144,7 @@ abstract class BlockingWritePipe {
         yielder.resumeWithException(exception)
     }
 
-    abstract fun write(buffer: Buffers)
+    protected abstract fun write(buffer: Buffers)
 
     suspend fun write(buffer: ReadableBuffers) {
         buffer.read(pendingOutput)
