@@ -2,6 +2,7 @@ package com.koushikdutta.scratch
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.fail
 
 private class BatonTestException: Exception()
@@ -22,7 +23,6 @@ class BatonTests {
 
         assertEquals(done, 2)
     }
-
 
     @Test
     fun testBaton() {
@@ -197,5 +197,64 @@ class BatonTests {
         }
 
         assertEquals(done, 3)
+    }
+
+    @Test
+    fun testBatonTossSimple() {
+        val baton = Baton<Int>()
+        var done = 0
+        async {
+            assertEquals(baton.pass(4), 1)
+            done++
+        }
+        async {
+            assertEquals(baton.toss(1), 4)
+            done++
+        }
+
+        assertEquals(done, 2)
+    }
+
+    @Test
+    fun testBatonToss() {
+        val baton = Baton<Int>()
+        var done = 0
+        async {
+            assertEquals(baton.pass(4), 1)
+            assertEquals(baton.pass(5), 2)
+            assertEquals(baton.pass(6), 3)
+            done++
+        }
+        async {
+            assertEquals(baton.toss(1), 4)
+            assertEquals(baton.toss(2), 5)
+            assertEquals(baton.toss(3), 6)
+
+            done++
+        }
+
+        assertEquals(done, 2)
+    }
+
+    @Test
+    fun testBatonEmpty() {
+        val baton = Baton<Int>()
+        assertNull(baton.toss(4))
+    }
+
+    @Test
+    fun testBatonEmpty2() {
+        val baton = Baton<Int>()
+        assertNull(baton.toss(4))
+        assertEquals(baton.toss(0), 4)
+    }
+
+    @Test
+    fun testBatonEmpty3() {
+        val baton = Baton<Int>()
+        assertNull(baton.toss(4))
+        assertEquals(baton.toss(0), 4)
+        assertNull(baton.toss(5))
+        assertEquals(baton.toss(1), 5)
     }
 }

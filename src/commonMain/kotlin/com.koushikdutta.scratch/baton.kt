@@ -16,7 +16,6 @@ data class BatonResult<T>(val throwable: Throwable?, val value: T?, val resumed:
 typealias BatonLock<T, R> = (result: BatonResult<T>) -> R
 typealias BatonTossLock<T, R> = (result: BatonResult<T>?) -> R
 private data class BatonData<T, R>(val throwable: Throwable?, val value: T?, val lock: BatonLock<T, R>?)
-private data class BatonTossData<T, R>(val throwable: Throwable?, val value: T?, val tossResult: R?)
 private data class BatonContinuationLockedData<T, RR>(val continuation: Continuation<RR>?, val data: BatonData<T, RR>?) {
     fun <R> runLockBlocks(throwable: Throwable?, value: T?, lock: BatonLock<T, R>?, tossLock: BatonTossLock<T, R>?): BatonContinuationData<T, R, RR> {
         val cdata = this
@@ -42,9 +41,9 @@ private data class BatonContinuationLockedData<T, RR>(val continuation: Continua
 }
 
 private data class BatonContinuationData<T, R, RR>(val pendingContinuation: Continuation<RR>?, val data: BatonData<T, RR>?, val pendingResult: RR?, val resumeResult: R?, val tossResult: R?) {
-    fun resumeContinuations(throwable: Throwable?, resumingContinuation: Continuation<R>?): BatonTossData<T, R> {
+    fun resumeContinuations(throwable: Throwable?, resumingContinuation: Continuation<R>?): R? {
         if (data == null)
-            return BatonTossData(null, null, tossResult)
+            return tossResult
 
         if (data.throwable != null)
             resumingContinuation?.resumeWithException(data.throwable)
@@ -56,11 +55,13 @@ private data class BatonContinuationData<T, R, RR>(val pendingContinuation: Cont
         else
             pendingContinuation?.resume(pendingResult!!)
 
-        return BatonTossData(data.throwable, data.value, tossResult)
+        if (data.throwable != null)
+            throw data.throwable
+        return tossResult
     }
 }
 private data class BatonWaiter<T, R>(val continuation: Continuation<R>?, val data: BatonData<T, R>) {
-    fun getResumeData(): BatonContinuationLockedData<T, R> {
+    fun getContinuationLockedData(): BatonContinuationLockedData<T, R> {
         return BatonContinuationLockedData(continuation, data)
     }
 }
@@ -69,7 +70,7 @@ class Baton<T> {
     private var batonWaiter: BatonWaiter<T, *>? = null
     private var finishData: BatonData<T, *>? = null
 
-    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonLock<T, R>? = null, tossLock: BatonTossLock<T, R>? = null, finish: Boolean = false, continuation: Continuation<R>?): BatonTossData<T, R> {
+    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonLock<T, R>? = null, tossLock: BatonTossLock<T, R>? = null, finish: Boolean = false, continuation: Continuation<R>? = null): R? {
         val cdata = synchronized(this) {
             val cdata =
             if (finishData != null) {
@@ -87,7 +88,7 @@ class Baton<T> {
                     BatonContinuationLockedData(resume.continuation, null)
                 }
                 else {
-                    resume.getResumeData()
+                    resume.getContinuationLockedData()
                 }
             }
             else if (finish) {
@@ -106,13 +107,6 @@ class Baton<T> {
         return cdata.resumeContinuations(throwable, continuation)
     }
 
-    private fun <R> passInternalThrow(throwable: Throwable?, value: T?, lock: BatonLock<T, R>? = null, tossLock: BatonTossLock<T, R>? = null, finish: Boolean = false): BatonTossData<T, R>? {
-        val data = passInternal(throwable, value, lock, tossLock, finish, null)
-        if (data?.throwable != null)
-            throw data.throwable
-        return data
-    }
-
     private suspend fun <R> pass(throwable: Throwable?, value: T?, lock: BatonLock<T, R>? = null, finish: Boolean = false): R = suspendCoroutine {
         passInternal(throwable, value, lock, null, finish, it)
     }
@@ -127,32 +121,33 @@ class Baton<T> {
     }
 
     fun toss(value: T): T? {
-        return tossResult(value, defaultTossLock)
+        return passInternal(null, value, tossLock = defaultTossLock)
     }
 
     fun tossRaise(throwable: Throwable): T? {
-        return tossRaiseResult(throwable, defaultTossLock)
+        return passInternal(throwable, null, tossLock = defaultTossLock)
     }
 
     fun <R> tossResult(value: T, tossLock: BatonTossLock<T, R>): R {
-        return passInternalThrow(null, value, tossLock = tossLock)?.tossResult!!
+        return passInternal(null, value, tossLock = tossLock)!!
     }
 
     fun <R> tossRaiseResult(throwable: Throwable, tossLock: BatonTossLock<T, R>): R {
-        return passInternalThrow(throwable, null, tossLock = tossLock)?.tossResult!!
+        return passInternal(throwable, null, tossLock = tossLock)!!
     }
 
     fun finish(value: T): T? {
-        return passInternalThrow<Unit>(null, value, finish = true)?.value
+        return passInternal(null, value, finish = true, tossLock = defaultTossLock)
     }
 
     fun raiseFinish(throwable: Throwable): T? {
-        return passInternalThrow<Unit>(throwable, null, finish = true)?.value
+        return passInternal(throwable, null, finish = true, tossLock = defaultTossLock)
     }
 
     private val defaultLock: BatonLock<T, T?> = { result ->
         result.value
     }
+
     suspend fun pass(value: T): T {
         return pass(null, value, defaultLock)!!
     }

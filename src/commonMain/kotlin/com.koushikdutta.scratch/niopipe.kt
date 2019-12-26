@@ -13,7 +13,7 @@ import kotlin.coroutines.resumeWithException
 abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     private var needsWritable = false
     private val yielder = Cooperator()
-    private val baton = Baton<Unit>()
+//    private val baton = Baton<Unit>()
     private val pending = ByteBufferList()
     private var eos = false
     private val result = Promise<Unit>().setCallback { yielder.resume() }
@@ -62,6 +62,10 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
+//        baton.passResult(Unit) {
+//            Unit
+//        }
+
         // rethrow errors downstream
         result.rethrow()
 
