@@ -83,13 +83,9 @@ class Baton<T> {
                 // value already available
                 val resume = batonWaiter!!
                 batonWaiter = null
-                if (finish) {
+                if (finish)
                     finishData = BatonData(throwable, value, lock)
-                    BatonContinuationLockedData(resume.continuation, null)
-                }
-                else {
-                    resume.getContinuationLockedData()
-                }
+                resume.getContinuationLockedData()
             }
             else if (finish) {
                 finishData = BatonData(throwable, value, lock)
@@ -115,6 +111,9 @@ class Baton<T> {
         if (finishData?.throwable != null)
             throw finishData!!.throwable!!
     }
+
+    val isFinished: Boolean
+        get() = finishData != null
 
     private val defaultTossLock: BatonTossLock<T, T?> = {
         it?.value
@@ -162,5 +161,11 @@ class Baton<T> {
 
     suspend fun <R> raiseResult(throwable: Throwable, lock: BatonLock<T, R>): R {
         return pass(throwable, null, lock)!!
+    }
+
+    inline fun <R> synchronized(block: () -> R): R {
+        synchronized (this) {
+            return block()
+        }
     }
 }

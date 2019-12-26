@@ -3,9 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.parser.readAllString
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class NioTests {
     @Test
@@ -17,15 +15,17 @@ class NioTests {
             }
         }
 
-        val keepGoing = pipe.write(ByteBufferList().putUtf8String("Hello World"))
-        pipe.write(ByteBufferList().putUtf8String("Hello World"))
-        pipe.write(ByteBufferList().putUtf8String("Hello World"))
-        pipe.end()
-
+        // start reading first, otherwise the entire data will be read in one go
+        // incuding the pipe ending, so writable will never be triggered.
         var data = ""
         async {
             data = readAllString({pipe.read(it)})
         }
+
+        val keepGoing = pipe.write(ByteBufferList().putUtf8String("Hello World"))
+        pipe.write(ByteBufferList().putUtf8String("Hello World"))
+        pipe.write(ByteBufferList().putUtf8String("Hello World"))
+        pipe.end()
 
         assertEquals(data, "Hello WorldHello WorldHello World")
 
@@ -68,5 +68,32 @@ class NioTests {
             random(buffer)
         }
         assertEquals(buffer.remaining(), 10000000)
+    }
+
+    @Test
+    fun testDoubleReadError() {
+        val pipe = object : NonBlockingWritePipe(0) {
+            override fun writable() {
+            }
+        }
+
+        async {
+            try {
+                readAllString(pipe::read)
+            }
+            catch (throwable: IOException) {
+                return@async
+            }
+            fail("exception expected")
+        }
+
+        // reading again with another read in progress should succeed here, and cause the previous read to IOException
+        var gotData = false
+        async {
+            readAllString(pipe::read)
+            gotData = true
+        }
+
+        assertFalse(gotData)
     }
 }

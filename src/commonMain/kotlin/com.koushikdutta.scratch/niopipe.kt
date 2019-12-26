@@ -12,31 +12,17 @@ import kotlin.coroutines.resumeWithException
  */
 abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     private var needsWritable = false
-    private val yielder = Cooperator()
-//    private val baton = Baton<Unit>()
+    // baton data is true for a write, false for read to verify read is not called erroneously.
+    private val baton = Baton<Boolean>()
     private val pending = ByteBufferList()
-    private var eos = false
-    private val result = Promise<Unit>().setCallback { yielder.resume() }
-    private val completion: Continuation<Unit> = Continuation(EmptyCoroutineContext) { completionResult ->
-        check(!eos) { "NonBlockingOutputPipe has already been closed" }
-        eos = true
-        result.setComplete(completionResult)
-    }
 
     fun end(throwable: Throwable) {
-        completion.resumeWithException(throwable)
+        baton.raiseFinish(throwable)
     }
 
     fun end() {
-        completion.resume(Unit)
+        baton.finish(true)
     }
-
-    fun obtain(size: Int): ByteBuffer {
-        return pending.obtain(size)
-    }
-
-    val hasEnded: Boolean
-        get() = eos
 
     /**
      * The write call will return false when the high water mark is reached,
@@ -44,55 +30,51 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
      * will be called once the reader has sufficiently drained the buffer.
      */
     fun write(buffer: ReadableBuffers): Boolean {
-//        baton.toss(Unit) {
-//            buffer.read(pending)
-//            needsWritable = pending.remaining() >= highWaterMark
-//        }
+        // provide the data and resume any readers.
+        baton.tossResult(true) {
+            buffer.read(pending)
+        }
 
-        buffer.read(pending)
-        yielder.resume()
+        // after the coroutine finishes, take back the free buffers
+        // and check the high water mark status
+        val needsWritable = baton.synchronized {
+            buffer.takeReclaimedBuffers(pending)
+            if (!needsWritable)
+                needsWritable = pending.remaining() >= highWaterMark
+            needsWritable
+        }
 
-        // after the coroutine finishes, take back free buffers
-//        buffer.takeReclaimedBuffers(pending)
-
-        needsWritable = pending.remaining() >= highWaterMark
         return !needsWritable
     }
 
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
-//        baton.passResult(Unit) {
-//            Unit
-//        }
+        val invokeWritable: Boolean =
+        baton.synchronized {
+            if (pending.read(buffer))
+                return true
 
-        // rethrow errors downstream
-        result.rethrow()
+            if (needsWritable && !baton.isFinished) {
+                needsWritable = false
+                return@synchronized true
+            }
 
-        // take free buffers before performing a read.
-        pending.takeReclaimedBuffers(buffer)
-
-        // check if we have something to read
-        if (pending.isEmpty) {
-            // eos?
-            if (eos)
+            if (baton.isFinished) {
+                baton.rethrow()
                 return false
+            }
 
-            // wait for something to come down
-            yielder.yield()
-            result.rethrow()
-
-            // still empty? bail. empty data but not eos is valid.
-            if (pending.isEmpty)
-                return !eos
+            false
         }
 
-        // at this point the buffer must have something
-        pending.read(buffer)
-        if (needsWritable) {
-            needsWritable = false
+        if (invokeWritable) {
             writable()
+            return true
         }
+
+        if (baton.passResult(false) { it.isSuccess && !it.value!! && !it.resumed })
+            throw IOException("read called while another read was in progress")
         return true
     }
 }

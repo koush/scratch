@@ -5,6 +5,8 @@ import com.koushikdutta.scratch.parser.readAllString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
+
 class StreamTests {
     @Test
     fun testAddition() {
@@ -18,5 +20,15 @@ class StreamTests {
         }
 
         assertEquals(result, "HelloWorld")
+    }
+
+    @Test
+    fun testCount() {
+        val random = TestUtils.createRandomRead(100000000)
+        var count = 0
+        async {
+            count = random.countBytes()
+        }
+        assertEquals(count, 100000000)
     }
 }
