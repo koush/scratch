@@ -62,10 +62,6 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
-        baton.pass(Unit) {
-
-        }
-
         // rethrow errors downstream
         result.rethrow()
 

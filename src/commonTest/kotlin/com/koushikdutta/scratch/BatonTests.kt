@@ -8,6 +8,23 @@ private class BatonTestException: Exception()
 
 class BatonTests {
     @Test
+    fun testBatonSimple() {
+        val baton = Baton<Int>()
+        var done = 0
+        async {
+            assertEquals(baton.pass(4), 1)
+            done++
+        }
+        async {
+            assertEquals(baton.pass(1), 4)
+            done++
+        }
+
+        assertEquals(done, 2)
+    }
+
+
+    @Test
     fun testBaton() {
         val baton = Baton<Int>()
         var done = 0

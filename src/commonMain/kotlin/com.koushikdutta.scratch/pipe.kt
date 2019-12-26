@@ -21,10 +21,11 @@ private class PipeSocket: AsyncSocket {
         while (true) {
             val result = baton.passResult(pipeReadRequest) {
                 // handle the buffer transfer inside the baton lock
-                it.getOrNull()?.value?.write?.read(buffer)
+                it.value?.write?.read(buffer)
+                it
             }
 
-            if (result.value.closed)
+            if (result.value!!.closed)
                 return false
 
             if (result.value.write == null) {
@@ -49,10 +50,12 @@ private class PipeSocket: AsyncSocket {
     override suspend fun close() {
         startSafeCoroutine {
             while (true) {
-                val result = baton.passResult(pipeClosedRequest)
+                val result = baton.passResult(pipeClosedRequest) {
+                    it
+                }
                 // prevent double close looping by ending the coroutine that
                 // resumed
-                if (result.value.closed && result.resumed)
+                if (result.value!!.closed && result.resumed)
                     break
             }
         }
