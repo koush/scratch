@@ -1,27 +1,24 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.atomic.*
 import com.koushikdutta.scratch.buffers.*
-import kotlin.coroutines.Continuation
-import kotlin.coroutines.EmptyCoroutineContext
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 
 /**
  * This class pipes nonblocking write calls to AsyncRead.
  */
-abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
-    private var needsWritable = false
+abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val affinity: AsyncAffinity? = null) {
     // baton data is true for a write, false for read to verify read is not called erroneously.
     private val baton = Baton<Boolean>()
-    private val pending = ByteBufferList()
+    private val pending = AtomicBuffers()
+    private val needsWritable = AtomicBoolean()
 
-    fun end(throwable: Throwable) {
-        baton.raiseFinish(throwable)
+    fun end(throwable: Throwable): Boolean {
+        return baton.raiseFinish(throwable)?.finished != true
     }
 
-    fun end() {
-        baton.finish(true)
+    fun end(): Boolean {
+        return baton.finish(true)?.finished != true
     }
 
     /**
@@ -31,50 +28,48 @@ abstract class NonBlockingWritePipe(private var highWaterMark: Int = 65536) {
      */
     fun write(buffer: ReadableBuffers): Boolean {
         // provide the data and resume any readers.
-        baton.tossResult(true) {
-            buffer.read(pending)
+        baton.toss(true) {
+            buffer.read(pending) >= highWaterMark
         }
 
-        // after the coroutine finishes, take back the free buffers
-        // and check the high water mark status
-        val needsWritable = baton.synchronized {
-            buffer.takeReclaimedBuffers(pending)
-            if (!needsWritable)
-                needsWritable = pending.remaining() >= highWaterMark
-            needsWritable
-        }
+        // the read coroutine will have synchronously finished
+        // reading the buffer and may be reclaimed.
+        buffer.takeReclaimedBuffers(pending)
 
-        return !needsWritable
+        // check if writable needs to be invoked
+        val setNeedsWritable = pending.remaining >= highWaterMark
+        if (setNeedsWritable && !needsWritable.getAndSet(true))
+            return false
+        return true
     }
 
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
-        val invokeWritable: Boolean =
-        baton.synchronized {
-            if (pending.read(buffer))
-                return true
+        val toWrite = pending.read()
 
-            if (needsWritable && !baton.isFinished) {
-                needsWritable = false
-                return@synchronized true
-            }
+        if (toWrite.read(buffer)) {
+            pending.reclaim(toWrite)
+            return true
+        }
+        pending.reclaim(toWrite)
 
-            if (baton.isFinished) {
-                baton.rethrow()
-                return false
-            }
-
-            false
+        if (baton.isFinished) {
+            baton.rethrow()
+            return false
         }
 
-        if (invokeWritable) {
+        if (needsWritable.getAndSet(false)) {
+            affinity?.await()
             writable()
             return true
         }
 
-        if (baton.passResult(false) { it.isSuccess && !it.value!! && !it.resumed })
-            throw IOException("read called while another read was in progress")
+        // throw an exception. returning false may cause a spin lock by
+        // two simultaneous read loops.
+        if (baton.pass(false) { it.isSuccess && !it.value!! && !it.resumed })
+            throw IOException("read cancelled by another read")
+
         return true
     }
 }
@@ -117,34 +112,43 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
 /**
  * This class pipes AsyncWrite calls to nonblocking write calls.
  * The abstract write method writes as much data as the transport can handle
- * and return the remaining in the given buffer. When the transport is ready,
- * call writable.
+ * and returns the unsent data in the given buffer.
+ * Upon returning unsent data, the transport is responsible for calling writable
+ * when it is ready to resume sending data.
  */
-abstract class BlockingWritePipe {
-    private val yielder = Cooperator()
-    private val pendingOutput = ByteBufferList()
-    private var exception: Throwable? = null
+abstract class BlockingWritePipe(private val affinity: AsyncAffinity? = null) {
+    private val baton = Baton<Unit>()
+    private val pending = ByteBufferList()
+    private val writeLock = AtomicThrowingLock {
+        IOException("write already in progress")
+    }
     fun writable() {
-        yielder.resume()
+        baton.toss(Unit)
     }
 
-    fun close() = close(IOException("pipe closed"))
-    fun close(exception: Throwable) {
-        if(this.exception != null)
-            throw IllegalStateException("pipe already closed")
-        this.exception = exception
-        yielder.resumeWithException(exception)
+    fun close(): Boolean = close(IOException("pipe closed"))
+    fun close(exception: Throwable): Boolean {
+        return baton.raiseFinish(exception)?.finished != true
     }
 
     protected abstract fun write(buffer: Buffers)
 
     suspend fun write(buffer: ReadableBuffers) {
-        buffer.read(pendingOutput)
-        write(pendingOutput)
-        while (pendingOutput.hasRemaining()) {
-            yielder.yield()
-            write(pendingOutput)
+        writeLock {
+            try {
+                buffer.read(pending)
+                write(pending)
+                while (pending.hasRemaining()) {
+                    baton.pass(Unit)
+                    affinity?.await()
+                    write(pending)
+                }
+                buffer.takeReclaimedBuffers(pending)
+            }
+            catch (throwable: Throwable) {
+                baton.raiseFinish(throwable)
+                throw throwable
+            }
         }
-        buffer.takeReclaimedBuffers(pendingOutput)
     }
 }

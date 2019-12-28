@@ -90,7 +90,7 @@ class IteratorTests {
 
     @Test
     fun testArrayDequeue() {
-        val queue = AsyncDequeueIterator<Int>()
+        val queue = AsyncQueue<Int>()
         queue.add(3)
         queue.add(4)
         queue.add(5)
@@ -107,7 +107,7 @@ class IteratorTests {
 
     @Test
     fun testArrayDequeueException() {
-        val queue = AsyncDequeueIterator<Int>()
+        val queue = AsyncQueue<Int>()
         queue.add(3)
         queue.add(4)
         queue.add(5)

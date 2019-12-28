@@ -109,7 +109,7 @@ fun <T> createAsyncIterable(block: suspend AsyncIteratorScope<T>.() -> Unit): As
  * Feed an async iterator by queuing items into it.
  * TBD: for .. in loops will pop items from the queue. Remove iterator operator keyword?
  */
-open class AsyncDequeueIterator<T> : AsyncIterable<T> {
+open class AsyncQueue<T> : AsyncIterable<T> {
     private val yielder = Cooperator()
     private val deque = mutableListOf<T>()
     private var exception: Throwable? = null

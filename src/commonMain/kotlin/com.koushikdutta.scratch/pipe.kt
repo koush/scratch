@@ -19,7 +19,7 @@ private class PipeSocket: AsyncSocket {
     override suspend fun read(buffer: WritableBuffers): Boolean {
         // wait for a write
         while (true) {
-            val result = baton.passResult(pipeReadRequest) {
+            val result = baton.pass(pipeReadRequest) {
                 // handle the buffer transfer inside the baton lock
                 it.value?.write?.read(buffer)
                 it
@@ -50,7 +50,7 @@ private class PipeSocket: AsyncSocket {
     override suspend fun close() {
         startSafeCoroutine {
             while (true) {
-                val result = baton.passResult(pipeClosedRequest) {
+                val result = baton.pass(pipeClosedRequest) {
                     it
                 }
                 // prevent double close looping by ending the coroutine that
@@ -93,7 +93,7 @@ class PairedPipeSocket(val input: AsyncRead, val output: AsyncWrite, val outputC
 }
 
 class AsyncPipeServerSocket : AsyncServerSocket<AsyncSocket> {
-    val sockets = AsyncDequeueIterator<AsyncSocket>()
+    val sockets = AsyncQueue<AsyncSocket>()
     var closed = false
 
     suspend fun connect(): AsyncSocket {

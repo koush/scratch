@@ -1,9 +1,6 @@
 package com.koushikdutta.scratch
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.fail
+import kotlin.test.*
 
 private class BatonTestException: Exception()
 
@@ -120,14 +117,10 @@ class BatonTests {
             done++
         }
         async {
-            try {
-                baton.finish(7)
-            }
-            catch (throwable: Throwable) {
-                done++
-                return@async
-            }
-            fail("exception expected")
+            val check1 = baton.finish(5)
+            assertTrue(check1!!.finished)
+            assertEquals(check1.value, 7)
+            done++
         }
 
         assertEquals(done, 2)
@@ -142,21 +135,15 @@ class BatonTests {
             done++
         }
         async {
-            try {
-                baton.finish(7)
-            }
-            catch (throwable: Throwable) {
-                done++
-                try {
-                    baton.finish(7)
-                }
-                catch (throwable: Throwable) {
-                    done++
-                    return@async
-                }
-                fail("exception expected")
-            }
-            fail("exception expected")
+            val check1 = baton.finish(5)
+            assertTrue(check1!!.finished)
+            assertEquals(check1.value, 7)
+            done++
+
+            val check2 = baton.finish(4)
+            assertTrue(check2!!.finished)
+            assertEquals(check2.value, 7)
+            done++
         }
 
         assertEquals(done, 3)

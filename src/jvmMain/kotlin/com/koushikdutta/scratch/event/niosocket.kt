@@ -35,7 +35,7 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
 
     val backlog: Int = 65535
     private var isAccepting = true
-    private val queue = object : AsyncDequeueIterator<NIOSocket>() {
+    private val queue = object : AsyncQueue<NIOSocket>() {
         override fun popped(value: AsyncNetworkSocket) {
             if (!isAccepting && size < backlog) {
                 isAccepting = true
@@ -104,7 +104,7 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
         }
     }
     private var closed = false
-    private val iterable = AsyncDequeueIterator<NIODatagramPacket>()
+    private val iterable = AsyncQueue<NIODatagramPacket>()
     private val pending = ByteBufferList()
 
     init {

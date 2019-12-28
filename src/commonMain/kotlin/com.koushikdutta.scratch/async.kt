@@ -80,7 +80,7 @@ class Cooperator {
  * suspending calls.
  */
 class AsyncHandler(private val await: suspend() -> Unit) {
-    private val queue = AsyncDequeueIterator<suspend() -> Unit>()
+    private val queue = AsyncQueue<suspend() -> Unit>()
     private var blocked = false
     init {
         startSafeCoroutine {
