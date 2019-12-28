@@ -33,25 +33,8 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
         }
     }
 
-    val backlog: Int = 65535
-    private var isAccepting = true
-    private val queue = object : AsyncQueue<NIOSocket>() {
-        override fun popped(value: AsyncNetworkSocket) {
-            if (!isAccepting && size < backlog) {
-                isAccepting = true
-                key.interestOps(SelectionKey.OP_ACCEPT)
-            }
-        }
-
-        override fun add(value: AsyncNetworkSocket) {
-            if (isAccepting && size >= backlog) {
-                isAccepting = false
-                key.interestOps(0)
-            }
-
-            super.add(value)
-        }
-    }
+    // todo: backlog?
+    private val queue = AsyncQueue<NIOSocket>()
 
     override fun accept(): AsyncIterable<AsyncNetworkSocket> {
         return queue

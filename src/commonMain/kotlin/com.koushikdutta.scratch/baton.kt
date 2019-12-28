@@ -1,6 +1,6 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.atomic.FreezableAtomicSwapNull
+import com.koushikdutta.scratch.atomic.FreezableAtomicReference
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -67,8 +67,8 @@ private data class BatonWaiter<T, R>(val continuation: Continuation<R>?, val dat
     }
 }
 
-class Baton<T> {
-    private val freeze = FreezableAtomicSwapNull<BatonWaiter<T, *>>()
+class Baton<T>() {
+    private val freeze = FreezableAtomicReference<BatonWaiter<T, *>>()
 
     private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonTossLock<T, R>? = null, finish: Boolean = false, continuation: Continuation<R>? = null): R? {
         val cdata = if (finish) {

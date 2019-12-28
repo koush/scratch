@@ -49,39 +49,48 @@ open class AtomicStack<T, V>(val defaultAccumulate: V, val accumulate: (accumula
     }
 }
 
-class BasicAtomicStack<T> : AtomicStack<T, Unit>(Unit, { _, _ ->  Unit })
-
-class AtomicQueueNode<T>(internal val next: AtomicQueueNode<T>?, val value: T) {
-    private val tail: AtomicQueueNode<T>
-    val size: Int
-
-    init {
-        this.tail = next?.tail ?: this
-        if (next == null)
-            size = 0
-        else
-            size = next.size + 1
-    }
+data class AtomicQueueNode<T>(val value: T) {
+    internal val next = AtomicReference<AtomicQueueNode<T>?>(null)
 }
+
 open class AtomicQueue<T> {
-    private val atomicReference = AtomicReference<AtomicQueueNode<T>?>(null)
+    private val tail = AtomicReference<AtomicQueueNode<T>?>(null)
+    private val head = AtomicReference<AtomicQueueNode<T>?>(null)
+
     fun add(value: T) {
+        val newTail = AtomicQueueNode(value)
         while (true) {
-            val head = atomicReference.get()
-            val newHead = AtomicQueueNode(head, value)
-            if (atomicReference.compareAndSet(head, newHead))
+            val curTail = tail.get()
+            if (curTail?.next?.compareAndSet(null, newTail) != false) {
+                // this block is guarded and other writers will spin until tail is updated.
+
+                // thus, set the new head first. removing items from the list is still atomic,
+                // as only the head is updated.
+                head.compareAndSet(null, newTail)
+
+                tail.compareAndSet(curTail, newTail)
                 break
+            }
         }
     }
 
     fun remove(): AtomicQueueNode<T>? {
         while (true) {
-            val head = atomicReference.get()
-            if (head == null)
-                return null
-            val newHead = head.next
-            if (atomicReference.compareAndSet(head, newHead))
-                return head
+            val curHead = head.get()
+            if (curHead == null)
+                return curHead
+            if (head.compareAndSet(curHead, curHead.next.get()))
+                return curHead
+        }
+    }
+
+    fun push(value: T) {
+        val newHead = AtomicQueueNode(value)
+        while (true) {
+            val curHead = head.get()
+            newHead.next.set(curHead)
+            if (head.compareAndSet(curHead, newHead))
+                break
         }
     }
 }

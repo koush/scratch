@@ -29,20 +29,20 @@ class AtomicTests {
 
     @Test
     fun testQueue() {
-        val stack = AtomicQueue<Int>()
-        stack.add(0)
-        stack.add(1)
-        stack.add(2)
-        stack.add(3)
-        stack.add(4)
+        val queue = AtomicQueue<Int>()
+        queue.add(0)
+        queue.add(1)
+        queue.add(2)
+        queue.add(3)
+        queue.add(4)
 
-        assertEquals(stack.remove()?.value, 4)
-        assertEquals(stack.remove()?.value, 3)
-        assertEquals(stack.remove()?.value, 2)
-        assertEquals(stack.remove()?.value, 1)
-        assertEquals(stack.remove()?.value, 0)
+        assertEquals(queue.remove()?.value, 0)
+        assertEquals(queue.remove()?.value, 1)
+        assertEquals(queue.remove()?.value, 2)
+        assertEquals(queue.remove()?.value, 3)
+        assertEquals(queue.remove()?.value, 4)
 
-        assertEquals(stack.remove(), null)
+        assertEquals(queue.remove(), null)
     }
 
     @Test

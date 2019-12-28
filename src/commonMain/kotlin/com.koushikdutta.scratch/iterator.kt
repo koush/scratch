@@ -1,5 +1,7 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.atomic.AtomicQueueNode
+import com.koushikdutta.scratch.atomic.FreezableAtomicQueue
 import com.koushikdutta.scratch.buffers.ByteBuffer
 
 interface AsyncIterator<out T> {
@@ -105,64 +107,58 @@ fun <T> createAsyncIterable(block: suspend AsyncIteratorScope<T>.() -> Unit): As
     }
 }
 
+private data class AsyncQueueItem<T>(val value: T?, val throwable: Throwable?)
+
 /**
  * Feed an async iterator by queuing items into it.
  * TBD: for .. in loops will pop items from the queue. Remove iterator operator keyword?
  */
 open class AsyncQueue<T> : AsyncIterable<T> {
-    private val yielder = Cooperator()
-    private val deque = mutableListOf<T>()
-    private var exception: Throwable? = null
+    private val queue = FreezableAtomicQueue<AsyncQueueItem<T>>()
+    private val baton = Baton<Unit>()
 
-    protected open fun popped(value: T) {
+    protected open fun removed(value: T) {
     }
 
     private val iter = asyncIterator<T> {
-        while (deque.isNotEmpty() || !hasEnded) {
-            if (deque.isEmpty())
-                yielder.yield()
-            if (deque.isEmpty())
+        while (true) {
+            val item = queue.remove()
+            if (item == null) {
+                baton.pass(Unit)
+                continue
+            }
+
+            // throwing is also implicitly frozen
+            if (item.value.throwable != null)
+                throw item.value.throwable
+
+            if (item.frozen)
                 break
-            val value = deque.removeAt(0)
+
+            val value = item.value.value!!
             yield(value)
-            popped(value)
+            removed(value)
         }
-        if (exception != null)
-            throw exception!!
     }
 
     override operator fun iterator(): AsyncIterator<T> {
         return iter
     }
 
-    val size: Int
-        get() = deque.size
-
-    private fun checkEnd() {
-        if (hasEnded)
-            throw IllegalStateException("end already called")
+    fun end(): Boolean {
+        return queue.freeze(AsyncQueueItem(null, null))
     }
 
-    private fun endInternal() {
-        checkEnd()
-        hasEnded = true
-        yielder.resume()
+    fun end(throwable: Throwable): Boolean {
+        return queue.freeze(AsyncQueueItem(null, throwable))
     }
 
-    private var hasEnded = false
-    fun end() {
-        endInternal()
-    }
-    fun end(exception: Throwable) {
-        this.exception = exception
-        endInternal()
-    }
+    open fun add(value: T): Boolean {
+        if (!queue.add(AsyncQueueItem(value, null)))
+            return false
 
-    open fun add(value: T) {
-        checkEnd()
-        iter.rethrow()
-        deque.add(value)
-        yielder.resume()
+        baton.toss(Unit)
+        return true
     }
 }
 
