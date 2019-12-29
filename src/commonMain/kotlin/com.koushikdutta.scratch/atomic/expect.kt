@@ -20,7 +20,7 @@ expect class AtomicReference<V>(initialValue: V) {
  *
  * The current value is returned in both cases.
  */
-fun <V> AtomicReference<V?>.swapNull(value: V): V? {
+fun <V> AtomicReference<V?>.swapIfNullElseNull(value: V): V? {
     // successfully set the value, expecting null will return null
     while (!compareAndSet(null, value)) {
         // value being held is currently not null, attempt to null it and retrieve it.

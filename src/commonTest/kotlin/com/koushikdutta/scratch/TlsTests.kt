@@ -124,7 +124,7 @@ class TlsTests {
 
             result1.rethrow()
             result2.rethrow()
-        } catch (exception: SSLHandshakeException) {
+        } catch (exception: SSLException) {
             return
         }
         fail("exception expected")

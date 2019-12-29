@@ -10,14 +10,16 @@ import com.koushikdutta.scratch.buffers.*
 abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val affinity: AsyncAffinity? = null) {
     // baton data is true for a write, false for read to verify read is not called erroneously.
     private val baton = Baton<Boolean>()
-    private val pending = AtomicBuffers()
+    private val pending = FreezableBuffers()
     private val needsWritable = AtomicBoolean()
 
     fun end(throwable: Throwable): Boolean {
+        pending.freeze()
         return baton.raiseFinish(throwable)?.finished != true
     }
 
     fun end(): Boolean {
+        pending.freeze()
         return baton.finish(true)?.finished != true
     }
 
@@ -29,7 +31,11 @@ abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, priv
     fun write(buffer: ReadableBuffers): Boolean {
         // provide the data and resume any readers.
         baton.toss(true) {
-            buffer.read(pending) >= highWaterMark
+            // this is a synchronization point between the write and read.
+            // check this to guarantee that this is resuming a read to
+            // so as not to feed data after the baton has closed.
+            if (it?.finished != true)
+                buffer.read(pending)
         }
 
         // the read coroutine will have synchronously finished
@@ -46,17 +52,17 @@ abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, priv
     protected abstract fun writable()
 
     suspend fun read(buffer: WritableBuffers): Boolean {
-        val toWrite = pending.read()
-
-        if (toWrite.read(buffer)) {
-            pending.reclaim(toWrite)
-            return true
+        val result = pending.read(buffer)
+        // if the read failed, the pipe is closing.
+        if (result == null) {
+            // wait for the baton to finish or throw/finish
+            if (baton.pass(false) { it.rethrow(); it.isSuccess && !it.value!! && !it.resumed })
+                throw IOException("read cancelled by another read")
+            return !baton.isFinished
         }
-        pending.reclaim(toWrite)
-
-        if (baton.isFinished) {
-            baton.rethrow()
-            return false
+        else if (result) {
+            // successful read drained the buffer
+            return true
         }
 
         if (needsWritable.getAndSet(false)) {
@@ -65,8 +71,6 @@ abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, priv
             return true
         }
 
-        // throw an exception. returning false may cause a spin lock by
-        // two simultaneous read loops.
         if (baton.pass(false) { it.isSuccess && !it.value!! && !it.resumed })
             throw IOException("read cancelled by another read")
 

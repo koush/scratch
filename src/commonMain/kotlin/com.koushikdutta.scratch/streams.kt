@@ -1,5 +1,8 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.atomic.FreezableBuffers
+import com.koushikdutta.scratch.atomic.read
+import com.koushikdutta.scratch.atomic.takeReclaimedBuffers
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -100,38 +103,16 @@ interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
 }
 
 internal fun <T> genericPipe(read: T, pipe: GenericAsyncPipe<T>): AsyncRead {
-    val yielder = Cooperator()
-    val buffer = ByteBufferList()
-    val value = Promise<Unit>()
-
-    startSafeCoroutine {
-        try {
-            // start out paused, waiting for a read.
-            yielder.yield()
-            pipe(read) {
-                // called back every time there's data. grab it, and wait for the next read call.
-                it.read(buffer)
-                yielder.yield()
-            }
-            value.setComplete(null, Unit)
-            yielder.resume()
-        }
-        catch (throwable: Throwable) {
-            value.setComplete(throwable, null)
-            yielder.resumeWithException(throwable)
-        }
+    val iterator = asyncIterator<ReadableBuffers> {
+        pipe(read, ::`yield`)
     }
 
     return read@{
-        value.rethrow()
-        if (value.value != null)
+        if (!iterator.hasNext())
             return@read false
-
-        buffer.takeReclaimedBuffers(it)
-        yielder.yield()
+        val buffer = iterator.next()
         buffer.read(it)
-
-        true
+        return@read true
     }
 }
 

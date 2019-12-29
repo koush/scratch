@@ -3,13 +3,8 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 
-private data class PipeData(val write: ReadableBuffers? = null, val closed: Boolean = false)
-
-private val pipeReadRequest = PipeData()
-private val pipeClosedRequest = PipeData(closed = true)
-
-private class PipeSocket: AsyncSocket {
-    private val baton = Baton<PipeData>()
+internal class PipeSocket: AsyncSocket {
+    private val baton = Baton<ReadableBuffers?>()
     override suspend fun await() {
     }
 
@@ -17,48 +12,35 @@ private class PipeSocket: AsyncSocket {
     }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
-        // wait for a write
-        while (true) {
-            val result = baton.pass(pipeReadRequest) {
-                // handle the buffer transfer inside the baton lock
-                it.value?.write?.read(buffer)
-                it
-            }
+        return baton.pass(null) {
+            it.rethrow()
+            if (!it.finished && it.value == null && !it.resumed)
+                throw IOException("read cancelled by another read")
 
-            if (result.value!!.closed)
-                return false
-
-            if (result.value.write == null) {
-                // cancel previous read requests on double read calls
-                if (!result.resumed)
-                    return true
-                else
-                    continue
-            }
-            // got a write request, so continue on.
-            break
+            // handle the buffer transfer inside the baton lock
+            it.value?.read(buffer)
+            !it.finished
         }
-        return true
     }
 
     override suspend fun write(buffer: ReadableBuffers) {
-        val result = baton.pass(PipeData(write = buffer))
-        if (result.closed)
-            throw Exception("pipe closed")
+        if (buffer.isEmpty)
+            return
+        baton.pass(buffer) {
+            it.rethrow()
+            if (!it.finished && it.value != null && it.resumed)
+                throw IOException("write already in progress")
+        }
+    }
+
+    suspend fun close(throwable: Throwable) {
+        // ignore errors
+        baton.raiseFinish(throwable) { true }
     }
 
     override suspend fun close() {
-        startSafeCoroutine {
-            while (true) {
-                val result = baton.pass(pipeClosedRequest) {
-                    it
-                }
-                // prevent double close looping by ending the coroutine that
-                // resumed
-                if (result.value!!.closed && result.resumed)
-                    break
-            }
-        }
+        // ignore errors
+        baton.finish(null) { true }
     }
 }
 

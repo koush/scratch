@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.atomic.AtomicQueueNode
-import com.koushikdutta.scratch.atomic.FreezableAtomicQueue
+import com.koushikdutta.scratch.atomic.FreezableQueue
 import com.koushikdutta.scratch.buffers.ByteBuffer
 
 interface AsyncIterator<out T> {
@@ -107,14 +106,12 @@ fun <T> createAsyncIterable(block: suspend AsyncIteratorScope<T>.() -> Unit): As
     }
 }
 
-private data class AsyncQueueItem<T>(val value: T?, val throwable: Throwable?)
-
 /**
  * Feed an async iterator by queuing items into it.
  * TBD: for .. in loops will pop items from the queue. Remove iterator operator keyword?
  */
 open class AsyncQueue<T> : AsyncIterable<T> {
-    private val queue = FreezableAtomicQueue<AsyncQueueItem<T>>()
+    private val queue = FreezableQueue<T>()
     private val baton = Baton<Unit>()
 
     protected open fun removed(value: T) {
@@ -123,19 +120,22 @@ open class AsyncQueue<T> : AsyncIterable<T> {
     private val iter = asyncIterator<T> {
         while (true) {
             val item = queue.remove()
+
+            // queue empty
             if (item == null) {
-                baton.pass(Unit)
+                // ignore exceptions to drain the queue
+                baton.pass(Unit) { true }
                 continue
             }
 
-            // throwing is also implicitly frozen
-            if (item.value.throwable != null)
-                throw item.value.throwable
+            // end of queue, wait until the baton finishes.
+            if (item.frozen) {
+                // rethrow the finisher, or continue if not finished.
+                if (baton.pass(Unit) { it.rethrow(); it.finished })
+                    break
+            }
 
-            if (item.frozen)
-                break
-
-            val value = item.value.value!!
+            val value = item.value!!
             yield(value)
             removed(value)
         }
@@ -146,19 +146,23 @@ open class AsyncQueue<T> : AsyncIterable<T> {
     }
 
     fun end(): Boolean {
-        return queue.freeze(AsyncQueueItem(null, null))
+        queue.freeze()
+        return baton.finish(Unit)?.finished != true
     }
 
     fun end(throwable: Throwable): Boolean {
-        return queue.freeze(AsyncQueueItem(null, throwable))
+        queue.freeze()
+        return baton.raiseFinish(throwable)?.finished != true
     }
 
     open fun add(value: T): Boolean {
-        if (!queue.add(AsyncQueueItem(value, null)))
-            return false
-
-        baton.toss(Unit)
-        return true
+        return baton.toss(Unit) {
+            // only add if not finished
+            if (it?.finished == true)
+                false
+            else
+                queue.add(value)
+        }
     }
 }
 
