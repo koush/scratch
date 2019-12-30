@@ -30,12 +30,14 @@ abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, priv
      */
     fun write(buffer: ReadableBuffers): Boolean {
         // provide the data and resume any readers.
-        baton.toss(true) {
+        val read = baton.toss(true) {
             // this is a synchronization point between the write and read.
             // check this to guarantee that this is resuming a read to
             // so as not to feed data after the baton has closed.
             if (it?.finished != true)
                 buffer.read(pending)
+            else
+                null
         }
 
         // the read coroutine will have synchronously finished
@@ -43,9 +45,11 @@ abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, priv
         buffer.takeReclaimedBuffers(pending)
 
         // check if writable needs to be invoked
-        val setNeedsWritable = pending.remaining >= highWaterMark
-        if (setNeedsWritable && !needsWritable.getAndSet(true))
+        val setNeedsWritable = (read ?: Int.MAX_VALUE) >= highWaterMark
+        if (setNeedsWritable) {
+            needsWritable.getAndSet(true)
             return false
+        }
         return true
     }
 
