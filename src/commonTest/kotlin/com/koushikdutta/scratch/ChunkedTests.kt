@@ -16,11 +16,12 @@ class ChunkedTests {
 
         async {
             val output = asyncWriter {
-                write(ByteBufferList().putUtf8String("Hello World"))
-                write(ByteBufferList().putUtf8String("Another Chunk"))
-                write(ByteBufferList().putUtf8String("More Chunks"))
+                buffer.putUtf8String("Hello World")
+                buffer.putUtf8String("Another Chunk")
+                buffer.putUtf8String("More Chunks")
+                flush()
             }
-                    .pipe(ChunkedOutputPipe)
+            .pipe(ChunkedOutputPipe)
 
             val input = AsyncReader(output).pipe(ChunkedInputPipe)
             data = readAllString(input)

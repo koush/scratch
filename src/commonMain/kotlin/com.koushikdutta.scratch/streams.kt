@@ -1,9 +1,5 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.atomic.FreezableBuffers
-import com.koushikdutta.scratch.atomic.read
-import com.koushikdutta.scratch.atomic.takeReclaimedBuffers
-import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
