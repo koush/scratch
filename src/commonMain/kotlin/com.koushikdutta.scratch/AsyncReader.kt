@@ -199,4 +199,4 @@ class AsyncReader(val input: AsyncRead) {
     }
 }
 
-typealias AsyncReaderPipe = suspend (reader: AsyncReader, yield: suspend (buffer: ReadableBuffers) -> Unit) -> Unit
+typealias AsyncReaderPipe = suspend AsyncPipeIteratorScope.(reader: AsyncReader) -> Unit

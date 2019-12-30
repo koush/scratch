@@ -10,6 +10,7 @@ fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Promise<T> {
             deferred.setComplete(null, block())
         }
         catch (exception: Throwable) {
+            println(exception)
             rethrowUnhandledAsyncException(exception)
             deferred.setComplete(exception, null)
         }

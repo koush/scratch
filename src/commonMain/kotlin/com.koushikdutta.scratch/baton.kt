@@ -42,10 +42,11 @@ private data class BatonContinuationLockedData<T, RR>(val continuation: Continua
         val resumeResult: LockResult<R>?
         val pendingResult: LockResult<RR>?
 
+        // process locks and callbacks in the order they were received
         if (data != null) {
+            pendingResult = data.lock?.resultInvoke(BatonResult(throwable, value, false, finish))
             val batonResult = BatonResult(data.throwable, data.value, true, frozen)
             resumeResult = lock?.resultInvoke(batonResult)
-            pendingResult = data.lock?.resultInvoke(BatonResult(throwable, value, false, finish))
         }
         else {
             if (immediate)
@@ -61,10 +62,13 @@ private data class BatonContinuationLockedData<T, RR>(val continuation: Continua
 
 private data class BatonContinuationData<T, R, RR>(val pendingContinuation: Continuation<RR>?, val pendingResult: LockResult<RR>?, val resumeResult: LockResult<R>?) {
     fun resumeContinuations(resumingContinuation: Continuation<R>?): R? {
-        if (resumeResult != null)
-            resumingContinuation?.resume(resumeResult)
+        // process locks and callbacks in the order they were received
+
         if (pendingResult != null)
             pendingContinuation?.resume(pendingResult)
+
+        if (resumeResult != null)
+            resumingContinuation?.resume(resumeResult)
 
         if (resumingContinuation == null)
             resumeResult?.rethrow()

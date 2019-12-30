@@ -26,10 +26,9 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket::read)
     private val decryptAllocator = AllocationTracker()
-    private val decryptedRead = (socketRead::read as AsyncRead).pipe { read, yield ->
+    private val decryptedRead = (socketRead::read as AsyncRead).pipe {
         val unfiltered = ByteBufferList();
-        val filtered = ByteBufferList()
-        while (read(unfiltered) || !unfiltered.isEmpty) {
+        while (it(unfiltered) || !unfiltered.isEmpty) {
             // SSLEngine.unwrap
             while (true) {
                 // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
@@ -43,7 +42,7 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
                 val byteBuffer = unfiltered.readByteBuffer()
 
                 var bytesProduced = 0
-                val result = filtered.putAllocatedBuffer(decryptAllocator.requestNextAllocation()) {
+                val result = buffer.putAllocatedBuffer(decryptAllocator.requestNextAllocation()) {
                     val before = it.remaining()
                     val ret = engine.unwrap(byteBuffer, it)
                     bytesProduced = before - it.remaining()
@@ -81,7 +80,7 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             }
 
             decryptAllocator.finishTracking()
-            yield(filtered)
+            flush()
         }
     }
 

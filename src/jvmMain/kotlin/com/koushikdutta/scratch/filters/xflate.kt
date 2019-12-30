@@ -1,12 +1,11 @@
 package com.koushikdutta.scratch.filters
 
 import com.koushikdutta.scratch.AsyncPipe
-import com.koushikdutta.scratch.AsyncPipeYield
+import com.koushikdutta.scratch.AsyncPipeIteratorScope
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.buffers.AllocationTracker
 import com.koushikdutta.scratch.buffers.BuffersBufferWriter
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import java.lang.AssertionError
 import java.nio.ByteBuffer
 import java.util.zip.Deflater
 import java.util.zip.Inflater
@@ -17,10 +16,9 @@ private typealias finished = () -> Boolean
 private typealias xflate = (ByteArray, Int, Int) -> Int
 private typealias finish = () -> Unit
 
-private suspend fun XflatePipe(read: AsyncRead, yield: AsyncPipeYield, needsInput: needsInput, setInput: setInput, finished: finished, xflate: xflate, finish: finish) {
+private suspend fun AsyncPipeIteratorScope.XflatePipe(read: AsyncRead, needsInput: needsInput, setInput: setInput, finished: finished, xflate: xflate, finish: finish) {
     val allocator = AllocationTracker()
     val inputBuffer = ByteBufferList()
-    val outputBuffer = ByteBufferList()
 
     val bufferWriter: BuffersBufferWriter<Int> = {
         val xflated = xflate(it.array(), it.arrayOffset() + it.position(), it.remaining())
@@ -43,7 +41,7 @@ private suspend fun XflatePipe(read: AsyncRead, yield: AsyncPipeYield, needsInpu
         // xflate whatever is in the temp buffer
         var recycle: ByteBuffer? = null
         while (true) {
-            val xflated = outputBuffer.putAllocatedBuffer(allocator.requestNextAllocation(), bufferWriter)
+            val xflated = buffer.putAllocatedBuffer(allocator.requestNextAllocation(), bufferWriter)
 
             if (xflated == 0) {
                 // maybe we finished? quit for now and signal eos on next read.
@@ -61,26 +59,24 @@ private suspend fun XflatePipe(read: AsyncRead, yield: AsyncPipeYield, needsInpu
                 // queue up another buffer for xflate
                 val b = ByteBufferList.deepCopyIfDirect(inputBuffer.readFirst())
                 // processed buffers should be reclaimed by the xflater for future allocations
-                outputBuffer.reclaim(recycle)
+                buffer.reclaim(recycle)
                 recycle = b
                 if (!b.hasRemaining())
                     continue
                 setInput(b.array(), b.arrayOffset() + b.position(), b.remaining())
             }
         }
-        outputBuffer.reclaim(recycle)
-        yield(outputBuffer)
+        buffer.reclaim(recycle)
+        flush()
     }
-
-
 }
 
-val DeflatePipe: AsyncPipe = { read, yield ->
+val DeflatePipe: AsyncPipe = {
     val deflater = Deflater()
-    XflatePipe(read, `yield`, deflater::needsInput, deflater::setInput, deflater::finished, deflater::deflate, deflater::finish)
+    XflatePipe(it, deflater::needsInput, deflater::setInput, deflater::finished, deflater::deflate, deflater::finish)
 }
 
-val InflatePipe: AsyncPipe = { read, yield ->
+val InflatePipe: AsyncPipe = {
     val inflater = Inflater()
-    XflatePipe(read, `yield`, inflater::needsInput, inflater::setInput, inflater::finished, inflater::inflate, {})
+    XflatePipe(it, inflater::needsInput, inflater::setInput, inflater::finished, inflater::inflate, {})
 }

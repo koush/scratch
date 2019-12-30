@@ -3,6 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.atomic.FreezableBuffers
 import com.koushikdutta.scratch.atomic.read
 import com.koushikdutta.scratch.atomic.takeReclaimedBuffers
+import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -27,9 +28,14 @@ typealias AsyncWrite = suspend (buffer: ReadableBuffers) -> Unit
 /**
  * A pipe: Given a read, return a read.
  */
-typealias AsyncPipeYield = suspend (buffer: ReadableBuffers) -> Unit
-typealias AsyncPipe = suspend (read: AsyncRead, yield: AsyncPipeYield) -> Unit
-internal typealias GenericAsyncPipe<T> = suspend (read: T, yield: suspend (buffer: ReadableBuffers) -> Unit) -> Unit
+class AsyncPipeIteratorScope internal constructor(val buffer: ByteBufferList, private val scope: AsyncIteratorScope<Unit>) {
+    suspend fun flush() {
+        scope.yield(Unit)
+    }
+}
+
+typealias AsyncPipe = suspend AsyncPipeIteratorScope.(read: AsyncRead) -> Unit
+internal typealias GenericAsyncPipe<T> = suspend AsyncPipeIteratorScope.(read: T) -> Unit
 
 /**
  * An object with thread affinity.
@@ -103,14 +109,17 @@ interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
 }
 
 internal fun <T> genericPipe(read: T, pipe: GenericAsyncPipe<T>): AsyncRead {
-    val iterator = asyncIterator<ReadableBuffers> {
-        pipe(read, ::`yield`)
+    val buffer = ByteBufferList()
+    val iterator = asyncIterator<Unit> {
+        val scope = AsyncPipeIteratorScope(buffer, this)
+        pipe(scope, read)
     }
 
     return read@{
+        buffer.takeReclaimedBuffers(it)
         if (!iterator.hasNext())
             return@read false
-        val buffer = iterator.next()
+        iterator.next()
         buffer.read(it)
         return@read true
     }

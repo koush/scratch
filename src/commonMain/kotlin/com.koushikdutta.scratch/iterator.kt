@@ -9,8 +9,8 @@ interface AsyncIterator<out T> {
     fun rethrow()
 }
 
-internal class AsyncIteratorMessage<T>(val throwable: Throwable? = null, val value: T? = null, val done: Boolean = false, val hasNext: Boolean = false, val next: Boolean = false, val resuming: Boolean = false)
-class AsyncIteratorScope<T> internal constructor(private val baton: Baton<AsyncIteratorMessage<T>>) {
+class AsyncIteratorMessage<T>(val throwable: Throwable? = null, val value: T? = null, val done: Boolean = false, val hasNext: Boolean = false, val next: Boolean = false, val resuming: Boolean = false)
+open class AsyncIteratorScope<T> internal constructor(private val baton: Baton<AsyncIteratorMessage<T>>) {
     private val resumingMessage = AsyncIteratorMessage<T>(resuming = true)
 
     private fun validateMessage(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
@@ -35,7 +35,7 @@ class AsyncIteratorScope<T> internal constructor(private val baton: Baton<AsyncI
 
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val baton = Baton<AsyncIteratorMessage<T>>()
-    val scope = AsyncIteratorScope<T>(baton)
+    val scope = AsyncIteratorScope(baton)
     startSafeCoroutine {
         try {
             scope.waitNext()

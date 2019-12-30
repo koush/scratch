@@ -141,13 +141,14 @@ abstract class BlockingWritePipe(private val affinity: AsyncAffinity? = null) {
         writeLock {
             try {
                 buffer.read(pending)
-                write(pending)
                 while (pending.hasRemaining()) {
-                    baton.pass(Unit)
                     affinity?.await()
                     write(pending)
+                    buffer.takeReclaimedBuffers(pending)
+
+                    if (pending.hasRemaining())
+                        baton.pass(Unit)
                 }
-                buffer.takeReclaimedBuffers(pending)
             }
             catch (throwable: Throwable) {
                 baton.raiseFinish(throwable)

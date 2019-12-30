@@ -9,22 +9,20 @@ import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.contentLength
 import com.koushikdutta.scratch.http.transferEncoding
-import com.koushikdutta.scratch.pipe
 import kotlin.math.min
 
 
 fun createContentLengthPipe(contentLength: Long): AsyncReaderPipe {
     require(contentLength >= 0) { "negative content length received: $contentLength" }
     var length = contentLength
-    val temp = ByteBufferList()
 
-    return { reader, yield ->
+    return {
         while (length > 0L) {
             val toRead = min(Int.MAX_VALUE.toLong(), length)
-            if (!reader.readChunk(temp, toRead.toInt()))
+            if (!it.readChunk(buffer, toRead.toInt()))
                 throw Exception("stream ended before end of expected content length")
-            length -= temp.remaining()
-            yield(temp)
+            length -= buffer.remaining()
+            flush()
         }
     }
 }
@@ -39,7 +37,7 @@ fun createEndWatcher(read: AsyncRead, complete: suspend () -> Unit): AsyncRead {
 }
 
 fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRead {
-    var read: AsyncRead
+    val read: AsyncRead
 
     val contentLength = headers.contentLength
     if (contentLength != null) {

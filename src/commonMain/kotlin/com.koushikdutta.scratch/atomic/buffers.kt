@@ -24,8 +24,14 @@ class FreezableBuffers: Freezable {
             }
             value
         }
-        if (ret == null)
+        if (ret == null) {
+            val returnedBuffers = returned.getAndSet(null)
+            if (returnedBuffers != null) {
+                returnedBuffers.takeReclaimedBuffers(into)
+                reclaim(returnedBuffers)
+            }
             return false
+        }
         val hasData = ret.read(into)
         reclaim(ret)
         return hasData

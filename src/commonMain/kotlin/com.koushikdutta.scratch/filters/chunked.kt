@@ -20,40 +20,38 @@ payload to send
 
 val CRLF = byteArrayOf(0x0d, 0x0a)
 
-val ChunkedInputPipe: AsyncReaderPipe = { reader, yield ->
+val ChunkedInputPipe: AsyncReaderPipe = {
     // hexLength(variable length) + CRLF
     // data(hexLength) + CRLF
     // [repeat above]
     // hexLength(0) + CRLF      (termination)
 
-    val temp = ByteBufferList()
     while (true) {
-        if (!reader.readScan(temp, CRLF))
+        if (!it.readScan(buffer, CRLF))
             throw Exception("stream ended before chunk length")
-        val length = temp.readUtf8String().trim().toInt(16)
+        val length = buffer.readUtf8String().trim().toInt(16)
         require(length >= 0) { "negative length chunk encountered" }
-        if (!reader.readLength(temp, length))
+        if (!it.readLength(buffer, length))
             throw Exception("read ended before chunk completed")
-        yield(temp)
-        if (!reader.readScan(temp, CRLF))
+        flush()
+        if (!it.readScan(buffer, CRLF))
             throw Exception("CRLF expected following data chunk")
         if (length == 0)
             break
     }
 }
 
-val ChunkedOutputPipe: AsyncPipe = { read, yield ->
+val ChunkedOutputPipe: AsyncPipe = {
     val temp = ByteBufferList()
-    val buffer = ByteBufferList()
 
-    while (read(temp)) {
+    while (it(temp)) {
         if (temp.isEmpty)
             continue
         buffer.putUtf8String("${temp.remaining().toString(16).toUpperCase()}\r\n")
         buffer.add(temp)
         buffer.putUtf8String("\r\n")
-        yield(buffer)
+        flush()
     }
     buffer.putUtf8String("0\r\n\r\n")
-    yield(buffer)
+    flush()
 }

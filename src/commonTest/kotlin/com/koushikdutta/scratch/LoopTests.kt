@@ -198,12 +198,7 @@ class LoopTests {
         val server = listen(0)
 
         server.acceptAsync {
-            val buffer = ByteBufferList()
-            val random = TestUtils.createRandomRead(100000000)
-            while (random(buffer)) {
-                write(buffer)
-                assertTrue(buffer.isEmpty)
-            }
+            TestUtils.createRandomRead(100000000).copy(::write)
             close()
         }
 
@@ -256,6 +251,7 @@ class LoopTests {
         val connectCount = 5000
         val random = Random.Default
         for (i in 0 until connectCount) {
+            // this test is flaky. connection resets if the system can't handle it.
             async {
                 sleep(abs(random.nextLong()) % 5000)
                 val socket = connect("127.0.0.1", server.localPort)
@@ -265,6 +261,7 @@ class LoopTests {
                 if (connected == connectCount)
                     resume!!.resume(Unit)
             }
+            .rethrow()
         }
         suspendCoroutine<Unit> {
             resume = it
