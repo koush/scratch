@@ -9,10 +9,8 @@ class NioTests {
     @Test
     fun testNioWriter() {
         var highWater = false
-        val pipe = object : NonBlockingWritePipe(0) {
-            override fun writable() {
-                highWater = true
-            }
+        val pipe = NonBlockingWritePipe(0) {
+            highWater = true
         }
 
         // start reading first, otherwise the entire data will be read in one go
@@ -36,10 +34,8 @@ class NioTests {
     @Test
     fun testNioWriterWritable() {
         val yielder = Cooperator()
-        val pipe = object : NonBlockingWritePipe(0) {
-            override fun writable() {
-                yielder.resume()
-            }
+        val pipe = NonBlockingWritePipe(0) {
+            yielder.resume()
         }
 
         async {
@@ -72,9 +68,7 @@ class NioTests {
 
     @Test
     fun testDoubleReadError() {
-        val pipe = object : NonBlockingWritePipe(0) {
-            override fun writable() {
-            }
+        val pipe = NonBlockingWritePipe(0) {
         }
 
         async {

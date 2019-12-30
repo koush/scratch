@@ -17,10 +17,8 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
         internal set
     val writeYielder = Cooperator()
     val writeBuffer = ByteBufferList()
-    val input = object : NonBlockingWritePipe() {
-        override fun writable() {
-            acknowledgeData()
-        }
+    val input =  NonBlockingWritePipe {
+        acknowledgeData()
     }
 
     override suspend fun await() {

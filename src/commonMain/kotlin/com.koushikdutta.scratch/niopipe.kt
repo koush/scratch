@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.buffers.*
 /**
  * This class pipes nonblocking write calls to AsyncRead.
  */
-abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val affinity: AsyncAffinity? = null) {
+class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val affinity: AsyncAffinity? = null, val writable: NonBlockingWritePipe.() -> Unit) {
     // baton data is true for a write, false for read to verify read is not called erroneously.
     private val baton = Baton<Boolean>()
     private val pending = FreezableBuffers()
@@ -53,8 +53,6 @@ abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, priv
         return true
     }
 
-    protected abstract fun writable()
-
     suspend fun read(buffer: WritableBuffers): Boolean {
         val result = pending.read(buffer)
         // if the read failed, the pipe is closing.
@@ -84,35 +82,25 @@ abstract class NonBlockingWritePipe(private val highWaterMark: Int = 65536, priv
 
 fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
     val self = this
-    val pipe = object : NonBlockingWritePipe(highWaterMark) {
-        val buffer = ByteBufferList()
-
-        init {
-            triggerRead()
-        }
-
-        fun triggerRead() {
-            startSafeCoroutine {
-                try {
-                    while (true) {
-                        if (!self(buffer)) {
-                            end()
-                            break;
-                        }
-                        if (!write(buffer))
-                            break
+    val buffer = ByteBufferList()
+    val pipe = NonBlockingWritePipe(highWaterMark) {
+        startSafeCoroutine {
+            try {
+                while (true) {
+                    if (!self(buffer)) {
+                        end()
+                        break;
                     }
-                }
-                catch (throwable: Throwable) {
-                    end(throwable)
+                    if (!write(buffer))
+                        break
                 }
             }
-        }
-
-        override fun writable() {
-            triggerRead()
+            catch (throwable: Throwable) {
+                end(throwable)
+            }
         }
     }
+    pipe.writable(pipe)
 
     return pipe::read
 }
@@ -124,12 +112,13 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
  * Upon returning unsent data, the transport is responsible for calling writable
  * when it is ready to resume sending data.
  */
-abstract class BlockingWritePipe(private val affinity: AsyncAffinity? = null) {
+class BlockingWritePipe(private val affinity: AsyncAffinity? = null, val writer: BlockingWritePipe.(buffer: Buffers) -> Unit) {
     private val baton = Baton<Unit>()
     private val pending = ByteBufferList()
     private val writeLock = AtomicThrowingLock {
         IOException("write already in progress")
     }
+
     fun writable() {
         baton.toss(Unit)
     }
@@ -139,15 +128,13 @@ abstract class BlockingWritePipe(private val affinity: AsyncAffinity? = null) {
         return baton.raiseFinish(exception)?.finished != true
     }
 
-    protected abstract fun write(buffer: Buffers)
-
     suspend fun write(buffer: ReadableBuffers) {
         writeLock {
             try {
                 buffer.read(pending)
                 while (pending.hasRemaining()) {
                     affinity?.await()
-                    write(pending)
+                    writer(pending)
                     buffer.takeReclaimedBuffers(pending)
 
                     if (pending.hasRemaining())
@@ -160,4 +147,18 @@ abstract class BlockingWritePipe(private val affinity: AsyncAffinity? = null) {
             }
         }
     }
+}
+
+class ThrottlingPipe(affinity: AsyncAffinity?, val throttle: () -> Boolean) {
+    private val nonblocking: NonBlockingWritePipe = NonBlockingWritePipe(affinity = affinity) {
+        blocking.writable()
+    }
+    private val blocking: BlockingWritePipe = BlockingWritePipe(affinity) writer@{
+        if (!throttle())
+            return@writer
+        nonblocking.write(it)
+    }
+
+    suspend fun write(buffer: ReadableBuffers) = blocking.write(buffer)
+    suspend fun read(buffer: WritableBuffers) = nonblocking.read(buffer)
 }

@@ -70,20 +70,17 @@ private data class NIODatagramPacket(val remoteAddress: InetSocketAddress, val d
 class NIODatagram internal constructor(val server: AsyncEventLoop, private val channel: DatagramChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by server {
     val localPort = channel.socket().localPort
     val localAddress = channel.socket().localAddress!!
-    private val output = object : BlockingWritePipe() {
-        override fun write(buffer: Buffers) {
-            while (buffer.hasRemaining()) {
-                val before = buffer.remaining()
-                val buffers = buffer.readAll()
-                channel.write(buffers)
-                buffer.addAll(*buffers)
-                val after = buffer.remaining()
-                if (before == after) {
-                    key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
-                    break
-                }
+    private val output = BlockingWritePipe {
+        while (it.hasRemaining()) {
+            val before = it.remaining()
+            val buffers = it.readAll()
+            channel.write(buffers)
+            it.addAll(*buffers)
+            val after = it.remaining()
+            if (before == after) {
+                key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
+                break
             }
-
         }
     }
     private var closed = false
@@ -211,25 +208,20 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
     private val inputBuffer = ByteBufferList()
     private var closed = false
     private val allocator = AllocationTracker()
-    private val input = object : NonBlockingWritePipe() {
-        override fun writable() {
-            key.interestOps(SelectionKey.OP_READ or key.interestOps())
-        }
+    private val input = NonBlockingWritePipe {
+        key.interestOps(SelectionKey.OP_READ or key.interestOps())
     }
-    private val output = object : BlockingWritePipe() {
-        override fun write(buffer: Buffers) {
-            while (buffer.hasRemaining()) {
-                val before = buffer.remaining()
-                val buffers = buffer.readAll()
-                channel.write(buffers)
-                buffer.addAll(*buffers)
-                val after = buffer.remaining()
-                if (before == after) {
-                    key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
-                    break
-                }
+    private val output = BlockingWritePipe {
+        while (it.hasRemaining()) {
+            val before = it.remaining()
+            val buffers = it.readAll()
+            channel.write(buffers)
+            it.addAll(*buffers)
+            val after = it.remaining()
+            if (before == after) {
+                key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
+                break
             }
-
         }
     }
 
