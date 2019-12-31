@@ -33,7 +33,7 @@ class NioTests {
 
     @Test
     fun testNioWriterWritable() {
-        val yielder = Cooperator()
+        val yielder = Yielder()
         val pipe = NonBlockingWritePipe(0) {
             yielder.resume()
         }

@@ -124,7 +124,7 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
     }
 
     fun writable() {
-        baton.toss(Unit)
+        baton.take(Unit)
     }
 
     fun close(): Boolean = close(IOException("pipe closed"))

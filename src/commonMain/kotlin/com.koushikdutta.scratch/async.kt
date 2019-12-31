@@ -50,32 +50,6 @@ internal fun startSafeCoroutine(block: suspend() -> Unit) {
     })
 }
 
-
-class Cooperator {
-    var waiting: Continuation<Unit>? = null
-    private fun updateWaitingLocked(update: Continuation<Unit>?): Continuation<Unit>? {
-        val resume = waiting
-        waiting = update
-        return resume
-    }
-    private fun updateWaiting(update: Continuation<Unit>?): Continuation<Unit>? {
-        synchronized(this) {
-            return updateWaitingLocked(update)
-        }
-    }
-    fun resume() {
-        updateWaiting(null)?.resume(Unit)
-    }
-    fun resumeWithException(exception: Throwable) {
-        updateWaiting(null)?.resumeWithException(exception)
-    }
-    suspend fun yield() {
-        suspendCoroutine<Unit> { continuation ->
-            updateWaiting(continuation)?.resume(Unit)
-        }
-    }
-}
-
 /**
  * Create a coroutine executor that can be used to serialize
  * suspending calls.

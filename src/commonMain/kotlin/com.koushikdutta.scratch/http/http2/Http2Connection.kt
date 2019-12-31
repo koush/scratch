@@ -9,7 +9,7 @@ import com.koushikdutta.scratch.http.http2.okhttp.*
 import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
 import com.koushikdutta.scratch.http.server.AsyncHttpResponseHandler
 
-internal class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielder: Cooperator? = null) : AsyncSocket, AsyncAffinity by connection.socket {
+internal class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielder: Yielder? = null) : AsyncSocket, AsyncAffinity by connection.socket {
     var headers: List<Header>? = null
     var trailers: List<Header>? = null
     var writeBytesAvailable: Long = connection.peerSettings.initialWindowSize.toLong()
@@ -18,17 +18,22 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
         acknowledgeData()
     }
     val output = BlockingWritePipe {
+        // break the data into write frames, until it's all written.
         while (it.hasRemaining() && writeBytesAvailable > 0) {
-            // perform this write frame on the connection handler
+            // perform each write frame on the connection handler, not the whole operation, to allow write interleaving
+            // from other streams.
             connection.handler.run {
+                // determine the maximum amount that can be written given the stream and connection windows.
                 val chunkMin = minOf(it.remaining().toLong(), writeBytesAvailable)
                 val connectionMin = minOf(connection.writer.maxDataLength().toLong(), connection.writeBytesAvailable)
                 val toWrite = minOf(chunkMin, connectionMin)
 
+                // update the windows
                 writeBytesAvailable -= toWrite
                 connection.writeBytesAvailable -= toWrite
 
                 connection.writer.data(false, streamId, it, toWrite.toInt())
+                // wait for write to finish on the connection.
                 connection.flushData()
             }
         }
@@ -124,7 +129,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
         internal set
 
     var closedCallback: Http2ConnectionClose? = null
-    val pinger = Cooperator()
+    val pinger = Yielder()
     var awaitingPong = false
 
     // okhttp uses a blocking sink. after all write operations, gotta flush this sink by actually
@@ -433,7 +438,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
     }
 
     suspend fun newStream(request: AsyncHttpRequest, associatedStreamId: Int = 0): Http2Stream {
-        val yielder = Cooperator()
+        val yielder = Yielder()
 
         val requestBody = request.body
         val outFinished = requestBody == null

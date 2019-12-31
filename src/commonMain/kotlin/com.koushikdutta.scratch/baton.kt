@@ -86,7 +86,7 @@ private data class BatonWaiter<T, R>(val continuation: Continuation<R>?, val dat
 class Baton<T>() {
     private val freeze = FreezableReference<BatonWaiter<T, *>>()
 
-    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonTossLock<T, R>? = null, finish: Boolean = false, continuation: Continuation<R>? = null): R? {
+    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonTossLock<T, R>? = null, take: Boolean = false, finish: Boolean = false, continuation: Continuation<R>? = null): R? {
         val immediate = continuation == null
         val dataLock = if (immediate) null else lock
         val cdata = if (finish) {
@@ -103,6 +103,9 @@ class Baton<T>() {
                 // fast path with no extra allocations in case there's a waiter
                 resume.value.getContinuationLockedData()
             }
+            else if (take) {
+                BatonContinuationLockedData(null, null, false)
+            }
             else {
                 // slow path with allocations and spin lock
                 val waiter = freeze.swapIfNullElseNull(BatonWaiter(continuation, BatonData(throwable, value, dataLock), false))
@@ -117,7 +120,7 @@ class Baton<T>() {
     }
 
 
-    private suspend fun <R> pass(throwable: Throwable?, value: T?, lock: BatonLock<T, R>? = null, finish: Boolean = false): R = suspendCoroutine {
+    private suspend fun <R> pass(throwable: Throwable?, value: T?, lock: BatonLock<T, R>? = null): R = suspendCoroutine {
         val wrappedLock: BatonTossLock<T, R>? =
         if (lock != null) {
             { result ->
@@ -127,7 +130,7 @@ class Baton<T>() {
         else {
             null
         }
-        passInternal(throwable, value, wrappedLock, finish, it)
+        passInternal(throwable, value, wrappedLock, continuation = it)
     }
 
     fun rethrow() {
@@ -141,6 +144,22 @@ class Baton<T>() {
 
     private val defaultTossLock: BatonTossLock<T, T?> = {
         it?.value
+    }
+
+    fun take(value: T): T? {
+        return passInternal(null, value, take = true, lock = defaultTossLock)
+    }
+
+    fun takeRaise(throwable: Throwable): T? {
+        return passInternal(throwable, null, take = true, lock = defaultTossLock)
+    }
+
+    fun <R> take(value: T, tossLock: BatonTossLock<T, R>): R {
+        return passInternal(null, value, take = true, lock = tossLock)!!
+    }
+
+    fun <R> takeRaise(throwable: Throwable, tossLock: BatonTossLock<T, R>): R {
+        return passInternal(throwable, null, take = true, lock = tossLock)!!
     }
 
     fun toss(value: T): T? {

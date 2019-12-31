@@ -244,4 +244,13 @@ class BatonTests {
         assertNull(baton.toss(5))
         assertEquals(baton.toss(1), 5)
     }
+
+    @Test
+    fun testBatonTake() {
+        val baton = Baton<Int>()
+        assertNull(baton.take(2), null)
+        assertNull(baton.toss(3))
+        assertEquals(baton.take(4), 3)
+        assertNull(baton.take(5), null)
+    }
 }
