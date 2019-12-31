@@ -448,7 +448,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
             nextStreamId += 2
 
             val stream = Http2Stream(this, streamId, yielder)
-            streams[streamId] = stream!!
+            streams[streamId] = stream
 
             val headerList = Http2ExchangeCodec.createRequestHeaders(request)
 
