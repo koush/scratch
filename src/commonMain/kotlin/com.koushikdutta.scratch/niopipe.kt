@@ -147,18 +147,3 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
         }
     }
 }
-
-class ThrottlingPipe(private val throttle: suspend() -> Int, writer: suspend ThrottlingPipe.(buffer: Buffers, length: Int) -> Unit) {
-    val blocking = BlockingWritePipe {
-        val length = throttle()
-        if (length == 0)
-            return@BlockingWritePipe
-        writer(it, length)
-    }
-
-    suspend fun write(buffer: ReadableBuffers) = blocking.write(buffer)
-    fun writable() = blocking.writable()
-
-    fun close() = blocking.close()
-    fun close(exception: Throwable) = blocking.close(exception)
-}
