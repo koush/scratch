@@ -16,6 +16,7 @@
 package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.IOException
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.http.http2.*
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.CONNECTION_PREFACE
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.FLAG_ACK
@@ -134,14 +135,14 @@ internal class Http2Writer(
    * @param source the buffer to draw bytes from. May be null if byteCount is 0.
    * @param byteCount must be between 0 and the minimum of `source.length` and [maxDataLength].
    */
-  fun data(outFinished: Boolean, streamId: Int, source: Buffer?, byteCount: Int) {
+  fun data(outFinished: Boolean, streamId: Int, source: ReadableBuffers?, byteCount: Int) {
     if (closed) throw IOException("closed")
     var flags = FLAG_NONE
     if (outFinished) flags = flags or FLAG_END_STREAM
     dataFrame(streamId, flags, source, byteCount)
   }
 
-  fun dataFrame(streamId: Int, flags: Int, buffer: Buffer?, byteCount: Int) {
+  fun dataFrame(streamId: Int, flags: Int, buffer: ReadableBuffers?, byteCount: Int) {
     frameHeader(
         streamId = streamId,
         length = byteCount,

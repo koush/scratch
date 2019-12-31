@@ -108,7 +108,7 @@ internal fun BufferedSink.write(bytes: ByteArray) {
     add(ByteBufferList.deepCopy(createByteBuffer(bytes)))
 }
 
-internal fun BufferedSink.write(buffer: Buffer, length: Long) {
+internal fun BufferedSink.write(buffer: ReadableBuffers, length: Long) {
     buffer.read(this, length.toInt())
 }
 
