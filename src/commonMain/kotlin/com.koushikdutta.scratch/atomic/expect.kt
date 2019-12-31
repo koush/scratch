@@ -14,6 +14,15 @@ expect class AtomicReference<V>(initialValue: V) {
     fun set(value: V)
 }
 
+fun <V> AtomicReference<V>.update(update: (value: V) -> V): V {
+    while (true) {
+        val currentValue = get()
+        val newValue = update(currentValue)
+        if (compareAndSet(currentValue, newValue))
+            return newValue
+    }
+}
+
 /**
  * If the current value is null, swap the null with the provided value.
  * If the current value is not null, swap the current value with null.

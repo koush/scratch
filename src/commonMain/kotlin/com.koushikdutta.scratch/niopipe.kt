@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.buffers.*
 /**
  * This class pipes nonblocking write calls to AsyncRead.
  */
-class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val affinity: AsyncAffinity? = null, val writable: NonBlockingWritePipe.() -> Unit) {
+class NonBlockingWritePipe(private val highWaterMark: Int = 65536, val writable: suspend NonBlockingWritePipe.() -> Unit) {
     // baton data is true for a write, false for read to verify read is not called erroneously.
     private val baton = Baton<Boolean>()
     private val pending = FreezableBuffers()
@@ -68,7 +68,6 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val a
         }
 
         if (needsWritable.getAndSet(false)) {
-            affinity?.await()
             writable()
             return true
         }
@@ -83,7 +82,7 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val a
 fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
     val self = this
     val buffer = ByteBufferList()
-    val pipe = NonBlockingWritePipe(highWaterMark) {
+    val writable: NonBlockingWritePipe.() -> Unit = {
         startSafeCoroutine {
             try {
                 while (true) {
@@ -100,7 +99,8 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
             }
         }
     }
-    pipe.writable(pipe)
+    val pipe = NonBlockingWritePipe(highWaterMark) { writable() }
+    writable(pipe)
 
     return pipe::read
 }
@@ -112,7 +112,7 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
  * Upon returning unsent data, the transport is responsible for calling writable
  * when it is ready to resume sending data.
  */
-class BlockingWritePipe(private val affinity: AsyncAffinity? = null, val writer: BlockingWritePipe.(buffer: Buffers) -> Unit) {
+open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buffer: Buffers) -> Unit) {
     private val baton = Baton<Unit>()
     private val pending = ByteBufferList()
     private val writeLock = AtomicThrowingLock {
@@ -133,7 +133,6 @@ class BlockingWritePipe(private val affinity: AsyncAffinity? = null, val writer:
             try {
                 buffer.read(pending)
                 while (pending.hasRemaining()) {
-                    affinity?.await()
                     writer(pending)
                     buffer.takeReclaimedBuffers(pending)
 
@@ -149,16 +148,17 @@ class BlockingWritePipe(private val affinity: AsyncAffinity? = null, val writer:
     }
 }
 
-class ThrottlingPipe(affinity: AsyncAffinity?, val throttle: () -> Boolean) {
-    private val nonblocking: NonBlockingWritePipe = NonBlockingWritePipe(affinity = affinity) {
-        blocking.writable()
-    }
-    private val blocking: BlockingWritePipe = BlockingWritePipe(affinity) writer@{
-        if (!throttle())
-            return@writer
-        nonblocking.write(it)
+class ThrottlingPipe(private val throttle: suspend() -> Int, writer: suspend ThrottlingPipe.(buffer: Buffers, length: Int) -> Unit) {
+    val blocking = BlockingWritePipe {
+        val length = throttle()
+        if (length == 0)
+            return@BlockingWritePipe
+        writer(it, length)
     }
 
     suspend fun write(buffer: ReadableBuffers) = blocking.write(buffer)
-    suspend fun read(buffer: WritableBuffers) = nonblocking.read(buffer)
+    fun writable() = blocking.writable()
+
+    fun close() = blocking.close()
+    fun close(exception: Throwable) = blocking.close(exception)
 }
