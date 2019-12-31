@@ -1,15 +1,11 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.AsyncAffinity.Companion.NO_AFFINITY
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 
-internal class PipeSocket: AsyncSocket {
+internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
     private val baton = Baton<ReadableBuffers?>()
-    override suspend fun await() {
-    }
-
-    override suspend fun post() {
-    }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
         return baton.pass(null) {
@@ -60,21 +56,15 @@ fun createAsyncPipeSocketPair() : Pair<PairedPipeSocket, PairedPipeSocket> {
     return Pair(PairedPipeSocket({p1.read(it)}, {p2.write(it)}, close), PairedPipeSocket({p2.read(it)}, {p1.write(it)}, close))
 }
 
-class PairedPipeSocket(val input: AsyncRead, val output: AsyncWrite, val outputClose: suspend() -> Unit) : AsyncSocket {
+class PairedPipeSocket(val input: AsyncRead, val output: AsyncWrite, val outputClose: suspend() -> Unit) : AsyncSocket, AsyncAffinity by NO_AFFINITY {
     override suspend fun read(buffer: WritableBuffers): Boolean = input(buffer)
 
     override suspend fun write(buffer: ReadableBuffers) = output(buffer)
 
     override suspend fun close() = outputClose()
-
-    override suspend fun await() {
-    }
-
-    override suspend fun post() {
-    }
 }
 
-class AsyncPipeServerSocket : AsyncServerSocket<AsyncSocket> {
+class AsyncPipeServerSocket : AsyncServerSocket<AsyncSocket>, AsyncAffinity by NO_AFFINITY {
     val sockets = AsyncQueue<AsyncSocket>()
     var closed = false
 
@@ -85,12 +75,6 @@ class AsyncPipeServerSocket : AsyncServerSocket<AsyncSocket> {
 
         sockets.add(pair.first)
         return pair.second
-    }
-
-    override suspend fun await() {
-    }
-
-    override suspend fun post() {
     }
 
     override fun accept(): AsyncIterable<out AsyncSocket> {

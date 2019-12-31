@@ -110,7 +110,7 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
 typealias Http2ConnectionClose = (exception: Exception?) -> Unit
 
 internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpResponseHandler? = null) {
-    val handler = AsyncHandler({socket.await()})
+    val handler = AsyncHandler(socket)
     var lastGoodStreamId: Int = 0
     var isShutdown = false
     var nextStreamId = if (client) 3 else 2

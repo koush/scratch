@@ -54,13 +54,13 @@ internal fun startSafeCoroutine(block: suspend() -> Unit) {
  * Create a coroutine executor that can be used to serialize
  * suspending calls.
  */
-class AsyncHandler(private val await: suspend() -> Unit) {
+class AsyncHandler(private val affinity: AsyncAffinity) {
     private val queue = AsyncQueue<suspend() -> Unit>()
     private var blocked = false
     init {
         startSafeCoroutine {
             for (block in queue) {
-                await()
+                affinity.await()
                 runBlock(block)
             }
         }
@@ -82,7 +82,7 @@ class AsyncHandler(private val await: suspend() -> Unit) {
     }
 
     suspend fun <T> run(block: suspend() -> T): T {
-        await()
+        affinity.await()
 
         // fast(?) path in case there's nothing in the queue
         // unsure the cost of coroutines, but this prevents a queue/iterator/suspend hit.
