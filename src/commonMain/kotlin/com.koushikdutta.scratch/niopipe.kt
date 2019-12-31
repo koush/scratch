@@ -6,6 +6,10 @@ import com.koushikdutta.scratch.buffers.*
 
 /**
  * This class pipes nonblocking write calls to AsyncRead.
+ * After the high water mark is reached and write returns false, the writable lambda
+ * will be invoked to let the writer know that the pipe is once again ready for data.
+ * The pipe write will always fully succeed, and always take any available data written,
+ * even if the write returns false. Ignoring the high water mark may result in out of memory errors.
  */
 class NonBlockingWritePipe(private val highWaterMark: Int = 65536, val writable: suspend NonBlockingWritePipe.() -> Unit) {
     // baton data is true for a write, false for read to verify read is not called erroneously.
@@ -106,8 +110,8 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
 }
 
 /**
- * This class pipes AsyncWrite calls to nonblocking write calls.
- * The abstract write method writes as much data as the transport can handle
+ * This class pipes AsyncWrite calls to another AsyncWrite call.
+ * The writer lambda writes as much data as the transport can handle
  * and returns the unsent data in the given buffer.
  * Upon returning unsent data, the transport is responsible for calling writable
  * when it is ready to resume sending data.

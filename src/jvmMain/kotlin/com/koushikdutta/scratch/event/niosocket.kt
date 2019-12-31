@@ -209,9 +209,11 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
     private var closed = false
     private val allocator = AllocationTracker()
     private val input = NonBlockingWritePipe {
+        await()
         key.interestOps(SelectionKey.OP_READ or key.interestOps())
     }
     private val output = BlockingWritePipe {
+        await()
         while (it.hasRemaining()) {
             val before = it.remaining()
             val buffers = it.readAll()
