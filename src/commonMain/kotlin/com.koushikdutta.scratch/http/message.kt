@@ -3,25 +3,29 @@ package com.koushikdutta.scratch.http
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.uri.URI
 
+typealias AsyncHttpMessageCompletion = suspend(throwable: Throwable?) -> Unit
+
 abstract class AsyncHttpMessage {
     val headers: Headers
     protected abstract val messageLine: String
     var body: AsyncRead? = null
         internal set
-
     abstract val protocol: String
+    internal val sent: AsyncHttpMessageCompletion?
 
-    constructor(headers: Headers, body: AsyncRead?) {
+    constructor(headers: Headers, body: AsyncRead?, sent: AsyncHttpMessageCompletion? = null) {
         this.headers = headers
         this.body = body
+        this.sent = sent
     }
 
-    constructor(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null) {
+    constructor(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null) {
         this.headers = headers
         if (body != null) {
             this.body = body.read
             headers.contentLength = body.contentLength
         }
+        this.sent = sent
     }
 
     fun toMessageString(): String {
@@ -66,14 +70,14 @@ typealias AsyncHttpRequestProperties = MutableMap<String, Any>
 
 open class AsyncHttpRequest : AsyncHttpMessage {
     private val requestLine: RequestLine
-    constructor(requestLine: RequestLine, headers: Headers, body: AsyncRead? = null) : super(headers, body) {
+    constructor(requestLine: RequestLine, headers: Headers, body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.requestLine = requestLine
     }
-    constructor(requestLine: RequestLine, headers: Headers, body: AsyncHttpMessageBody?) : super(headers, body) {
+    constructor(requestLine: RequestLine, headers: Headers, body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.requestLine = requestLine
     }
-    constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncRead? = null) : this(RequestLine(method, uri, protocol), headers, body)
-    constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncHttpMessageBody?) : this(RequestLine(method, uri, protocol), headers, body)
+    constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, uri, protocol), headers, body, sent)
+    constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, uri, protocol), headers, body, sent)
 
     override val messageLine: String
         get() = "$method $requestLinePathAndQuery $protocol"

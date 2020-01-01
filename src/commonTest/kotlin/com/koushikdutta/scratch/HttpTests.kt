@@ -289,4 +289,36 @@ class HttpTests {
 
         assertEquals(requestsCompleted, 10000)
     }
+
+    @Test
+    fun testHttpRequestSent() {
+        val pair = createAsyncPipeSocketPair()
+
+        async {
+            val httpServer = AsyncHttpServer {
+                AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+            }
+
+            httpServer.accept(pair.second)
+        }
+
+
+        var requestsCompleted = 0
+        var requestSent = 0
+        async {
+            val httpClient = AsyncHttpClient()
+            val reader = AsyncReader({ pair.first.read(it) })
+
+            val get = AsyncHttpRequest.GET("http://example/foo") {
+                requestSent++
+            }
+            val result = httpClient.execute(get, pair.first, reader)
+            val data = readAllString(result.body!!)
+            assertEquals(data, "hello world")
+            requestsCompleted++
+        }
+
+        assertEquals(requestsCompleted, 1)
+        assertEquals(requestSent, 1)
+    }
 }

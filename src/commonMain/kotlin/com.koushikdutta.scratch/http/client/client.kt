@@ -74,9 +74,16 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         requireNotNull(session.socket) { "unable to find transport for uri ${session.request.uri}" }
 
         try {
-            for (middleware in middlewares) {
-                if (middleware.exchangeMessages(session))
-                    break
+            try {
+                for (middleware in middlewares) {
+                    if (middleware.exchangeMessages(session))
+                        break
+                }
+                session.request.sent?.invoke(null)
+            }
+            catch (throwable: Throwable) {
+                session.request.sent?.invoke(throwable)
+                throw throwable
             }
 
             if (session.response == null)
