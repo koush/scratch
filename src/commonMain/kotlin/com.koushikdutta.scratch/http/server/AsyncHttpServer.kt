@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.http.server
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
@@ -31,6 +32,13 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
         }
     }
 
+    private fun reaccept(socket: AsyncSocket, reader: AsyncReader) {
+        // when recyclign a socket, clear the coroutine stack trace.
+        startSafeCoroutine {
+            accept(socket, reader)
+        }
+    }
+
     suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) {
         try {
             val requestLine = reader.readScanUtf8String("\r\n")
@@ -58,48 +66,56 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
                 AsyncHttpResponse.INTERNAL_SERVER_ERROR()
             }
 
-            // make sure the entire request body has been read before sending the response.
-            requestBody.drain()
+            try {
+                // make sure the entire request body has been read before sending the response.
+                requestBody.drain()
 
-            require(response.headers.transferEncoding == null) { "Not allowed to set Transfer-Encoding header" }
+                require(response.headers.transferEncoding == null) { "Not allowed to set Transfer-Encoding header" }
 
-            var responseBody: AsyncRead
+                var responseBody: AsyncRead
 
-            if (response.body != null) {
-                responseBody = response.body!!
-                // todo: fixup for jvm
+                if (response.body != null) {
+                    responseBody = response.body!!
+                    // todo: fixup for jvm
 //                if (requestHeaders.acceptEncodingDeflate) {
 //                    response.headers.set("Content-Encoding", "deflate")
 //                    responseBody = responseBody.pipe(DeflatePipe)
 //                }
 
-                if (response.headers.contentLength == null) {
-                    response.headers.transferEncoding = "chunked"
-                    responseBody = responseBody.pipe(ChunkedOutputPipe)
+                    if (response.headers.contentLength == null) {
+                        response.headers.transferEncoding = "chunked"
+                        responseBody = responseBody.pipe(ChunkedOutputPipe)
+                    }
+                    else {
+                        responseBody = AsyncReader(responseBody).pipe(createContentLengthPipe(response.headers.contentLength!!))
+                    }
                 }
                 else {
-                    responseBody = AsyncReader(responseBody).pipe(createContentLengthPipe(response.headers.contentLength!!))
+                    response.headers.contentLength = 0
+                    responseBody = { false }
                 }
+
+                val buffer = ByteBufferList()
+                buffer.putUtf8String(response.toMessageString())
+                socket.write(buffer)
+
+                responseBody.copy({socket.write(it)})
+
+                if (AsyncSocketMiddleware.isKeepAlive(request, response))
+                    reaccept(socket, reader)
+                else
+                    socket.close()
+
+                response.sent?.invoke(null)
             }
-            else {
-                response.headers.contentLength = 0
-                responseBody = { false }
+            catch (throwable: Throwable) {
+                response.sent?.invoke(throwable)
+                throw throwable
             }
-
-            val buffer = ByteBufferList()
-            buffer.putUtf8String(response.toMessageString())
-            socket.write(buffer)
-
-            responseBody.copy({socket.write(it)})
-
-            if (AsyncSocketMiddleware.isKeepAlive(request, response))
-                accept(socket, reader)
-            else
-                socket.close()
         }
-        catch (exception: Exception) {
+        catch (throwable: Throwable) {
             println("http server error")
-            println(exception)
+            println(throwable)
             socket.close()
         }
     }

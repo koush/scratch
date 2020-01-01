@@ -294,14 +294,16 @@ class HttpTests {
     fun testHttpRequestSent() {
         val pair = createAsyncPipeSocketPair()
 
+        var responseSent = 0
         async {
             val httpServer = AsyncHttpServer {
-                AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+                AsyncHttpResponse.OK(body = Utf8StringBody("hello world")) {
+                    responseSent++
+                }
             }
 
             httpServer.accept(pair.second)
         }
-
 
         var requestsCompleted = 0
         var requestSent = 0
@@ -320,5 +322,6 @@ class HttpTests {
 
         assertEquals(requestsCompleted, 1)
         assertEquals(requestSent, 1)
+        assertEquals(responseSent, 1)
     }
 }

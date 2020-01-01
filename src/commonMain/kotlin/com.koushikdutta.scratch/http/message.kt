@@ -145,10 +145,10 @@ class ResponseLine {
 
 class AsyncHttpResponse : AsyncHttpMessage {
     private val responseLine: ResponseLine
-    constructor (responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncRead? = null) : super(headers, body) {
+    constructor (responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.responseLine = responseLine
     }
-    constructor(responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncHttpMessageBody?) : super(headers, body) {
+    constructor(responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.responseLine = responseLine
     }
 
