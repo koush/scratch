@@ -1,6 +1,8 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
+import com.koushikdutta.scratch.async.UnhandledAsyncExceptionError
+import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.InetSocketAddress

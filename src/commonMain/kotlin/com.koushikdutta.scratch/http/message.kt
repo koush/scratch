@@ -111,6 +111,7 @@ open class AsyncHttpRequest : AsyncHttpMessage {
 
     val properties: AsyncHttpRequestProperties = mutableMapOf()
 
+    // need this for extension methods
     companion object
 }
 
@@ -159,5 +160,6 @@ class AsyncHttpResponse : AsyncHttpMessage {
     val message: String
         get() = responseLine.message
 
+    // need this for extension methods
     companion object
 }

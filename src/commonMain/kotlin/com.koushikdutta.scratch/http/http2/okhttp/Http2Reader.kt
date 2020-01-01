@@ -16,6 +16,7 @@
 package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.http2.*
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.CONNECTION_PREFACE

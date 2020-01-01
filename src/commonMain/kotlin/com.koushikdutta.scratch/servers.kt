@@ -1,5 +1,7 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.startSafeCoroutine
+
 /**
  * AsyncServerSocket accepts incoming AsyncSocket clients.
  */
@@ -12,7 +14,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serv
     var observer: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit = { serverSocket, socket, throwable ->
         if (throwable != null) {
             serverSocket.post()
-            throw UnhandledAsyncExceptionError(throwable)
+            throw throwable
         }
     }
     suspend fun observe(block: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit) {
@@ -33,7 +35,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serv
         }
         catch (throwable: Throwable) {
             serverSocket.post()
-            throwUnhandledAsyncException(throwable)
+            throw throwable
         }
     }
 }
@@ -48,7 +50,6 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
                         block(socket)
                     }
                     catch (throwable: Throwable) {
-                        rethrowUnhandledAsyncException(throwable)
                         ret.invokeObserver(socket, throwable)
                         return@socketCoroutine
                     }
@@ -57,7 +58,6 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
             }
         }
         catch (throwable: Throwable) {
-            rethrowUnhandledAsyncException(throwable)
             ret.invokeObserver(null, throwable)
             return@startSafeCoroutine
         }

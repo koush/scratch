@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -23,7 +24,6 @@ open class Promise<T> {
                 block()
             }
             catch (throwable: Throwable) {
-                rethrowUnhandledAsyncException(throwable)
                 setComplete(throwable, null)
                 return@startSafeCoroutine
             }

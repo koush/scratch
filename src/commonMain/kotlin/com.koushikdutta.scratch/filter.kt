@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.Buffers
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
@@ -55,7 +56,6 @@ class InterruptibleRead(private val input: AsyncRead) {
                     reading = false
                 }
             } catch (t: Throwable) {
-                rethrowUnhandledAsyncException(t)
                 ReadResult(true, null, t)
             }
 

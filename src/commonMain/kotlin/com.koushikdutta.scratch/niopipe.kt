@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.atomic.*
 import com.koushikdutta.scratch.buffers.*
 

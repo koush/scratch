@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.atomic.FreezableQueue
 import com.koushikdutta.scratch.buffers.ByteBuffer
 
@@ -43,7 +44,6 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
             baton.finish(AsyncIteratorMessage(done = true))
         }
         catch (throwable: Throwable) {
-            rethrowUnhandledAsyncException(throwable)
             baton.raise(throwable)
             baton.finish(AsyncIteratorMessage(throwable = throwable, done = true))
         }

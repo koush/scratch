@@ -1,6 +1,9 @@
 package com.koushikdutta.scratch.http.client.middleware
 
-import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.AsyncReader
+import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.InterruptibleRead
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.add
 import com.koushikdutta.scratch.collections.pop
@@ -16,7 +19,6 @@ import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
-import com.koushikdutta.scratch.startSafeCoroutine
 
 private typealias IOException = Exception
 
@@ -42,7 +44,6 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
                 }
             }
             catch (exception: Exception) {
-                rethrowUnhandledAsyncException(exception)
                 sockets.removeValue(socketKey, keepAliveSocket)
             }
         }

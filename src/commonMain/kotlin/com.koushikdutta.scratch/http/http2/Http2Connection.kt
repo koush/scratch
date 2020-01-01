@@ -1,6 +1,8 @@
 package com.koushikdutta.scratch.http.http2
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.AsyncHandler
+import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -341,7 +343,6 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
                     close(ErrorCode.NO_ERROR, ErrorCode.NO_ERROR, null)
             }
             catch (exception: Exception) {
-                rethrowUnhandledAsyncException(exception)
             }
         }
     }
@@ -373,7 +374,6 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
                 }
             }
             catch (e: Exception) {
-                rethrowUnhandledAsyncException(e)
                 failConnection(e)
                 return@startSafeCoroutine
             }
