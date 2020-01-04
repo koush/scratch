@@ -108,13 +108,10 @@ class TLSTests {
         var data = ""
         async {
             pipeMiddleware.install(client)
-            val connection =
-                client.execute(AsyncHttpRequest.POST("https://TestServer", body = Utf8StringBody("hello world")))
-            data = readAllString(connection.body!!)
+            data = client.execute(AsyncHttpRequest.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
         }
 
         assert(data == "hello world")
         assert(protocol == "h2")
     }
-
 }

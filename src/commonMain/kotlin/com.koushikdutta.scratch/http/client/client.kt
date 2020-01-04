@@ -1,15 +1,14 @@
 package com.koushikdutta.scratch.http.client
 
 import com.koushikdutta.scratch.*
-import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.GET
 import com.koushikdutta.scratch.http.POST
 import com.koushikdutta.scratch.http.client.middleware.*
-import com.koushikdutta.scratch.uri.URI
 
+typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
 
 enum class AsyncHttpRequestMethods {
     HEAD,
@@ -25,13 +24,14 @@ var AsyncHttpClientSessionProperties.manageSocket: Boolean
         set("manage-socket", value)
     }
 
-data class AsyncHttpClientSession constructor(val client: AsyncHttpClient, val request: AsyncHttpRequest) {
+class AsyncHttpClientSession constructor(val client: AsyncHttpClient, val request: AsyncHttpRequest) {
     var socket: AsyncSocket? = null
     var interrupt: InterruptibleRead? = null
     var socketReader: AsyncReader? = null
     var socketOwner: AsyncHttpClientMiddleware? = null
 
     var response: AsyncHttpResponse? = null
+    var responseCompleted = false
     var protocol: String? = null
     var socketKey: String? = null
     val properties: AsyncHttpClientSessionProperties = mutableMapOf()
@@ -53,10 +53,9 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         middlewares.add(AsyncHttpTransportMiddleware())
         middlewares.add(AsyncHttp2TransportMiddleware())
         middlewares.add(AsyncBodyDecoder())
-        middlewares.add(AsyncHttpRedirector())
     }
 
-    private suspend fun execute(session: AsyncHttpClientSession) : AsyncHttpResponse {
+    internal suspend fun <R> execute(session: AsyncHttpClientSession, handler: AsyncHttpResponseHandler<R>) : R {
         var sent = false
         try {
             for (middleware in middlewares) {
@@ -93,7 +92,13 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
                 middleware.onBodyReady(session)
             }
 
-            return session.response!!
+            val ret = handler(session.response!!)
+
+            // if the response was handled without fully consuming the body, close the socket.
+            if (session.properties.manageSocket && !session.responseCompleted)
+                session.socket?.close()
+
+            return ret
         }
         catch (throwable: Throwable) {
             if (!sent)
@@ -103,21 +108,22 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         }
     }
 
-    suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
+    suspend fun <R> execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
         val session = AsyncHttpClientSession(this, request)
-        return execute(session)
+        return execute(session, handler)
     }
 
-    suspend fun execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader): AsyncHttpResponse {
+    suspend fun <R> execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader, handler: AsyncHttpResponseHandler<R>): R {
         val session = AsyncHttpClientSession(this, request)
         session.socket = socket
         session.socketReader = socketReader
         session.properties.manageSocket = false
         session.protocol = session.request.protocol.toLowerCase()
-        return execute(session)
+        return execute(session, handler)
     }
 
     internal suspend fun onResponseComplete(session: AsyncHttpClientSession) {
+        session.responseCompleted = true
         // there's nothing to report cleanup errors to. what do.
         for (middleware in middlewares) {
             middleware.onResponseComplete(session)
@@ -125,16 +131,13 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
     }
 }
 
-suspend fun AsyncHttpClient.execute(method: String, uri: String): AsyncHttpResponse {
-    return execute(AsyncHttpRequest(URI.create(uri), method))
+internal val defaultMaxRedirects = 5
+suspend fun <R> AsyncHttpClient.get(uri: String, handler: AsyncHttpResponseHandler<R>): R {
+    return executeFollowRedirects(AsyncHttpRequest.GET(uri), defaultMaxRedirects, handler)
 }
 
-suspend fun AsyncHttpClient.get(uri: String): AsyncHttpResponse {
-    return execute(AsyncHttpRequest.GET(uri))
-}
-
-suspend fun AsyncHttpClient.post(uri: String): AsyncHttpResponse {
-    return execute(AsyncHttpRequest.POST(uri))
+suspend fun <R> AsyncHttpClient.post(uri: String, handler: AsyncHttpResponseHandler<R>): R {
+    return execute(AsyncHttpRequest.POST(uri), handler)
 }
 
 //suspend fun AsyncHttpClient.randomAccess(uri: String): AsyncRandomAccessInput {

@@ -1,12 +1,16 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
+import com.koushikdutta.scratch.TestUtils.Companion.createUnboundRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.executeFollowRedirects
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
@@ -14,6 +18,7 @@ import com.koushikdutta.scratch.uri.URI
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 
 class HttpTests {
@@ -36,8 +41,7 @@ class HttpTests {
             val reader = AsyncReader({ pair.first.read(it) })
 
             for (i in 1..3) {
-                val result = httpClient.execute(AsyncHttpRequest.GET("http://example/foo"), pair.first, reader)
-                val data = readAllString(result.body!!)
+                val data = httpClient.execute(AsyncHttpRequest.GET("http://example/foo"), pair.first, reader) { readAllString(it.body!!) }
                 assertEquals(data, "hello world")
                 requestsCompleted++
             }
@@ -71,8 +75,7 @@ class HttpTests {
             for (i in 1..3) {
                 val request =
                     AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
-                val result = httpClient.execute(request, pair.first, reader)
-                val data = readAllString(result.body!!)
+                val data = httpClient.execute(request, pair.first, reader) { readAllString(it.body!!) }
                 assertEquals(data, "hello world")
                 requestsCompleted++
             }
@@ -80,7 +83,6 @@ class HttpTests {
 
         assertEquals(requestsCompleted, 3)
     }
-
 
     @Test
     fun testHttpPipeServer() {
@@ -105,8 +107,7 @@ class HttpTests {
             for (i in 1..3) {
                 val request =
                     AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
-                val result = httpClient.execute(request, socket, reader)
-                val data = readAllString(result.body!!)
+                val data = httpClient.execute(request, socket, reader) { readAllString(it.body!!) }
                 assertEquals(data, "hello world")
                 requestsCompleted++
             }
@@ -114,7 +115,6 @@ class HttpTests {
 
         assertEquals(requestsCompleted, 3)
     }
-
 
     @Test
     fun testBigResponse() {
@@ -144,13 +144,14 @@ class HttpTests {
             val client = AsyncHttpClient()
             val socket = server.connect()
             val reader = AsyncReader({ socket.read(it) })
-            val connected = client.execute(AsyncHttpRequest.GET("https://example.com/"), socket, reader)
             val buffer = ByteBufferList()
-            // stream the data and digest it
-            while (connected.body!!(buffer)) {
-                val byteArray = buffer.readBytes()
-                received += byteArray.size
-                clientDigest.update(byteArray)
+            client.execute(AsyncHttpRequest.GET("https://example.com/"), socket, reader) {
+                // stream the data and digest it
+                while (it.body!!(buffer)) {
+                    val byteArray = buffer.readBytes()
+                    received += byteArray.size
+                    clientDigest.update(byteArray)
+                }
             }
         }
 
@@ -200,12 +201,13 @@ class HttpTests {
             val client = AsyncHttpClient()
             val socket = server.connect()
             val reader = AsyncReader({ socket.read(it) })
-            val connected = client.execute(
+            val data = client.execute(
                 AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)),
                 socket,
                 reader
-            )
-            val data = readAllString(connected.body!!)
+            ) {
+                readAllString(it.body!!)
+            }
             assertEquals(data, "hello world")
         }
 
@@ -280,8 +282,7 @@ class HttpTests {
 
                 val request =
                     AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = createRandomRead(postLength))
-                val result = httpClient.execute(request, socket, reader)
-                val data = readAllString(result.body!!)
+                val data = httpClient.execute(request, socket, reader) { readAllString(it.body!!) }
                 assertEquals(data, "hello world")
                 requestsCompleted++
             }
@@ -314,8 +315,7 @@ class HttpTests {
             val get = AsyncHttpRequest.GET("http://example/foo") {
                 requestSent++
             }
-            val result = httpClient.execute(get, pair.first, reader)
-            val data = readAllString(result.body!!)
+            val data = httpClient.execute(get, pair.first, reader) { readAllString(it.body!!) }
             assertEquals(data, "hello world")
             requestsCompleted++
         }
@@ -323,5 +323,72 @@ class HttpTests {
         assertEquals(requestsCompleted, 1)
         assertEquals(requestSent, 1)
         assertEquals(responseSent, 1)
+    }
+
+    @Test
+    fun testHttpRedirect() {
+        val pipeServer = createAsyncPipeServerSocket()
+        async {
+            val httpServer = AsyncHttpServer {
+                if (it.uri.path == "/redirect")
+                    AsyncHttpResponse.MOVED_PERMANENTLY("/")
+                else
+                    AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+            }
+
+            httpServer.listen(pipeServer)
+        }
+
+        var data = ""
+        async {
+            val httpClient = AsyncHttpClient()
+            httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
+                override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
+                    session.socket = pipeServer.connect()
+                    session.interrupt = InterruptibleRead(session.socket!!::read)
+                    session.socketReader = AsyncReader(session.interrupt!!::read)
+                    session.protocol = session.request.protocol.toLowerCase()
+                    return true
+                }
+            })
+            val get = AsyncHttpRequest.GET("http://example/redirect")
+            data = httpClient.executeFollowRedirects(get) { readAllString(it.body!!) }
+        }
+        assertEquals(data, "hello world")
+    }
+
+
+    @Test
+    fun testResponseTermination() {
+        var gotClose = false
+        val pipeServer = createAsyncPipeServerSocket()
+        async {
+            val httpServer = AsyncHttpServer {
+                AsyncHttpResponse.OK(body = BinaryBody(createUnboundRandomRead()::read)) {
+                    gotClose = it != null
+                }
+            }
+
+            httpServer.listen(pipeServer)
+        }
+
+        async {
+            val httpClient = AsyncHttpClient()
+            httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
+                override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
+                    session.socket = pipeServer.connect()
+                    session.interrupt = InterruptibleRead(session.socket!!::read)
+                    session.socketReader = AsyncReader(session.interrupt!!::read)
+                    session.protocol = session.request.protocol.toLowerCase()
+                    return true
+                }
+            })
+            val get = AsyncHttpRequest.GET("http://example/")
+            httpClient.executeFollowRedirects(get) {
+                // do nothing with the data.
+            }
+        }
+
+        assertTrue(gotClose)
     }
 }
