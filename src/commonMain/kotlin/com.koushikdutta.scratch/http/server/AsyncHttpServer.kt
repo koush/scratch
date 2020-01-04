@@ -11,9 +11,9 @@ import com.koushikdutta.scratch.http.client.middleware.getHttpBody
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.parser.Parser
 
-typealias AsyncHttpResponseHandler = suspend (request: AsyncHttpRequest) -> AsyncHttpResponse
+typealias AsyncHttpRequestHandler = suspend (request: AsyncHttpRequest) -> AsyncHttpResponse
 
-class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
+class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
     private fun acceptHttp2Connection(socket: AsyncSocket, reader: AsyncReader) {
         Http2Connection(socket, false, reader, false) { request ->
             val response = try {

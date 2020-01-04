@@ -6,6 +6,7 @@ private fun create(uri: String, method: String, headers: Headers = Headers(), bo
     return AsyncHttpRequest(URI.create(uri), method, headers = headers, body = body, sent = sent)
 }
 
+fun AsyncHttpRequest.Companion.HEAD(uri: String, headers: Headers = Headers(), sent: AsyncHttpMessageCompletion? = null) = create(uri, "HEAD", headers, sent = sent)
 fun AsyncHttpRequest.Companion.GET(uri: String, headers: Headers = Headers(), sent: AsyncHttpMessageCompletion? = null) = create(uri, "GET", headers, sent = sent)
 fun AsyncHttpRequest.Companion.DELETE(uri: String, headers: Headers = Headers(), sent: AsyncHttpMessageCompletion? = null) = create(uri, "DELETE", headers, sent = sent)
 fun AsyncHttpRequest.Companion.POST(uri: String, headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null) = create(uri, "POST", headers, body, sent)

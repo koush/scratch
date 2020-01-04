@@ -136,8 +136,8 @@ class FreezableTests {
     fun testBuffers() {
         val atomicBuffers = FreezableBuffers()
         val buffer = ByteBufferList()
-        buffer.putUtf8String("Hello").read(atomicBuffers)
-        buffer.putUtf8String("World").read(atomicBuffers)
+        assertEquals(5, buffer.putUtf8String("Hello").read(atomicBuffers))
+        assertEquals(10, buffer.putUtf8String("World").read(atomicBuffers))
         val got = ByteBufferList()
         atomicBuffers.read(got)
         assertEquals(got.readUtf8String(), "HelloWorld")

@@ -35,6 +35,10 @@ abstract class AsyncHttpMessage {
     override fun toString(): String {
         return toMessageString()
     }
+
+    suspend fun close() {
+        sent?.invoke(null)
+    }
 }
 
 

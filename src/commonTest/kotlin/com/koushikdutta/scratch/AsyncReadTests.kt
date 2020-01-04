@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 
-class StreamTests {
+class AsyncReadTests {
     @Test
     fun testAddition() {
         var result = ""

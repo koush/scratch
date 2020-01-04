@@ -10,14 +10,17 @@ internal class TimeoutException: Exception()
 class TestUtils {
     companion object {
         fun createRandomRead(length: Int): AsyncRead {
+            return createUnboundRandomRead().pipe(createContentLengthPipe(length.toLong()))
+        }
+
+        fun createUnboundRandomRead(): AsyncReader {
             val random = Random
-            return  AsyncReader {
+            return AsyncReader {
                 it.putAllocatedBytes(10000) { bytes: ByteArray, offset: Int ->
                     random.nextBytes(bytes, offset, offset + 10000)
                 }
                 true
             }
-            .pipe(createContentLengthPipe(length.toLong()))
         }
 
         suspend fun AsyncRead.countBytes(): Int {

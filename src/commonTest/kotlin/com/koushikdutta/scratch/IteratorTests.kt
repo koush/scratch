@@ -120,6 +120,7 @@ class IteratorTests {
                     sum += i
                 }
             }
+            .rethrow()
         }
         catch (exception: Exception) {
             assertEquals(sum, 12)

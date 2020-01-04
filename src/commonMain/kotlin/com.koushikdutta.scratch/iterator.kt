@@ -3,6 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.atomic.FreezableQueue
 import com.koushikdutta.scratch.buffers.ByteBuffer
+import com.koushikdutta.scratch.buffers.ByteBufferList
 
 interface AsyncIterator<out T> {
     suspend operator fun next(): T
@@ -182,11 +183,28 @@ fun AsyncIterator<AsyncRead>.join(): AsyncRead {
     }
 }
 
-fun AsyncIterator<ByteBuffer>.createAsyncRead(): AsyncRead {
-    return read@{
-        if (!hasNext())
-            return@read false
-        it.add(next())
-        true
+class ByteBufferIterator {
+    companion object {
+        fun AsyncIterator<ByteBuffer>.createAsyncRead(): AsyncRead {
+            return read@{
+                if (!hasNext())
+                    return@read false
+                it.add(next())
+                true
+            }
+        }
+    }
+}
+
+class ByteBufferListIterator {
+    companion object {
+        fun AsyncIterator<ByteBufferList>.createAsyncRead(): AsyncRead {
+            return read@{
+                if (!hasNext())
+                    return@read false
+                it.add(next())
+                true
+            }
+        }
     }
 }

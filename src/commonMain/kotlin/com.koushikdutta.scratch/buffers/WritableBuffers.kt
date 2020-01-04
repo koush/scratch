@@ -28,6 +28,7 @@ interface WritableBuffers : AllocatingBuffers {
     fun putByteChar(c: Char): WritableBuffers
     fun putAllocatedBytes(allocate: Int, writer: BuffersArrayWriter): WritableBuffers
     fun <T> putAllocatedBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T
+    fun <T> putAllocatedByteBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T
     fun putUtf8String(s: String): WritableBuffers
 
     fun remaining(): Int

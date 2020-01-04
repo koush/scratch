@@ -55,7 +55,9 @@ internal class Http2ExchangeCodec {
             }
             if (statusLine == null) throw Exception("Expected ':status' header not present")
 
-            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, {stream.read(it)})
+            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, {stream.read(it)}) {
+                stream.close()
+            }
         }
 
         private fun createHeaders(message: AsyncHttpMessage, headerList: MutableList<Header>) {

@@ -84,35 +84,6 @@ interface AsyncWrappingSocket : AsyncSocket {
     val socket: AsyncSocket
 }
 
-/**
- * AsyncRandomAccessInput provides random access read access to
- * resources. The resource may be locally stored, like a file, or remotely
- * retrieved, like an http resource.
- */
-interface AsyncRandomAccessInput : AsyncInput {
-    var defaultReadLength: Int
-    suspend fun size(): Long
-    suspend fun getPosition(): Long
-    suspend fun setPosition(position: Long)
-    suspend fun readPosition(position: Long, length: Int, buffer: WritableBuffers): Boolean
-    override suspend fun read(buffer: WritableBuffers): Boolean {
-        return readPosition(getPosition(), defaultReadLength, buffer)
-    }
-}
-
-/**
- * AsyncRandomAccessStorage provides random access read and write to
- * resources. The resource may be locally stored, like a file, or remotely
- * modified, like a network file or http resource.
- */
-interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
-    suspend fun writePosition(position: Long, buffer: ReadableBuffers) {
-        setPosition(position)
-        write(buffer)
-    }
-    suspend fun truncate(size: Long)
-}
-
 internal fun <T> genericPipe(read: T, pipe: GenericAsyncPipe<T>): AsyncRead {
     val buffer = ByteBufferList()
     val iterator = asyncIterator<Unit> {

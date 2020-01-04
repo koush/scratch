@@ -26,6 +26,8 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
             it.rethrow()
             if (!it.finished && it.value != null && it.resumed)
                 throw IOException("write already in progress")
+            if (it.finished)
+                throw IOException("pipe closed")
         }
     }
 

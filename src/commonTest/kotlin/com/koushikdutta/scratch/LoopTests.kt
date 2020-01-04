@@ -34,7 +34,7 @@ class LoopTests {
         val result = networkContext.async {
             runner(networkContext)
         }
-        result.setCallback {
+        result.finally {
             networkContext.stop()
         }
 
@@ -129,7 +129,7 @@ class LoopTests {
 
         networkContext.run()
         result.rethrow()
-        assertEquals(result.value, 42)
+        assertEquals(result.getOrThrow(), 42)
     }
 
     @Test
@@ -309,8 +309,7 @@ class LoopTests {
 
                     val request =
                         AsyncHttpRequest(URI.create("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
-                    val result = httpClient.execute(request)
-                    val data = readAllString(result.body!!)
+                    val data = httpClient.execute(request) { readAllString(it.body!!) }
                     assertEquals(data, "hello world")
                     requestsCompleted++
 

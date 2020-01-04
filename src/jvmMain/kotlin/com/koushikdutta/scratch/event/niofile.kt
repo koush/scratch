@@ -60,7 +60,7 @@ private fun <T> completionHandler(continuation: Continuation<T>): CompletionHand
     }
 }
 
-class NIOFile7(val server: AsyncEventLoop, file: File, override var defaultReadLength: Int, vararg openOptions: OpenOption) : AsyncRandomAccessStorage, AsyncAffinity by server {
+class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: Int, vararg openOptions: OpenOption) : AsyncRandomAccessStorage, AsyncAffinity by server {
     val fileChannel = AsynchronousFileChannel.open(file.toPath(), *openOptions)
     var position: Long = 0
     override suspend fun truncate(size: Long) {
@@ -101,14 +101,14 @@ class NIOFile7(val server: AsyncEventLoop, file: File, override var defaultReadL
     }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
-        return readPosition(position, defaultReadLength, buffer)
+        return readPosition(position, defaultReadLength.toLong(), buffer)
     }
 
-    override suspend fun readPosition(position: Long, length: Int, buffer: WritableBuffers): Boolean {
+    override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
         await()
 
-        val singleBuffer = buffer.obtain(length)
-        singleBuffer.limit(length)
+        val singleBuffer = buffer.obtain(length.toInt())
+        singleBuffer.limit(length.toInt())
 
         val read = suspendCoroutine<Int> {
             fileChannel.read(singleBuffer, position, null, completionHandler(it))
@@ -127,7 +127,7 @@ class NIOFile7(val server: AsyncEventLoop, file: File, override var defaultReadL
     }
 }
 
-class NIOFile6(val server: AsyncEventLoop, file: File, override var defaultReadLength: Int, vararg openOptions: OpenOption) : AsyncRandomAccessStorage, AsyncAffinity by server{
+class NIOFile6(val server: AsyncEventLoop, file: File, var defaultReadLength: Int, vararg openOptions: OpenOption) : AsyncRandomAccessStorage, AsyncAffinity by server{
     val fileChannel = FileChannel.open(file.toPath(), *openOptions)
     var position: Long = 0
     override suspend fun truncate(size: Long) {
@@ -167,10 +167,14 @@ class NIOFile6(val server: AsyncEventLoop, file: File, override var defaultReadL
         this.position = position
     }
 
-    override suspend fun readPosition(position: Long, length: Int, buffer: WritableBuffers): Boolean {
+    override suspend fun read(buffer: WritableBuffers): Boolean {
+        return readPosition(position, defaultReadLength.toLong(), buffer)
+    }
+
+    override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
         await()
 
-        val read = buffer.putAllocatedBuffer(length) { singleBuffer ->
+        val read = buffer.putAllocatedBuffer(length.toInt()) { singleBuffer ->
             fileChannel.read(singleBuffer, position)
         }
 
