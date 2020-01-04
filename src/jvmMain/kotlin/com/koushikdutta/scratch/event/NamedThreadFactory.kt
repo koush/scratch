@@ -1,9 +1,11 @@
 package com.koushikdutta.scratch.event
 
-import java.util.concurrent.ThreadFactory
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
-internal class NamedThreadFactory(private val namePrefix: String) : ThreadFactory {
+class NamedThreadFactory(private val namePrefix: String) : ThreadFactory {
     private val group: ThreadGroup
     private val threadNumber = AtomicInteger(1)
 
@@ -23,5 +25,21 @@ internal class NamedThreadFactory(private val namePrefix: String) : ThreadFactor
             t.priority = Thread.NORM_PRIORITY
         }
         return t
+    }
+
+    companion object {
+        fun newSynchronousWorkers(prefix: String): ExecutorService {
+            val tf = NamedThreadFactory(prefix)
+            return ThreadPoolExecutor(1, 4, 10L,
+                    TimeUnit.SECONDS, LinkedBlockingQueue(), tf)
+        }
+    }
+}
+
+suspend fun ExecutorService.await() {
+    suspendCoroutine<Unit> {
+        submit {
+            it.resume(Unit)
+        }
     }
 }

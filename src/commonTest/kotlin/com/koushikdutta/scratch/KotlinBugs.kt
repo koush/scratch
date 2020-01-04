@@ -17,7 +17,7 @@ class KotlinBugs {
         val result = networkContext.async {
             runner(networkContext)
         }
-        result.setCallback {
+        result.finally {
             networkContext.stop()
         }
 

@@ -34,7 +34,7 @@ class LoopTests {
         val result = networkContext.async {
             runner(networkContext)
         }
-        result.setCallback {
+        result.finally {
             networkContext.stop()
         }
 
@@ -129,7 +129,7 @@ class LoopTests {
 
         networkContext.run()
         result.rethrow()
-        assertEquals(result.value, 42)
+        assertEquals(result.getOrThrow(), 42)
     }
 
     @Test

@@ -4,6 +4,7 @@ package com.koushikdutta.scratch.event
 
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.event.NamedThreadFactory.Companion.newSynchronousWorkers
 import com.koushikdutta.scratch.external.Log
 import java.io.Closeable
 import java.io.File
@@ -354,12 +355,6 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 }
             }
             return ret.toTypedArray()
-        }
-
-        private fun newSynchronousWorkers(prefix: String): ExecutorService {
-            val tf = NamedThreadFactory(prefix)
-            return ThreadPoolExecutor(1, 4, 10L,
-                    TimeUnit.SECONDS, LinkedBlockingQueue(), tf)
         }
 
         private val ipSorter = Comparator<InetAddress> { lhs, rhs ->

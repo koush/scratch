@@ -29,16 +29,8 @@ internal fun startSafeCoroutine(block: suspend() -> Unit) {
 }
 
 fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Promise<T> {
-    val deferred = Promise<T>()
-    startSafeCoroutine {
-        try {
-            await()
-            deferred.setComplete(null, block())
-        }
-        catch (exception: Throwable) {
-            println(exception)
-            deferred.setComplete(exception, null)
-        }
+    return Promise {
+        await()
+        block()
     }
-    return deferred
 }
