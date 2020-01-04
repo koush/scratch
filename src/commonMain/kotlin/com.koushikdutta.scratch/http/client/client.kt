@@ -1,8 +1,7 @@
 package com.koushikdutta.scratch.http.client
 
-import com.koushikdutta.scratch.AsyncReader
-import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.InterruptibleRead
+import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
@@ -138,3 +137,30 @@ suspend fun AsyncHttpClient.get(uri: String): AsyncHttpResponse {
 suspend fun AsyncHttpClient.post(uri: String): AsyncHttpResponse {
     return execute(AsyncHttpRequest.POST(uri))
 }
+
+//suspend fun AsyncHttpClient.randomAccess(uri: String): AsyncRandomAccessInput {
+//    val headResponse = execute("HEAD", uri)
+//    headResponse.
+//
+//    var closed = false
+//
+//    return object : AsyncRandomAccessInput, AsyncAffinity by eventLoop {
+//        override suspend fun size(): Long {
+//        }
+//
+//        override suspend fun getPosition(): Long {
+//        }
+//
+//        override suspend fun setPosition(position: Long) {
+//        }
+//
+//        override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
+//        }
+//
+//        override suspend fun read(buffer: WritableBuffers): Boolean {
+//        }
+//
+//        override suspend fun close() {
+//        }
+//    }
+//}
