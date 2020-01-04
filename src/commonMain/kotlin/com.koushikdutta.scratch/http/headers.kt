@@ -38,7 +38,7 @@ class Headers {
         add(header)
     }
 
-    fun set(name: String, value: String?) {
+    operator fun set(name: String, value: String?) {
         remove(name)
         if (value != null)
             add(name, value)
@@ -57,7 +57,7 @@ class Headers {
             add(parts[0].trim(), "")
     }
 
-    fun get(name: String): String? {
+    operator fun get(name: String): String? {
         return headers.firstOrNull {
             headerEquals(it.name, name)
         }?.value
