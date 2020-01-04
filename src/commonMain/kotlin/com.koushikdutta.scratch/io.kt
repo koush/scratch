@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -90,13 +91,24 @@ interface AsyncWrappingSocket : AsyncSocket {
  * retrieved, like an http resource.
  */
 interface AsyncRandomAccessInput : AsyncInput {
-    var defaultReadLength: Int
     suspend fun size(): Long
     suspend fun getPosition(): Long
     suspend fun setPosition(position: Long)
-    suspend fun readPosition(position: Long, length: Int, buffer: WritableBuffers): Boolean
-    override suspend fun read(buffer: WritableBuffers): Boolean {
-        return readPosition(getPosition(), defaultReadLength, buffer)
+    suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean
+}
+
+fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
+    var total = 0L
+    val buffer = ByteBufferList()
+    return read@{
+        if (total >= length)
+            return@read false
+
+        buffer.takeReclaimedBuffers(it)
+        val ret = readPosition(position + total, length - total, buffer)
+        total += buffer.remaining()
+        buffer.read(it)
+        ret
     }
 }
 
