@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http.server
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware

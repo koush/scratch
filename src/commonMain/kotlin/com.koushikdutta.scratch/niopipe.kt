@@ -50,12 +50,11 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, val writable:
         buffer.takeReclaimedBuffers(pending)
 
         // check if writable needs to be invoked
-        val setNeedsWritable = (read ?: Int.MAX_VALUE) >= highWaterMark
-        if (setNeedsWritable) {
-            needsWritable.getAndSet(true)
-            return false
-        }
-        return true
+        val setNeedsWritable = read != null && pending.remaining >= highWaterMark
+        if (setNeedsWritable)
+            needsWritable.set(true)
+
+        return !setNeedsWritable
     }
 
     suspend fun read(buffer: WritableBuffers): Boolean {
@@ -67,15 +66,15 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, val writable:
                 throw IOException("read cancelled by another read")
             return !baton.isFinished
         }
-        else if (result) {
-            // successful read drained the buffer
-            return true
-        }
 
+        // successful read drained the buffer
         if (needsWritable.getAndSet(false)) {
             writable()
             return true
         }
+
+        if (result)
+            return true
 
         if (baton.pass(false) { it.isSuccess && !it.value!! && !it.resumed })
             throw IOException("read cancelled by another read")

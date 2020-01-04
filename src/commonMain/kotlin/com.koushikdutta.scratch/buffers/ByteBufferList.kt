@@ -450,13 +450,13 @@ class ByteBufferList : Buffers {
     }
 
     override fun putAllocatedBytes(allocate: Int, writer: BuffersArrayWriter): ByteBufferList {
-        val buffer = grow(allocate)
+        val buffer = grow(allocate, true)
         writer(buffer.array(), buffer.arrayOffset() + buffer.position())
         return this
     }
 
-    override fun <T> putAllocatedBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T {
-        val buffer = grow(allocate)
+    private fun <T> putAllocatedBufferInternal(allocate: Int, requireArray: Boolean, writer: BuffersBufferWriter<T>): T {
+        val buffer = grow(allocate, requireArray)
         // the amount written may not be the same as the amount allocated.
         // this will happen in the case of
         // resolve that discrepency when tracking remaining.
@@ -474,6 +474,10 @@ class ByteBufferList : Buffers {
             remaining = remaining - allocate + used
         }
     }
+
+    override fun <T> putAllocatedBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T = putAllocatedBufferInternal(allocate, false, writer)
+
+    override fun <T> putAllocatedByteBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T = putAllocatedBufferInternal(allocate, true, writer)
 
     @UseExperimental(ExperimentalStdlibApi::class)
     override fun putUtf8String(s: String): ByteBufferList {

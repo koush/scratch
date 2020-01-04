@@ -5,7 +5,6 @@ package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.external.Log
-import com.sun.org.apache.xpath.internal.operations.Bool
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -15,7 +14,6 @@ import java.nio.channels.spi.SelectorProvider
 import java.nio.file.OpenOption
 import java.util.*
 import java.util.concurrent.*
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -380,25 +378,4 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 private class AsyncSelectorException(e: Exception) : IOException(e)
 private class NIOLoopShutdownException: Exception()
 
-private class NamedThreadFactory internal constructor(private val namePrefix: String) : ThreadFactory {
-    private val group: ThreadGroup
-    private val threadNumber = AtomicInteger(1)
 
-    init {
-        val s = System.getSecurityManager()
-        group = if (s != null)
-            s.threadGroup
-        else
-            Thread.currentThread().threadGroup
-    }
-
-    override fun newThread(r: Runnable): Thread {
-        val t = Thread(group, r,
-            namePrefix + threadNumber.getAndIncrement(), 0)
-        if (t.isDaemon) t.isDaemon = false
-        if (t.priority != Thread.NORM_PRIORITY) {
-            t.priority = Thread.NORM_PRIORITY
-        }
-        return t
-    }
-}
