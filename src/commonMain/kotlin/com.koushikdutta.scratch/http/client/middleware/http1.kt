@@ -7,6 +7,7 @@ import com.koushikdutta.scratch.copy
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.pipe
 open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
@@ -42,7 +43,11 @@ open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
         val statusLine = session.socketReader!!.readScanUtf8String("\r\n").trim()
         val headers = session.socketReader!!.readHeaderBlock()
 
-        session.response = AsyncHttpResponse(ResponseLine(statusLine), headers, {session.socketReader!!.read(it)})
+        session.response = AsyncHttpResponse(ResponseLine(statusLine), headers, {session.socketReader!!.read(it)}) {
+            // if the response was handled without fully consuming the body, close the socket.
+            if (session.properties.manageSocket && !session.responseCompleted)
+                session.socket?.close()
+        }
 
         return true
     }

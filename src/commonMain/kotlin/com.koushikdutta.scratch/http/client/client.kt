@@ -2,10 +2,7 @@ package com.koushikdutta.scratch.http.client
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.GET
-import com.koushikdutta.scratch.http.POST
+import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.*
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
@@ -55,7 +52,7 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         middlewares.add(AsyncBodyDecoder())
     }
 
-    internal suspend fun <R> execute(session: AsyncHttpClientSession, handler: AsyncHttpResponseHandler<R>) : R {
+    private suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
         var sent = false
         try {
             for (middleware in middlewares) {
@@ -92,13 +89,7 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
                 middleware.onBodyReady(session)
             }
 
-            val ret = handler(session.response!!)
-
-            // if the response was handled without fully consuming the body, close the socket.
-            if (session.properties.manageSocket && !session.responseCompleted)
-                session.socket?.close()
-
-            return ret
+            return session.response!!
         }
         catch (throwable: Throwable) {
             if (!sent)
@@ -108,9 +99,14 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         }
     }
 
+    suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
+        val session = AsyncHttpClientSession(this, request)
+        return execute(session)
+    }
+
     suspend fun <R> execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
         val session = AsyncHttpClientSession(this, request)
-        return execute(session, handler)
+        return execute(session).handle(handler)
     }
 
     suspend fun <R> execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader, handler: AsyncHttpResponseHandler<R>): R {
@@ -119,7 +115,7 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         session.socketReader = socketReader
         session.properties.manageSocket = false
         session.protocol = session.request.protocol.toLowerCase()
-        return execute(session, handler)
+        return execute(session).handle(handler)
     }
 
     internal suspend fun onResponseComplete(session: AsyncHttpClientSession) {
@@ -131,9 +127,22 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
     }
 }
 
+private suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHandler<R>): R {
+    try {
+        return handler(this)
+    }
+    finally {
+        close()
+    }
+}
+
 internal val defaultMaxRedirects = 5
 suspend fun <R> AsyncHttpClient.get(uri: String, handler: AsyncHttpResponseHandler<R>): R {
     return executeFollowRedirects(AsyncHttpRequest.GET(uri), defaultMaxRedirects, handler)
+}
+
+suspend fun <R> AsyncHttpClient.head(uri: String, handler: AsyncHttpResponseHandler<R>): R {
+    return executeFollowRedirects(AsyncHttpRequest.HEAD(uri), defaultMaxRedirects, handler)
 }
 
 suspend fun <R> AsyncHttpClient.post(uri: String, handler: AsyncHttpResponseHandler<R>): R {
@@ -141,28 +150,37 @@ suspend fun <R> AsyncHttpClient.post(uri: String, handler: AsyncHttpResponseHand
 }
 
 //suspend fun AsyncHttpClient.randomAccess(uri: String): AsyncRandomAccessInput {
-//    val headResponse = execute("HEAD", uri)
-//    headResponse.
+//    val contentLength = head(uri) {
+//        it.headers.contentLength!!
+//    }
 //
 //    var closed = false
+//    val currentReader = FreezableReference<AsyncRead?>()
+//    var currentPosition: Long = 0
+//    var currentRemaining: Long = contentLength
 //
 //    return object : AsyncRandomAccessInput, AsyncAffinity by eventLoop {
 //        override suspend fun size(): Long {
+//            return contentLength
 //        }
 //
 //        override suspend fun getPosition(): Long {
+//            return currentPosition
 //        }
 //
 //        override suspend fun setPosition(position: Long) {
+//            currentReader.swap(null).value?.
 //        }
 //
 //        override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
 //        }
 //
 //        override suspend fun read(buffer: WritableBuffers): Boolean {
+//            return readPosition(currentPosition, currentRemaining, buffer)
 //        }
 //
 //        override suspend fun close() {
+//            currentReader.freeze(null)?.value?.
 //        }
 //    }
 //}

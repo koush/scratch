@@ -357,7 +357,6 @@ class HttpTests {
         assertEquals(data, "hello world")
     }
 
-
     @Test
     fun testResponseTermination() {
         var gotClose = false
