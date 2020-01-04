@@ -91,7 +91,9 @@ class AsyncHttpServer(private val handler: AsyncHttpResponseHandler) {
                     }
                 }
                 else {
-                    response.headers.contentLength = 0
+                    // todo: allow insane values?
+                    if (response.headers.contentLength == null)
+                        response.headers.contentLength = 0
                     responseBody = { false }
                 }
 
