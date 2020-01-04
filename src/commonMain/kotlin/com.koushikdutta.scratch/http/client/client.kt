@@ -57,33 +57,30 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
     }
 
     private suspend fun execute(session: AsyncHttpClientSession) : AsyncHttpResponse {
-        for (middleware in middlewares) {
-            middleware.prepare(session)
-        }
-
-        if (session.socket == null) {
-            for (middleware in middlewares) {
-                if (middleware.connectSocket(session)) {
-                    session.socketOwner = middleware
-                    break
-                }
-            }
-        }
-
-        requireNotNull(session.socket) { "unable to find transport for uri ${session.request.uri}" }
-
+        var sent = false
         try {
-            try {
+            for (middleware in middlewares) {
+                middleware.prepare(session)
+            }
+
+            if (session.socket == null) {
                 for (middleware in middlewares) {
-                    if (middleware.exchangeMessages(session))
+                    if (middleware.connectSocket(session)) {
+                        session.socketOwner = middleware
                         break
+                    }
                 }
-                session.request.sent?.invoke(null)
             }
-            catch (throwable: Throwable) {
-                session.request.sent?.invoke(throwable)
-                throw throwable
+
+            requireNotNull(session.socket) { "unable to find transport for uri ${session.request.uri}" }
+
+            for (middleware in middlewares) {
+                if (middleware.exchangeMessages(session))
+                    break
             }
+            sent = true
+            session.request.sent?.invoke(null)
+
 
             if (session.response == null)
                 throw AsyncHttpClientException("unable to find transport to exchange headers for uri ${session.request.uri}")
@@ -98,9 +95,11 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
 
             return session.response!!
         }
-        catch (exception: Exception) {
-            session.socket!!.close()
-            throw exception
+        catch (throwable: Throwable) {
+            if (!sent)
+                session.request.sent?.invoke(throwable)
+            session.socket?.close()
+            throw throwable
         }
     }
 
