@@ -92,7 +92,7 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (reque
                 return@get AsyncHttpResponse(ResponseLine(416, "Not Satisfiable", "HTTP/1.1"))
             }
 
-            read = input.slice(start, end + 1)
+            read = input.slice(start, end - start + 1)
         }
         else {
             read = input::read

@@ -176,13 +176,15 @@ suspend fun AsyncHttpClient.randomAccess(uri: String): AsyncRandomAccessInput {
 
         override suspend fun setPosition(position: Long) {
             currentReader.swap(null)?.value?.close()
+            currentPosition = position
+            currentRemaining = 0
         }
 
         override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
             if (currentReader.isFrozen)
                 throw IOException("closed")
 
-            if (currentPosition == contentLength)
+            if (position == contentLength)
                 return false
 
             if (position + length > contentLength)

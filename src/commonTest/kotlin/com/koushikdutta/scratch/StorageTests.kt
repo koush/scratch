@@ -16,6 +16,7 @@ import com.koushikdutta.scratch.http.server.randomAccessInput
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class BufferStorage(buffer: ByteBufferList) : AsyncRandomAccessInput, AsyncAffinity by AsyncAffinity.NO_AFFINITY {
     val byteBuffer = allocateByteBuffer(buffer.remaining())
@@ -102,6 +103,7 @@ class StorageTests {
             httpServer.listen(pipeServer)
         }
 
+        var done = false
         async {
             val httpClient = AsyncHttpClient()
             httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
@@ -127,6 +129,9 @@ class StorageTests {
             storage.readPosition(1, 4, buffer)
             assertEquals("ello", buffer.readUtf8String())
             assertEquals(" world", readAllString(storage::read))
+            done = true
         }
+
+        assertTrue(done)
     }
 }
