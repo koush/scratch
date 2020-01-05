@@ -98,9 +98,15 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (reque
             read = input::read
         }
 
-        if (code == 200)
-            AsyncHttpResponse.OK(body = BinaryBody(read), headers = headers)
-        else
-            AsyncHttpResponse(body = BinaryBody(read), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1"))
+        if (code == 200) {
+            AsyncHttpResponse.OK(body = BinaryBody(read), headers = headers) {
+                input.close()
+            }
+        }
+        else {
+            AsyncHttpResponse(body = BinaryBody(read), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1")) {
+                input.close()
+            }
+        }
     }
 }

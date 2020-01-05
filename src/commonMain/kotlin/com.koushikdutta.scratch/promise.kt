@@ -2,6 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.atomic.AtomicReference
+import com.koushikdutta.scratch.atomic.FreezableReference
 import com.koushikdutta.scratch.atomic.FreezableStack
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
@@ -11,7 +12,7 @@ import kotlin.coroutines.suspendCoroutine
 typealias PromiseCallback<T, R> = suspend (T) -> R
 typealias PromiseCatch<R> = suspend (throwable: Throwable) -> R
 
-private interface PromiseResult<T> {
+internal interface PromiseResult<T> {
     fun getOrThrow(): T
     companion object {
         fun <T> failure(throwable: Throwable): PromiseResult<T> {
@@ -32,10 +33,38 @@ private interface PromiseResult<T> {
     }
 }
 
+class Deferred<T> {
+    val promise = Promise<T>()
+    fun resolve(result: T) = promise.resolve(result)
+    fun reject(throwable: Throwable) = promise.reject(throwable)
+}
+
 open class Promise<T> {
-    private val atomicReference = AtomicReference<PromiseResult<T>?>(null)
+    internal val atomicReference = FreezableReference<PromiseResult<T>>()
     private val callbacks = FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
         Unit
+    }
+
+    internal constructor()
+
+    internal fun reject(throwable: Throwable): Boolean {
+        if (atomicReference.freeze(PromiseResult.failure(throwable))?.frozen == true)
+            return false
+        callbacks.freeze()
+        callbacks.clear(Unit) { _, continuation ->
+            continuation.resumeWithException(throwable)
+        }
+        return true
+    }
+
+    internal fun resolve(result: T): Boolean {
+        if (atomicReference.freeze(PromiseResult.success(result))?.frozen == true)
+            return false
+        callbacks.freeze()
+        callbacks.clear(Unit) { _, continuation ->
+            continuation.resume(result)
+        }
+        return true
     }
 
     constructor(block: suspend () -> T) {
@@ -45,19 +74,11 @@ open class Promise<T> {
                 block()
             }
             catch (throwable: Throwable) {
-                atomicReference.set(PromiseResult.failure(throwable))
-                callbacks.freeze()
-                callbacks.clear(Unit) { _, continuation ->
-                    continuation.resumeWithException(throwable)
-                }
+                reject(throwable)
                 return@startSafeCoroutine
             }
 
-            atomicReference.set(PromiseResult.success(result))
-            callbacks.freeze()
-            callbacks.clear(Unit) { _, continuation ->
-                continuation.resume(result)
-            }
+            resolve(result)
         }
     }
 
@@ -67,7 +88,7 @@ open class Promise<T> {
                 if (!callbacks.push(it).frozen)
                     return@suspendCoroutine
                 try {
-                    it.resume(atomicReference.get()!!.getOrThrow())
+                    it.resume(atomicReference.get()!!.value.getOrThrow())
                 }
                 catch (throwable: Throwable) {
                     it.resumeWithException(throwable)
@@ -84,13 +105,16 @@ open class Promise<T> {
                     if (!callbacks.push(it).frozen)
                         return@suspendCoroutine
                     try {
-                        atomicReference.get()!!.getOrThrow()
+                        atomicReference.get()!!.value.getOrThrow()
+                        return@suspendCoroutine
                         // ignore result
                     }
                     catch (throwable: Throwable) {
                         it.resumeWithException(throwable)
                     }
                 }
+                // never resume this coroutine if there was no exception
+                suspendCoroutine<Unit> {  }
                 throw AssertionError("promise catch reached valid result")
             }
             catch (throwable: Throwable) {
@@ -99,20 +123,19 @@ open class Promise<T> {
         }
     }
 
-    fun <R> finally(callback: suspend () -> R): Promise<R> {
+    fun finally(callback: suspend () -> Unit): Promise<T> {
         return Promise {
             try {
                 suspendCoroutine<T> {
                     if (!callbacks.push(it).frozen)
                         return@suspendCoroutine
                     try {
-                        it.resume(atomicReference.get()!!.getOrThrow())
+                        it.resume(atomicReference.get()!!.value.getOrThrow())
                     }
                     catch (throwable: Throwable) {
                         it.resumeWithException(throwable)
                     }
                 }
-                throw AssertionError("promise catch reached valid result")
             }
             finally {
                 callback()
@@ -125,7 +148,7 @@ open class Promise<T> {
             if (!callbacks.push(it).frozen)
                 return@suspendCoroutine
             val result = try {
-                atomicReference.get()!!.getOrThrow()
+                atomicReference.get()!!.value.getOrThrow()
             }
             catch (throwable: Throwable) {
                 it.resumeWithException(throwable)
@@ -136,8 +159,8 @@ open class Promise<T> {
     }
 
     fun rethrow() {
-        atomicReference.get()?.getOrThrow()
+        atomicReference.get()?.value?.getOrThrow()
     }
 
-    fun getOrThrow() = atomicReference.get()?.getOrThrow()
+    fun getOrThrow() = atomicReference.get()!!.value.getOrThrow()
 }

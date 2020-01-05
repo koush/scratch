@@ -6,6 +6,7 @@ import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import java.io.File
 import java.io.IOException
+import java.lang.Integer.min
 import java.nio.channels.AsynchronousFileChannel
 import java.nio.channels.CompletionHandler
 import java.nio.channels.FileChannel
@@ -107,8 +108,9 @@ class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: In
     override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
         await()
 
-        val singleBuffer = buffer.obtain(length.toInt())
-        singleBuffer.limit(length.toInt())
+        val toRead = min(defaultReadLength, length.toInt())
+        val singleBuffer = buffer.obtain(toRead)
+        singleBuffer.limit(toRead)
 
         val read = suspendCoroutine<Int> {
             fileChannel.read(singleBuffer, position, null, completionHandler(it))

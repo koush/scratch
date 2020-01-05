@@ -14,9 +14,16 @@ interface AsyncRandomAccessInput : AsyncInput {
     suspend fun size(): Long
     suspend fun getPosition(): Long
     suspend fun setPosition(position: Long)
+    /**
+     * Reads up to length, but not necessarily in entirety, length bytes.
+     */
     suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean
 }
 
+/**
+ * Create an AsyncRead that only reads a specific position and length
+ * of an AsyncRandomAccessInput.
+ */
 fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
     var total = 0L
     val buffer = ByteBufferList()

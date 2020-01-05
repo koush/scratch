@@ -40,6 +40,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
     }
 
     suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) {
+        var r: AsyncHttpRequest? = null
         try {
             val requestLine = reader.readScanUtf8String("\r\n")
             if (requestLine.isEmpty()) {
@@ -57,6 +58,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
 
             val requestBody = getHttpBody(requestHeaders, reader, true)
             val request = AsyncHttpRequest(RequestLine(requestLine), requestHeaders, requestBody)
+            r = request
             val response = try {
                 handler(request)
             }
@@ -118,6 +120,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
         catch (throwable: Throwable) {
             println("http server error")
             println(throwable)
+            println(r)
             socket.close()
         }
     }
