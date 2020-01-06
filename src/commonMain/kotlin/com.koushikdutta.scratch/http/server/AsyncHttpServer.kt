@@ -118,9 +118,9 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
             }
         }
         catch (throwable: Throwable) {
-            println("http server error")
-            println(throwable)
-            println(r)
+//            println("http server error")
+//            println(throwable)
+//            println(r)
             socket.close()
         }
     }

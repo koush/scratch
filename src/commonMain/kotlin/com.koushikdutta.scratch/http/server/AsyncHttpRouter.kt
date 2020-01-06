@@ -1,10 +1,9 @@
 package com.koushikdutta.scratch.http.server
 
-import com.koushikdutta.scratch.AsyncRandomAccessInput
-import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
-import com.koushikdutta.scratch.slice
 
 typealias AsyncRouterResponseHandler = suspend (request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncHttpResponse
 
@@ -46,25 +45,25 @@ fun AsyncHttpRouter.get(pathRegex: String, handler: AsyncRouterResponseHandler) 
 fun AsyncHttpRouter.post(pathRegex: String, handler: AsyncRouterResponseHandler) = add("POST", pathRegex, handler)
 fun AsyncHttpRouter.put(pathRegex: String, handler: AsyncRouterResponseHandler) = add("PUT", pathRegex, handler)
 
-fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncRandomAccessInput?) {
+fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (headers: Headers, request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncSliceable?) {
     head(pathRegex) { request, matchResult ->
-        val input = handler(request, matchResult)
+        val headers = Headers()
+        val input = handler(headers, request, matchResult)
         if (input == null)
             return@head AsyncHttpResponse.NOT_FOUND()
-        val headers = Headers()
         headers.set("Accept-Ranges", "bytes")
         headers.set("Content-Length", input.size().toString())
         return@head AsyncHttpResponse.OK(headers)
     }
 
     get(pathRegex) { request, matchResult ->
-        val input = handler(request, matchResult)
+        val headers = Headers()
+        val input = handler(headers, request, matchResult)
         if (input == null)
             return@get AsyncHttpResponse.NOT_FOUND()
 
         val totalLength = input.size()
 
-        val headers = Headers()
         headers.set("Accept-Ranges", "bytes")
         headers.set("Content-Length", totalLength.toString())
 
@@ -73,7 +72,7 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (reque
         var end: Long = totalLength - 1L
         var code = 200
 
-        val read: AsyncRead
+        val asyncInput: AsyncInput
         if (range != null) {
             var parts = range.split("=").toTypedArray()
             // Requested range not satisfiable
@@ -92,20 +91,44 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (reque
                 return@get AsyncHttpResponse(ResponseLine(416, "Not Satisfiable", "HTTP/1.1"))
             }
 
-            read = input.slice(start, end - start + 1)
+            asyncInput = input.slice(start, end - start + 1)
         }
         else {
-            read = input::read
+            asyncInput = input.slice(0, input.size())
         }
 
         if (code == 200) {
-            AsyncHttpResponse.OK(body = BinaryBody(read), headers = headers) {
-                input.close()
+            AsyncHttpResponse.OK(body = BinaryBody(asyncInput::read), headers = headers) {
+                asyncInput.close()
             }
         }
         else {
-            AsyncHttpResponse(body = BinaryBody(read), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1")) {
-                input.close()
+            AsyncHttpResponse(body = BinaryBody(asyncInput::read), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1")) {
+                asyncInput.close()
+            }
+        }
+    }
+}
+
+fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (headers: Headers, request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncRandomAccessInput?) {
+    return randomAccessSlice(pathRegex) { headers, request, match ->
+        val input = handler(headers, request, match)
+        if (input == null)
+            return@randomAccessSlice null
+
+        return@randomAccessSlice object : AsyncSliceable {
+            override suspend fun size(): Long {
+                return input.size()
+            }
+
+            override suspend fun slice(position: Long, length: Long): AsyncInput {
+                // will only be called once.
+                val sliced = input.slice(position, length)
+
+                return object : AsyncInput, AsyncAffinity by input {
+                    override suspend fun read(buffer: WritableBuffers) = sliced(buffer)
+                    override suspend fun close() = input.close()
+                }
             }
         }
     }

@@ -202,6 +202,10 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
 actual typealias AsyncNetworkSocket = NIOSocket
 
 class NIOSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by server {
+    init {
+        key.attach(this)
+    }
+
     val localPort = channel.socket().localPort
     val localAddress = channel.socket().localAddress
     val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress
@@ -225,10 +229,6 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
                 break
             }
         }
-    }
-
-    init {
-        key.attach(this)
     }
 
     private fun closeInternal(t: Throwable?) {

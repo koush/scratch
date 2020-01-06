@@ -4,7 +4,6 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 
-
 /**
  * AsyncRandomAccessInput provides random access read access to
  * resources. The resource may be locally stored, like a file, or remotely
@@ -50,4 +49,10 @@ interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
         write(buffer)
     }
     suspend fun truncate(size: Long)
+}
+
+
+interface AsyncSliceable {
+    suspend fun size(): Long
+    suspend fun slice(position: Long, length: Long): AsyncInput
 }

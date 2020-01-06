@@ -183,28 +183,20 @@ fun AsyncIterator<AsyncRead>.join(): AsyncRead {
     }
 }
 
-class ByteBufferIterator {
-    companion object {
-        fun AsyncIterator<ByteBuffer>.createAsyncRead(): AsyncRead {
-            return read@{
-                if (!hasNext())
-                    return@read false
-                it.add(next())
-                true
-            }
-        }
+fun AsyncIterator<ByteBuffer>.createAsyncReadFromByteBuffers(): AsyncRead {
+    return read@{
+        if (!hasNext())
+            return@read false
+        it.add(next())
+        true
     }
 }
 
-class ByteBufferListIterator {
-    companion object {
-        fun AsyncIterator<ByteBufferList>.createAsyncRead(): AsyncRead {
-            return read@{
-                if (!hasNext())
-                    return@read false
-                it.add(next())
-                true
-            }
-        }
+fun AsyncIterator<ByteBufferList>.createAsyncReadFromByteBufferLists(): AsyncRead {
+    return read@{
+        if (!hasNext())
+            return@read false
+        it.add(next())
+        true
     }
 }

@@ -163,4 +163,15 @@ open class Promise<T> {
     }
 
     fun getOrThrow() = atomicReference.get()!!.value.getOrThrow()
+
+
+    fun setCallback(callback: JavaThenCallback<T>) {
+        then {
+            callback.then(it)
+        }
+    }
+}
+
+interface JavaThenCallback<T> {
+    fun then(result: T)
 }

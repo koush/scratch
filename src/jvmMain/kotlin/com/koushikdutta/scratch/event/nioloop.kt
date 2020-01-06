@@ -160,11 +160,14 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             // it leads me to believe the underlying problem is in the SUN NIO implementation.
 //            post()
 
-            if (!socket.finishConnect())
+            if (!socket.finishConnect()) {
+                ckey.cancel()
                 throw IOException("socket failed to connect")
+            }
 
-
-            return AsyncNetworkSocket(this, socket, ckey)
+            val ret = AsyncNetworkSocket(this, socket, ckey)
+            ckey.interestOps(SelectionKey.OP_READ)
+            return ret;
         }
         catch (e: Exception) {
             ckey?.cancel()
@@ -283,9 +286,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                     socket.writable()
                 }
                 else if (key.isConnectable) {
-                    val continuation = key.attachment() as Continuation<Unit>
-                    key.interestOps(SelectionKey.OP_READ)
-                    continuation.resume(Unit)
+                    val continuation = key.attachment() as Continuation<Unit>?
+                    key.interestOps(0)
+                    key.attach(null)
+                    // continuation may not fire synchronously.
+                    continuation?.resume(Unit)
                 }
                 else {
                     throw AssertionError("Unknown key state")

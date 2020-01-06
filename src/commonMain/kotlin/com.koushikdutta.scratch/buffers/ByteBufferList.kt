@@ -338,20 +338,23 @@ class ByteBufferList : Buffers {
         remaining += b.remaining()
         // see if we can fit the entirety of the buffer into the end
         // of the current last buffer
-        if (buffers.size > 0) {
-            val last = buffers.peekLast()
-            if (last.capacity() - last.limit() >= b.remaining()) {
-                last.mark()
-                last.position(last.limit())
-                last.limit(last.capacity())
-                last.put(b)
-                last.limit(last.position())
-                last.reset()
-                reclaim(b)
-                trim()
-                return this
-            }
-        }
+
+        // todo: this seems problematic. might be issue with assuming that the
+        // entirety of the buffer is usable if coming from an external source.
+//        if (buffers.size > 0) {
+//            val last = buffers.peekLast()
+//            if (last.capacity() - last.limit() >= b.remaining()) {
+//                last.mark()
+//                last.position(last.limit())
+//                last.limit(last.capacity())
+//                last.put(b)
+//                last.limit(last.position())
+//                last.reset()
+//                reclaim(b)
+//                trim()
+//                return this
+//            }
+//        }
         buffers.add(b)
         trim()
         return this
