@@ -66,8 +66,7 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (heade
 
         val totalLength = input.size()
 
-        headers.set("Accept-Ranges", "bytes")
-        headers.set("Content-Length", totalLength.toString())
+        headers["Accept-Ranges"] = "bytes"
 
         val range = request.headers.get("range")
         var start = 0L
@@ -100,12 +99,12 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (heade
         }
 
         if (code == 200) {
-            AsyncHttpResponse.OK(body = BinaryBody(asyncInput::read), headers = headers) {
+            AsyncHttpResponse.OK(body = BinaryBody(asyncInput::read, contentLength =  totalLength), headers = headers) {
                 asyncInput.close()
             }
         }
         else {
-            AsyncHttpResponse(body = BinaryBody(asyncInput::read), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1")) {
+            AsyncHttpResponse(body = BinaryBody(asyncInput::read, contentLength =  totalLength), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1")) {
                 asyncInput.close()
             }
         }

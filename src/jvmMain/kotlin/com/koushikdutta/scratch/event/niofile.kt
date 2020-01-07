@@ -6,7 +6,6 @@ import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import java.io.File
 import java.io.IOException
-import java.lang.Integer.min
 import java.nio.channels.AsynchronousFileChannel
 import java.nio.channels.CompletionHandler
 import java.nio.channels.FileChannel
@@ -15,6 +14,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlin.math.min
 
 interface NIOFileFactory {
     fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int = 16384, vararg openOptions: OpenOption): AsyncRandomAccessStorage
