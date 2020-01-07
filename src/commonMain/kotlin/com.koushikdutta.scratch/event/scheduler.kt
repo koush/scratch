@@ -4,6 +4,7 @@ import com.koushikdutta.scratch.AsyncAffinity
 import com.koushikdutta.scratch.synchronized
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlin.math.max
 import kotlin.math.min
 
 typealias AsyncServerRunnable = () -> Unit
@@ -45,6 +46,10 @@ internal class PriorityQueue {
         get() = queue.size
 }
 
+interface ScratchRunnable {
+    operator fun invoke();
+}
+
 abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     private var postCounter = 0
     internal val mQueue = PriorityQueue()
@@ -52,35 +57,40 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     protected val isQueueEmpty: Boolean
         get() = mQueue.isEmpty()
 
+    private val lockQueue = arrayListOf<Scheduled>()
     protected fun lockAndRunQueue(): Long {
-        var wait = QUEUE_EMPTY
-
-        // find the first item we can actually run
-        while (true) {
-            var run: Scheduled? = null
-
-            synchronized(this) {
-                val now = milliTime()
-
-                if (mQueue.size > 0) {
-                    val s = mQueue.removeFirst()
-                    if (s.time <= now) {
-                        run = s
-                    } else {
-                        wait = s.time - now
-                        mQueue.addFirst(s)
-                    }
+        val now = milliTime()
+        synchronized (this) {
+            while (mQueue.size > 0) {
+                val s = mQueue.removeFirst()
+                if (s.time > now) {
+                    mQueue.addFirst(s)
+                    break
                 }
+                lockQueue.add(s)
             }
-
-            if (run == null)
-                break
-
-            run!!.runnable()
         }
+        while (!lockQueue.isEmpty()) {
+            val run = lockQueue.removeAt(0)
+            run.runnable()
+        }
+        lockQueue.clear()
 
         postCounter = 0
-        return wait
+        synchronized (this) {
+            if (mQueue.size > 0) {
+                val s = mQueue.removeFirst()
+                mQueue.addFirst(s)
+                return max(1L, s.time - now)
+            }
+            return QUEUE_EMPTY
+        }
+    }
+
+    fun postDelayed(delay: Long, runnable: ScratchRunnable): Cancellable {
+        return postDelayed(delay) {
+            runnable()
+        }
     }
 
     fun postDelayed(delay: Long, runnable: AsyncServerRunnable): Cancellable {
@@ -117,12 +127,14 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         synchronized(this) {
             stopping = true
             mQueue.clear()
+            lockQueue.clear()
             mQueue.add(Scheduled(this, {
                 try {
                     runnable()
                 }
                 finally {
                     mQueue.clear()
+                    lockQueue.clear()
                     stopping = false
                 }
             }, 0))

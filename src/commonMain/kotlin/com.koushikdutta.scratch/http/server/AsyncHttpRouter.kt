@@ -11,8 +11,10 @@ interface AsyncHttpRouteHandler {
     suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse?
 }
 
-class AsyncHttpRouter : AsyncHttpRouteHandler {
+class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest) -> Unit = {}) : AsyncHttpRouteHandler {
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse? {
+        onRequest(request)
+
         for (route in routes) {
             if (route.method != null && route.method != request.method)
                 continue

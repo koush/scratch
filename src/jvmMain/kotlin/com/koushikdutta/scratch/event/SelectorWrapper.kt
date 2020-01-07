@@ -1,10 +1,10 @@
-package com.koushikdutta.scratch.event;
+package com.koushikdutta.scratch.event
 
 import java.io.Closeable
-import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Wrap a selector so that to ensure that a wakeup call triggers
@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
  * on the selector thread.
  */
 internal class SelectorWrapper(val selector: Selector) : Closeable {
-    var isWaking: Boolean = false
+    val isWaking = AtomicBoolean(false)
     var semaphore = Semaphore(0)
 
     val isOpen: Boolean
@@ -34,13 +34,8 @@ internal class SelectorWrapper(val selector: Selector) : Closeable {
         }
     }
 
-    fun keys(): Set<SelectionKey> {
-        return selector.keys()
-    }
-
-    fun selectedKeys(): Set<SelectionKey> {
-        return selector.selectedKeys()
-    }
+    fun keys() = selector.keys()
+    fun selectedKeys() = selector.selectedKeys()
 
     override fun close() {
         selector.close()
@@ -55,19 +50,16 @@ internal class SelectorWrapper(val selector: Selector) : Closeable {
             return
 
         // now, we NEED to wait for the select to start to forcibly wake it.
-        synchronized(this) {
-            // check if another thread is already waiting
-            if (isWaking) {
-                return
-            }
-            isWaking = true
+        if (isWaking.getAndSet(true)) {
+            selector.wakeup()
+            return
         }
 
         try {
             waitForSelect()
             selector.wakeup()
         } finally {
-            isWaking = false
+            isWaking.set(false)
         }
     }
 

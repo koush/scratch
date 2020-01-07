@@ -270,7 +270,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
     private fun runSelector() {
         // process whatever keys are ready
-        val readyKeys = mSelector.selector.selectedKeys()
+        val readyKeys = mSelector.selectedKeys()
         for (key in readyKeys) {
             try {
                 if (key.isAcceptable) {
