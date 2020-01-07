@@ -3,11 +3,8 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.allocateByteBuffer
-import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.executeFollowRedirects
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.randomAccess
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
@@ -93,7 +90,7 @@ class StorageTests {
         val pipeServer = createAsyncPipeServerSocket()
         async {
             val router = AsyncHttpRouter()
-            router.randomAccessInput("/") { request, matchResult ->
+            router.randomAccessInput("/") { headers, request, matchResult ->
                 val bb = ByteBufferList().putUtf8String("hello world")
                 val storage = BufferStorage(bb)
                 storage
