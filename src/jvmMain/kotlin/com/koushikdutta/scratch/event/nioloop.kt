@@ -225,49 +225,6 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    private fun runQueue() {
-        //                Log.i(LOGTAG, "Keys: " + mSelector.keys().size)
-        var needsSelect = true
-
-        // run the queue to populate the selector with keys
-        val wait = lockAndRunQueue()
-        try {
-            val exit = synchronized(this) {
-                // select now to see if anything is ready immediately. this
-                // also clears the canceled key queue.
-                val readyNow = mSelector.selectNow()
-                if (readyNow == 0) {
-                    // if there is nothing to select now, make sure we don't have an empty key set
-                    // which means it would be time to turn this thread off.
-                    if (mSelector.keys().isEmpty() && wait == QUEUE_EMPTY) {
-                        //                    Log.i(LOGTAG, "Shutting down. keys: " + selector.keys().size() + " keepRunning: " + keepRunning);
-                        return@synchronized true
-                    }
-                }
-                else {
-                    needsSelect = false
-                }
-                false
-            }
-            if (exit)
-                return
-
-            if (needsSelect) {
-                if (wait == QUEUE_EMPTY) {
-                    // wait until woken up
-                    mSelector.select()
-                }
-                else {
-                    // nothing to select immediately but there's something pending so let's block that duration and wait.
-                    mSelector.select(wait)
-                }
-            }
-        } catch (e: Exception) {
-            // can ignore these exceptions, they spawn from wakeups
-            throw AsyncSelectorException(e)
-        }
-    }
-
     private fun runSelector() {
         // process whatever keys are ready
         val readyKeys = mSelector.selectedKeys()
@@ -304,7 +261,25 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
     }
 
     private fun runLoop() {
-        runQueue()
+        val wait = lockAndRunQueue()
+        try {
+            if (wait == QUEUE_EMPTY) {
+                // wait until woken up
+                mSelector.select()
+            }
+            else if (wait == QUEUE_NEXT_LOOP) {
+                //
+                mSelector.selectNow()
+            }
+            else {
+                // nothing to select immediately but there's something pending so let's block that duration and wait.
+                mSelector.select(wait)
+            }
+        } catch (e: Exception) {
+            // can ignore these exceptions, they spawn from wakeups
+            throw AsyncSelectorException(e)
+        }
+
         runSelector()
     }
 

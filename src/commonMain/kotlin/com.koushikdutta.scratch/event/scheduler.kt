@@ -81,7 +81,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
             if (mQueue.size > 0) {
                 val s = mQueue.removeFirst()
                 mQueue.addFirst(s)
-                return max(1L, s.time - now)
+                return max(QUEUE_NEXT_LOOP, s.time - now)
             }
             return QUEUE_EMPTY
         }
@@ -181,6 +181,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
 
     companion object {
         const val QUEUE_EMPTY = Long.MAX_VALUE
+        const val QUEUE_NEXT_LOOP = 0L
     }
 }
 
