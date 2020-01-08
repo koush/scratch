@@ -206,6 +206,7 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
         key.attach(this)
     }
 
+    val socket = channel.socket()
     val localPort = channel.socket().localPort
     val localAddress = channel.socket().localAddress
     val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress

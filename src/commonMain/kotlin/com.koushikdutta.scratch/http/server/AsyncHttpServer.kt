@@ -63,7 +63,9 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
             catch (exception: Exception) {
                 println("internal server error")
                 println(exception)
-                AsyncHttpResponse.INTERNAL_SERVER_ERROR()
+                val headers = Headers()
+                headers["Connection"] = "close"
+                AsyncHttpResponse.INTERNAL_SERVER_ERROR(headers = headers)
             }
 
             try {
@@ -99,14 +101,21 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
 
                 val buffer = ByteBufferList()
                 buffer.putUtf8String(response.toMessageString())
-                socket.write(buffer)
+                socket::write.drain(buffer)
 
-                responseBody.copy({socket.write(it)})
+                println("sent headers for ${request.uri.path}")
 
-                if (AsyncSocketMiddleware.isKeepAlive(request, response))
+                responseBody.copy(socket::write)
+
+                println("sent body for ${request.uri.path}")
+
+                val keepAlive = AsyncSocketMiddleware.isKeepAlive(request, response)
+                if (keepAlive) {
                     reaccept(socket, reader)
-                else
-                    socket.close()
+                }
+                else {
+//                    socket.close()
+                }
 
                 response.sent?.invoke(null)
             }
@@ -124,7 +133,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
     }
 
     fun listen(server: AsyncServerSocket<*>) = server.acceptAsync {
-        accept(this, AsyncReader({this.read(it)}))
+        accept(this, AsyncReader(this::read))
     }
 
     companion object {
