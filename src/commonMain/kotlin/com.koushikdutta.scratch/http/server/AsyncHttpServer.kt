@@ -114,7 +114,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
                     reaccept(socket, reader)
                 }
                 else {
-//                    socket.close()
+                    socket.close()
                 }
 
                 response.sent?.invoke(null)

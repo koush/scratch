@@ -15,22 +15,38 @@ class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest)
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse? {
         onRequest(request)
 
-        for (route in routes) {
+        for (entry in routes) {
+            val route = entry.key
+            val handler = entry.value
             if (route.method != null && route.method != request.method)
                 continue
             val match = route.pathRegex.matchEntire(request.uri.path ?: "")
             if (match != null)
-                return route.handler(request, match)
+                return handler(request, match)
         }
 
         return null
     }
 
-    private class Route(val method: String?, val pathRegex: Regex, val handler: AsyncRouterResponseHandler)
-    private val routes = mutableListOf<Route>()
+    private class Route(val method: String?, val pathRegexString: String) {
+        val pathRegex = Regex(pathRegexString)
 
-    fun add(method: String?, pathRegex: String, handler: AsyncRouterResponseHandler) {
-        routes.add(Route(method?.toUpperCase(), Regex(pathRegex), handler))
+        override fun equals(other: Any?): Boolean {
+            if (other !is Route)
+                return false
+            return other.method == method && other.pathRegexString == pathRegexString
+        }
+
+        override fun hashCode(): Int {
+            if (method != null)
+                return method.hashCode() xor pathRegexString.hashCode()
+            return pathRegexString.hashCode()
+        }
+    }
+    private val routes = mutableMapOf<Route, AsyncRouterResponseHandler>()
+
+    fun set(method: String?, pathRegex: String, handler: AsyncRouterResponseHandler) {
+        routes[Route(method?.toUpperCase(), pathRegex)] = handler
     }
 
     suspend fun handle(request: AsyncHttpRequest): AsyncHttpResponse {
@@ -42,10 +58,10 @@ class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest)
 }
 
 
-fun AsyncHttpRouter.head(pathRegex: String, handler: AsyncRouterResponseHandler) = add("HEAD", pathRegex, handler)
-fun AsyncHttpRouter.get(pathRegex: String, handler: AsyncRouterResponseHandler) = add("GET", pathRegex, handler)
-fun AsyncHttpRouter.post(pathRegex: String, handler: AsyncRouterResponseHandler) = add("POST", pathRegex, handler)
-fun AsyncHttpRouter.put(pathRegex: String, handler: AsyncRouterResponseHandler) = add("PUT", pathRegex, handler)
+fun AsyncHttpRouter.head(pathRegex: String, handler: AsyncRouterResponseHandler) = set("HEAD", pathRegex, handler)
+fun AsyncHttpRouter.get(pathRegex: String, handler: AsyncRouterResponseHandler) = set("GET", pathRegex, handler)
+fun AsyncHttpRouter.post(pathRegex: String, handler: AsyncRouterResponseHandler) = set("POST", pathRegex, handler)
+fun AsyncHttpRouter.put(pathRegex: String, handler: AsyncRouterResponseHandler) = set("PUT", pathRegex, handler)
 
 fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (headers: Headers, request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncSliceable?) {
     head(pathRegex) { request, matchResult ->
@@ -99,12 +115,12 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (heade
         }
 
         if (code == 200) {
-            AsyncHttpResponse.OK(body = BinaryBody(asyncInput::read, contentLength =  totalLength), headers = headers) {
+            AsyncHttpResponse.OK(body = BinaryBody(asyncInput::read, contentLength = totalLength), headers = headers) {
                 asyncInput.close()
             }
         }
         else {
-            AsyncHttpResponse(body = BinaryBody(asyncInput::read, contentLength =  totalLength), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1")) {
+            AsyncHttpResponse(body = BinaryBody(asyncInput::read, contentLength = end - start + 1), headers = headers, responseLine = ResponseLine(code, "Partial Content", "HTTP/1.1")) {
                 asyncInput.close()
             }
         }
