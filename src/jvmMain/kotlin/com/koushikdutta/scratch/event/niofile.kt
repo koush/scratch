@@ -5,11 +5,15 @@ import com.koushikdutta.scratch.AsyncRandomAccessStorage
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.channels.AsynchronousFileChannel
+import java.nio.channels.Channel
 import java.nio.channels.CompletionHandler
 import java.nio.channels.FileChannel
 import java.nio.file.OpenOption
+import java.nio.file.StandardOpenOption
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -17,7 +21,7 @@ import kotlin.coroutines.suspendCoroutine
 import kotlin.math.min
 
 interface NIOFileFactory {
-    fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int = 16384, vararg openOptions: OpenOption): AsyncRandomAccessStorage
+    fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int = 16384, write: Boolean = false): AsyncRandomAccessStorage
 
     companion object {
         val instance: NIOFileFactory
@@ -31,17 +35,17 @@ interface NIOFileFactory {
                 clazz = null
             }
 
-            if (clazz == null) {
+            if (clazz != null) {
                 instance = object : NIOFileFactory {
-                    override fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int, vararg openOptions: OpenOption): AsyncRandomAccessStorage {
-                        return NIOFile6(loop, file, defaultReadLength, *openOptions)
+                    override fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int, write: Boolean): AsyncRandomAccessStorage {
+                        return NIOFile7(loop, file, defaultReadLength, write)
                     }
                 }
             }
             else {
                 instance = object : NIOFileFactory {
-                    override fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int, vararg openOptions: OpenOption): AsyncRandomAccessStorage {
-                        return NIOFile7(loop, file, defaultReadLength, *openOptions)
+                    override fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int, write: Boolean): AsyncRandomAccessStorage {
+                        return NIOFile6(loop, file, defaultReadLength, write)
                     }
                 }
             }
@@ -61,8 +65,14 @@ private fun <T> completionHandler(continuation: Continuation<T>): CompletionHand
     }
 }
 
-class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: Int, vararg openOptions: OpenOption) : AsyncRandomAccessStorage, AsyncAffinity by server {
-    val fileChannel = AsynchronousFileChannel.open(file.toPath(), *openOptions)
+class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: Int, write: Boolean) : AsyncRandomAccessStorage, AsyncAffinity by server {
+    val fileChannel: AsynchronousFileChannel
+    init {
+        if (write)
+            fileChannel = AsynchronousFileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE)
+        else
+            fileChannel = AsynchronousFileChannel.open(file.toPath(), StandardOpenOption.READ)
+    }
     var position: Long = 0
     override suspend fun truncate(size: Long) {
         fileChannel.truncate(size)
@@ -129,8 +139,14 @@ class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: In
     }
 }
 
-class NIOFile6(val server: AsyncEventLoop, file: File, var defaultReadLength: Int, vararg openOptions: OpenOption) : AsyncRandomAccessStorage, AsyncAffinity by server{
-    val fileChannel = FileChannel.open(file.toPath(), *openOptions)
+class NIOFile6(val server: AsyncEventLoop, file: File, var defaultReadLength: Int, write: Boolean) : AsyncRandomAccessStorage, AsyncAffinity by server{
+    val fileChannel: FileChannel
+    init {
+        if (write)
+            fileChannel = FileOutputStream(file).channel
+        else
+            fileChannel = FileInputStream(file).channel
+    }
     var position: Long = 0
     override suspend fun truncate(size: Long) {
         fileChannel.truncate(size)

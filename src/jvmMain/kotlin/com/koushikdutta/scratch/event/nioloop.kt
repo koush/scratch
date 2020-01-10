@@ -176,9 +176,9 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    suspend fun openFile(file: File, vararg openOptions: OpenOption, defaultReadLength: Int = 16384): AsyncRandomAccessStorage {
+    suspend fun openFile(file: File, write: Boolean = false, defaultReadLength: Int = 16384): AsyncRandomAccessStorage {
         await()
-        return NIOFileFactory.instance.open(this, file, defaultReadLength, *openOptions)
+        return NIOFileFactory.instance.open(this, file, defaultReadLength, write)
     }
 
     suspend fun getAllByName(host: String): Array<InetAddress> {
