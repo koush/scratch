@@ -311,8 +311,15 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
     companion object {
         val LOGTAG = "NIO"
-
         val default = AsyncEventLoop()
+
+        init {
+            val defaultThread = Thread {
+                default.run()
+            }
+            defaultThread.name = "DefaultScratchLoop"
+            defaultThread.start()
+        }
 
         private val synchronousWorkers = newSynchronousWorkers("AsyncServer-worker-")
 
