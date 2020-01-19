@@ -10,7 +10,7 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 typealias PromiseCallback<T, R> = suspend (T) -> R
-typealias PromiseCatch<R> = suspend (throwable: Throwable) -> R
+typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
 
 internal interface PromiseResult<T> {
     fun getOrThrow(): T
@@ -37,9 +37,22 @@ class Deferred<T> {
     val promise = Promise<T>()
     fun resolve(result: T) = promise.resolve(result)
     fun reject(throwable: Throwable) = promise.reject(throwable)
+
+    companion object {
+        suspend fun <T> defer(block: suspend (resolve: (T) -> Boolean, reject: (Throwable) -> Boolean) -> Unit): T {
+            val deferred = Deferred<T>()
+            block(deferred::resolve, deferred::reject)
+            return deferred.promise.await()
+        }
+    }
 }
 
-open class Promise<T> {
+expect class Promise<T> : PromiseBase<T> {
+    constructor(block: suspend () -> T)
+    internal constructor()
+}
+
+open class PromiseBase<T> {
     internal val atomicReference = FreezableReference<PromiseResult<T>>()
     private val callbacks = FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
         Unit
@@ -98,7 +111,7 @@ open class Promise<T> {
         }
     }
 
-    fun <R> catch(callback: PromiseCatch<R>): Promise<R> {
+    fun catch(callback: PromiseCatch): Promise<T> {
         return Promise {
             try {
                 suspendCoroutine<T> {
@@ -113,12 +126,10 @@ open class Promise<T> {
                         it.resumeWithException(throwable)
                     }
                 }
-                // never resume this coroutine if there was no exception
-                suspendCoroutine<Unit> {  }
-                throw AssertionError("promise catch reached valid result")
             }
             catch (throwable: Throwable) {
                 callback(throwable)
+                throw throwable
             }
         }
     }
@@ -163,15 +174,4 @@ open class Promise<T> {
     }
 
     fun getOrThrow() = atomicReference.get()!!.value.getOrThrow()
-
-
-    fun setCallback(callback: JavaThenCallback<T>) {
-        then {
-            callback.then(it)
-        }
-    }
-}
-
-interface JavaThenCallback<T> {
-    fun then(result: T)
 }
