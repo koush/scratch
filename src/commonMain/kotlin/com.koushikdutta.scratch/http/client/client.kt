@@ -85,8 +85,13 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
             if (session.response == null)
                 throw AsyncHttpClientException("unable to find transport to exchange headers for uri ${session.request.uri}")
 
-            if (session.response!!.code == StatusCode.SWITCHING_PROTOCOLS.code)
-                throw AsyncHttpSwitchingProtocols(session.socket!!, session.socketReader!!)
+            if (session.response!!.code == StatusCode.SWITCHING_PROTOCOLS.code) {
+                // if the request was expecting an upgrade, throw a special exception with the socket and socket reader,
+                // and completely bail on this request.
+                if (session.request.headers["Connection"]?.equals("Upgrade", true) == true && session.request.headers["Upgrade"] != null)
+                    throw AsyncHttpSwitchingProtocols(session.socket!!, session.socketReader!!)
+                throw IOException("Received unexpected connection upgrade")
+            }
 
             for (middleware in middlewares) {
                 middleware.onResponseStarted(session)

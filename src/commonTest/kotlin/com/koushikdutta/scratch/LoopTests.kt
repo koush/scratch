@@ -361,9 +361,14 @@ class LoopTests {
     fun testWebSocket() = networkContextTest {
         val httpClient = AsyncHttpClient(this)
         val websocket = httpClient.connectWebSocket("wss://echo.websocket.org")
+
+        websocket.ping("ping!")
+        assertEquals("ping!", websocket.readMessage()!!.text)
+
         websocket::write.drain("hello".createByteBufferList())
+        websocket::write.drain("world".createByteBufferList())
         websocket.close()
         val data = readAllString(websocket::read)
-        assertEquals("hello", data)
+        assertEquals("helloworld", data)
     }
 }
