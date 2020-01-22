@@ -56,9 +56,15 @@ class HybiMessage(val opcode: Int, val final: Boolean, val read: AsyncRead, priv
 // making the data appear random, and not compressing well.
 // furthermore, kotlin does not have a builtin zlib.
 class HybiParser(private val reader: AsyncReader, private val masking: Boolean) {
-    private var closed = false
+    var isClosed = false
+        private set
+    var isEnded = false
+        private set
 
     suspend fun parse(): HybiMessage {
+        if (isEnded)
+            throw IOException("HybiParser peer has closed the connection")
+
         // parse the opcode
         val byte0 = reader.readByte()
         val rsv1 = byte0 and RSV1 == RSV1
@@ -89,22 +95,16 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
             payloadLength.toLong()
         }
 
-        val mask: ByteArray?
-        if (masked) {
-            mask = reader.readBytes(4)
-        }
-        else {
-            mask = null
-        }
-
+        // parse the payload
         val rawRead = reader.pipe(createContentLengthPipe(length))
         val read = if (masked) {
+            val mask = reader.readBytes(4)
             rawRead.pipe {
                 var index = 0
                 while (it(buffer)) {
                     val bytes = buffer.readBytes()
                     for (i in bytes.indices) {
-                        bytes[i] = bytes[i] xor mask!![index % 4]
+                        bytes[i] = bytes[i] xor mask[index % 4]
                         index++
                     }
                     buffer.add(bytes)
@@ -119,6 +119,7 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
         if (opcode != OP_CLOSE)
             return HybiMessage(opcode, final, read)
 
+        isEnded = true
         val reader = AsyncReader(read)
         return HybiMessage(opcode, final, reader::read, reader.readShort().toInt())
     }
@@ -140,27 +141,22 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
     }
 
     fun closeFrame(code: Int, reason: String): ReadableBuffers {
-        if (closed)
+        if (isClosed)
             return ByteBufferList()
         val buffer = ByteBufferList()
         buffer.order(ByteOrder.BIG_ENDIAN)
         buffer.putShort(code.toShort())
         buffer.putUtf8String(reason)
         val ret = frame(OP_CLOSE, buffer)
-        closed = true
+        isClosed = true
         return ret
     }
 
-    /**
-     * Flip the opcode so to avoid the name collision with the public method
-     *
-     * @param opcode
-     * @param data
-     * @param errorCode
-     * @return
-     */
     private fun frame(opcode: Int, data: ReadableBuffers): ReadableBuffers {
-        if (closed) throw IOException("hybiparser closed")
+        if (isClosed) throw IOException("hybiparser closed")
+
+        if (!FRAGMENTED_OPCODES.contains(opcode) && data.remaining() > 125)
+            throw IllegalArgumentException("hybi control code can not send data payloads larger than 125 bytes")
 
         val length = data.remaining()
         val header = if (length <= 125) 2 else if (length <= 65535) 4 else 10

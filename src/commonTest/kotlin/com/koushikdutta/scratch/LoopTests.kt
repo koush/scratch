@@ -4,6 +4,7 @@ import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.async.UnhandledAsyncExceptionError
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.InetSocketAddress
 import com.koushikdutta.scratch.event.connect
@@ -15,6 +16,7 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
+import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
 import kotlin.coroutines.Continuation
@@ -353,5 +355,15 @@ class LoopTests {
     fun testStops() = networkContextTest {
         stop(true)
         stop(true)
+    }
+
+    @Test
+    fun testWebSocket() = networkContextTest {
+        val httpClient = AsyncHttpClient(this)
+        val websocket = httpClient.connectWebSocket("wss://echo.websocket.org")
+        websocket::write.drain("hello".createByteBufferList())
+        websocket.close()
+        val data = readAllString(websocket::read)
+        assertEquals("hello", data)
     }
 }

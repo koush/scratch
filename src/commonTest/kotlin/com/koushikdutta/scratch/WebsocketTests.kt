@@ -2,6 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.http.websocket.HybiParser
+import com.koushikdutta.scratch.http.websocket.WebSocket
 import com.koushikdutta.scratch.parser.readAllBuffer
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random
@@ -115,5 +116,22 @@ class WebsocketTests {
             done++
         }
         assertEquals(done, 2)
+    }
+
+    @Test
+    fun testWebSocket() {
+        val pipe = createAsyncPipeSocketPair()
+        val clientSocket = WebSocket(pipe.first, AsyncReader(pipe.first::read))
+        val serverSocket = WebSocket(pipe.second, AsyncReader(pipe.second::read), true)
+
+        async {
+            clientSocket::write.drain("hello".createByteBufferList())
+            clientSocket.close()
+        }
+
+        async {
+            val data = readAllString(serverSocket::read)
+            println(data)
+        }
     }
 }

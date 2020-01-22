@@ -42,6 +42,8 @@ class AsyncHttpClientException : Exception {
     constructor(message: String, exception: Exception) : super(message, exception)
 }
 
+class AsyncHttpSwitchingProtocols(val socket: AsyncSocket, val socketReader: AsyncReader): Exception()
+
 class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
     val middlewares = mutableListOf<AsyncHttpClientMiddleware>()
 
@@ -80,9 +82,11 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
             sent = true
             session.request.sent?.invoke(null)
 
-
             if (session.response == null)
                 throw AsyncHttpClientException("unable to find transport to exchange headers for uri ${session.request.uri}")
+
+            if (session.response!!.code == StatusCode.SWITCHING_PROTOCOLS.code)
+                throw AsyncHttpSwitchingProtocols(session.socket!!, session.socketReader!!)
 
             for (middleware in middlewares) {
                 middleware.onResponseStarted(session)
@@ -93,6 +97,9 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
             }
 
             return session.response!!
+        }
+        catch (switching: AsyncHttpSwitchingProtocols) {
+            throw switching
         }
         catch (throwable: Throwable) {
             if (!sent)

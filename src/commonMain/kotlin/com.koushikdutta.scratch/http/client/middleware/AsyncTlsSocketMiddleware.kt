@@ -6,7 +6,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.tls.*
 
 open class AsyncTlsSocketMiddleware(eventLoop: AsyncEventLoop, val context: SSLContext = getDefaultSSLContext()) : AsyncSocketMiddleware(eventLoop) {
-    override val scheme: String = "https"
+    override val scheme = setOf("https", "wss")
     override val defaultPort = 443
 
     protected open fun configureEngine(engine: SSLEngine) {

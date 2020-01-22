@@ -131,6 +131,11 @@ suspend fun AsyncRead.drain() {
     }
 }
 
+suspend fun AsyncRead.drain(buffer: WritableBuffers) {
+    while (this(buffer)) {
+    }
+}
+
 suspend fun AsyncRead.copy(asyncWrite: AsyncWrite) {
     val bytes = ByteBufferList()
     while (this(bytes)) {

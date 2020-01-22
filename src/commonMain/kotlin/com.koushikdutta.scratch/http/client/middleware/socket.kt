@@ -26,7 +26,7 @@ private typealias IOException = Exception
  * Manages socket connection initiation and keep alive.
  */
 open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClientMiddleware() {
-    protected open val scheme = "http"
+    protected open val scheme = setOf("http", "ws")
     open val defaultPort = 80
 
     private data class KeepAliveSocket(val socket: AsyncSocket, val interrupt: InterruptibleRead, val socketReader: AsyncReader, val time: Long = nanoTime(), var observe: Boolean = true)
@@ -94,9 +94,8 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-        if (!session.request.uri.scheme.equals(scheme, true))
+        if (!scheme.contains(session.request.uri.scheme?.toLowerCase()))
             return false
-
 
         val host = session.request.uri.host!!
         val port = if (session.request.uri.port == -1) defaultPort else session.request.uri.port

@@ -141,6 +141,7 @@ class PromiseTests {
     fun testPromiseChainingFinally() {
         var threw = false
         var continuation: Continuation<String>? = null
+        var finalized = false
         val promise = Promise<String> {
             suspendCoroutine {
                 continuation = it
@@ -150,15 +151,7 @@ class PromiseTests {
             threw = true
             throw Throwable()
         }
-        .catch {
-            12
-        }
-        .then {
-            it + 22
-        }
-
-        var finalized = false
-        promise.finally {
+        .finally {
             finalized = true
         }
 
@@ -166,7 +159,5 @@ class PromiseTests {
 
         assertTrue(threw)
         assertTrue(finalized)
-        assertEquals(34, promise.getOrThrow())
-        assertEquals(34, promise.getOrThrow())
     }
 }
