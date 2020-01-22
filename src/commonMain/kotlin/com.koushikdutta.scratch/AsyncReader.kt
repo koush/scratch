@@ -3,7 +3,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.ReadableBuffers
+import com.koushikdutta.scratch.buffers.ByteOrder
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import kotlin.math.min
 
@@ -196,6 +196,36 @@ class AsyncReader(val input: AsyncRead) {
      */
     fun pipe(pipe: AsyncReaderPipe): AsyncRead {
         return genericPipe(this, pipe)
+    }
+
+    private suspend fun ensureBuffered(length: Int) {
+        while (buffered < length && readBuffer()) {
+        }
+        if (buffered < length)
+            throw IOException("AsyncReader unable to read $length bytes")
+    }
+
+    suspend fun readByte(): Byte {
+        ensureBuffered(1)
+        return pending.readByte()
+    }
+
+    suspend fun readShort(order: ByteOrder = ByteOrder.BIG_ENDIAN): Short {
+        ensureBuffered(2)
+        pending.order(order)
+        return pending.readShort()
+    }
+
+    suspend fun readInt(order: ByteOrder = ByteOrder.BIG_ENDIAN): Int {
+        ensureBuffered(4)
+        pending.order(order)
+        return pending.readInt()
+    }
+
+    suspend fun readLong(order: ByteOrder = ByteOrder.BIG_ENDIAN): Long {
+        ensureBuffered(8)
+        pending.order(order)
+        return pending.readLong()
     }
 }
 

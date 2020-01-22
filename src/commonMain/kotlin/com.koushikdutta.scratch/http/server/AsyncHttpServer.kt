@@ -103,11 +103,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
                 buffer.putUtf8String(response.toMessageString())
                 socket::write.drain(buffer)
 
-                println("sent headers for ${request.uri.path}")
-
                 responseBody.copy(socket::write)
-
-                println("sent body for ${request.uri.path}")
 
                 val keepAlive = AsyncSocketMiddleware.isKeepAlive(request, response)
                 if (keepAlive) {

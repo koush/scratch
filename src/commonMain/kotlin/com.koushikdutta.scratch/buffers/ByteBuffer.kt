@@ -84,6 +84,7 @@ expect abstract class ByteBuffer : Buffer {
 
     fun put(byteBuffer: ByteBuffer): ByteBuffer
     fun put(bytes: ByteArray): ByteBuffer
+    fun put(bytes: ByteArray, offset: Int, length: Int): ByteBuffer
     abstract fun put(value: Byte): ByteBuffer
     abstract fun putShort(value: Short): ByteBuffer
     abstract fun putInt(value: Int): ByteBuffer

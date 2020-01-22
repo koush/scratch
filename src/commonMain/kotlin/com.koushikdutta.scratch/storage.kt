@@ -46,7 +46,7 @@ fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
 interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
     suspend fun writePosition(position: Long, buffer: ReadableBuffers) {
         setPosition(position)
-        write(buffer)
+        this::write.drain(buffer)
     }
     suspend fun truncate(size: Long)
 }

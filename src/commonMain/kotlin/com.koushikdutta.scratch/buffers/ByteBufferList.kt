@@ -34,11 +34,6 @@ class ByteBufferList : Buffers {
         addAll(*b)
     }
 
-    constructor(buf: ByteArray) : super() {
-        val b = createByteBuffer(buf)
-        add(b)
-    }
-
     override fun order(): ByteOrder {
         return order
     }
@@ -555,7 +550,7 @@ class ByteBufferList : Buffers {
         var MIN_ITEM_SIZE = 1024
         val totalObtained: Long
             get() = totalObtained2
-            val totalObtainCount: Int
+        val totalObtainCount: Int
             get() = totalObtainCount2
 
         fun obtain(size: Int): ByteBuffer {
@@ -576,3 +571,13 @@ class ByteBufferList : Buffers {
 
 internal var totalObtained2 = 0L
 internal var totalObtainCount2 = 0
+
+fun ByteArray.createByteBufferList(): ByteBufferList {
+    val ret = ByteBufferList()
+    ret.add(this)
+    return ret
+}
+
+fun String.createByteBufferList(): ByteBufferList {
+    return encodeToByteArray().createByteBufferList()
+}

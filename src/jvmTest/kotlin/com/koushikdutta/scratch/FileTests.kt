@@ -2,6 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import org.junit.Test
 import java.io.File
@@ -27,7 +28,7 @@ class FileTests {
         var hash = ""
         val digest = MessageDigest.getInstance("MD5")
         loop.async {
-            val fread = openFile(temp, StandardOpenOption.READ)
+            val fread = openFile(temp)
             val buffer = ByteBufferList()
             while (fread.read(buffer)) {
                 digest.update(buffer.readBytes())
@@ -53,13 +54,11 @@ class FileTests {
         var hash = ""
         val digest = MessageDigest.getInstance("MD5")
         loop.async {
-            val fwrite = openFile(temp, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
-            val br = ByteArray(10000000)
-            sr.nextBytes(br)
-            fwrite.write(ByteBufferList(br))
+            val fwrite = openFile(temp, true)
+            fwrite.write(sr.nextBytes(10000000).createByteBufferList())
             fwrite.close()
 
-            val fread = openFile(temp, StandardOpenOption.READ)
+            val fread = openFile(temp)
             val buffer = ByteBufferList()
             while (fread.read(buffer)) {
                 digest.update(buffer.readBytes())
@@ -86,13 +85,12 @@ class FileTests {
         var hash = ""
         val digest = MessageDigest.getInstance("MD5")
         loop.async {
-            val fwrite = openFile(temp, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
-            val br = ByteArray(10000000)
-            sr.nextBytes(br)
-            fwrite.writePosition(0, ByteBufferList(br))
+            val fwrite = openFile(temp, true)
+            fwrite.write("willbeclobbered".createByteBufferList())
+            fwrite.writePosition(0, sr.nextBytes(10000000).createByteBufferList())
             fwrite.close()
 
-            val fread = openFile(temp, StandardOpenOption.READ)
+            val fread = openFile(temp)
             val buffer = ByteBufferList()
             while (fread.read(buffer)) {
                 digest.update(buffer.readBytes())
