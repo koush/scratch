@@ -6,6 +6,7 @@ import com.koushikdutta.scratch.atomic.AtomicThrowingLock
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import com.koushikdutta.scratch.crypto.sha1
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.GET
 import com.koushikdutta.scratch.http.Headers
@@ -219,12 +220,12 @@ suspend fun AsyncHttpClient.connectWebSocket(uri: String, socket: AsyncSocket? =
             throw WebSocketException("Expected Upgrade: WebSocket header, received: ${responseHeaders["Upgrade"]}")
 
         val sha1 = responseHeaders["Sec-WebSocket-Accept"] ?: throw WebSocketException("Missing header Sec-WebSocket-Accept")
-        val key = responseHeaders["Sec-WebSocket-Key"] ?: throw WebSocketException("Missing header Sec-WebSocket-Key")
+        val key = headers["Sec-WebSocket-Key"] ?: throw WebSocketException("Missing header Sec-WebSocket-Key")
         val concat = key + MAGIC
-//        val expected: String = SHA1(concat).trim()
+        val expected = concat.encodeToByteArray().sha1().encodeBase64ToString()
+        if (!sha1.equals(expected, true))
+            throw WebSocketException("Sha1 mismatch $expected vs $sha1")
 
-
-        //        val extensions = headers["Sec-WebSocket-Extensions"]
         val protocol = responseHeaders["Sec-WebSocket-Protocol"]
 
         return WebSocket(switching.socket, switching.socketReader, protocol)
