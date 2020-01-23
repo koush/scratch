@@ -117,7 +117,11 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
             return true
         }
 
-        if (http2Connections.contains(socketKey)) {
+        // don't allow http2 connections to be upgraded. websocket does support http2, but it needs to be
+        // implemented.
+        val connectionUpgrade = "upgrade".equals(session.request.headers["connection"], true)
+
+        if (http2Connections.contains(socketKey) && !connectionUpgrade) {
             connectHttp2(session, http2Connections[socketKey]!!)
             return true
         }

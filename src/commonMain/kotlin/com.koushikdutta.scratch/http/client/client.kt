@@ -42,7 +42,12 @@ class AsyncHttpClientException : Exception {
     constructor(message: String, exception: Exception) : super(message, exception)
 }
 
-class AsyncHttpSwitchingProtocols(val socket: AsyncSocket, val socketReader: AsyncReader): Exception()
+interface AsyncHttpDetachedSocket {
+    val socket: AsyncSocket
+    val socketReader: AsyncReader
+}
+
+class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, override val socket: AsyncSocket, override val socketReader: AsyncReader): Exception(), AsyncHttpDetachedSocket
 
 class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
     val middlewares = mutableListOf<AsyncHttpClientMiddleware>()
@@ -89,7 +94,7 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
                 // if the request was expecting an upgrade, throw a special exception with the socket and socket reader,
                 // and completely bail on this request.
                 if (session.request.headers["Connection"]?.equals("Upgrade", true) == true && session.request.headers["Upgrade"] != null)
-                    throw AsyncHttpSwitchingProtocols(session.socket!!, session.socketReader!!)
+                    throw AsyncHttpClientSwitchingProtocols(session.response!!.headers, session.socket!!, session.socketReader!!)
                 throw IOException("Received unexpected connection upgrade")
             }
 
@@ -103,7 +108,7 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
 
             return session.response!!
         }
-        catch (switching: AsyncHttpSwitchingProtocols) {
+        catch (switching: AsyncHttpClientSwitchingProtocols) {
             throw switching
         }
         catch (throwable: Throwable) {
@@ -114,8 +119,20 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         }
     }
 
-    suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
+    suspend fun execute(request: AsyncHttpRequest, socket: AsyncSocket? = null, socketReader: AsyncReader? = null): AsyncHttpResponse {
+        if (socketReader != null && socket == null)
+            throw IllegalArgumentException("socket must not be null if socketReader is non null")
+
         val session = AsyncHttpClientSession(this, request)
+        if (socket != null) {
+            session.socket = socket
+            if (socketReader == null)
+                session.socketReader = AsyncReader(socket::read)
+            else
+                session.socketReader = socketReader
+            session.properties.manageSocket = false
+            session.protocol = session.request.protocol.toLowerCase()
+        }
         return execute(session)
     }
 
@@ -151,7 +168,7 @@ private suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHandl
     }
 }
 
-internal val defaultMaxRedirects = 5
+internal const val defaultMaxRedirects = 5
 suspend fun <R> AsyncHttpClient.get(uri: String, handler: AsyncHttpResponseHandler<R>): R {
     return executeFollowRedirects(AsyncHttpRequest.GET(uri), defaultMaxRedirects, handler)
 }

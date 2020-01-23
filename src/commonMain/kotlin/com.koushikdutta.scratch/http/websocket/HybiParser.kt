@@ -1,36 +1,5 @@
 package com.koushikdutta.scratch.http.websocket
 
-
-//
-// HybiParser.java: draft-ietf-hybi-thewebsocketprotocol-13 parser
-//
-// Based on code from the faye project.
-// https://github.com/faye/faye-websocket-node
-// Copyright (c) 2009-2012 James Coglan
-//
-// Ported from Javascript to Java by Eric Butler <eric@codebutler.com>
-//
-// (The MIT License)
-//
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ByteOrder
@@ -42,7 +11,7 @@ import kotlin.experimental.or
 import kotlin.experimental.xor
 import kotlin.random.Random
 
-class HybiMessage(val opcode: Int, val final: Boolean, val read: AsyncRead, private val code: Int? = null) {
+class HybiFrame(val opcode: Int, val final: Boolean, val read: AsyncRead, private val code: Int? = null) {
     val closeCode: Int
         get() {
             if (code == null)
@@ -50,6 +19,8 @@ class HybiMessage(val opcode: Int, val final: Boolean, val read: AsyncRead, priv
             return code
         }
 }
+
+class HybiProtocolError(detailMessage: String) : IOException(detailMessage)
 
 // todo: deflate?
 // the problem with deflate is that it kinda sucks with hybi protocol due to mandatory client masking
@@ -61,7 +32,21 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
     var isEnded = false
         private set
 
-    suspend fun parse(): HybiMessage {
+    suspend fun parse(): HybiFrame {
+        try {
+            return parseInternal()
+        }
+        catch (throwable: Throwable) {
+            isEnded = true
+            isClosed = true
+            throw throwable
+        }
+    }
+
+    // the parser will simply parse frames. it will not reassemble data+continuation* frames
+    // into whole messages. fragmented message management (both read and write)
+    // is left to the consumer of the parser.
+    private suspend fun parseInternal(): HybiFrame {
         if (isEnded)
             throw IOException("HybiParser peer has closed the connection")
 
@@ -71,13 +56,13 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
         val rsv2 = byte0 and RSV2 == RSV2
         val rsv3 = byte0 and RSV3 == RSV3
         if (rsv1 || rsv2 || rsv3)
-            throw ProtocolError("RSV not zero")
+            throw HybiProtocolError("RSV not zero")
         val final = byte0 and FIN == FIN
         val opcode = byte0 and OPCODE
         if (!OPCODES.contains(opcode))
-            throw ProtocolError("Bad opcode")
+            throw HybiProtocolError("Bad opcode")
         if (!FRAGMENTED_OPCODES.contains(opcode) && !final)
-            throw ProtocolError("Expected non-final packet")
+            throw HybiProtocolError("Expected non-final packet")
 
         // parse the payload length
         val byte1 = reader.readByte()
@@ -117,11 +102,11 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
         }
 
         if (opcode != OP_CLOSE)
-            return HybiMessage(opcode, final, read)
+            return HybiFrame(opcode, final, read)
 
         isEnded = true
         val reader = AsyncReader(read)
-        return HybiMessage(opcode, final, reader::read, reader.readShort().toInt())
+        return HybiFrame(opcode, final, reader::read, reader.readShort().toInt())
     }
 
     fun frame(data: String): ReadableBuffers {
@@ -198,9 +183,7 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
         return frame
     }
 
-    class ProtocolError(detailMessage: String) : IOException(detailMessage)
     companion object {
-        private const val TAG = "HybiParser"
         private const val BYTE = 255
         private const val FIN = 128
         private const val MASK = 128

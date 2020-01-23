@@ -8,9 +8,10 @@ import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
+import com.koushikdutta.scratch.http.client.executeFollowRedirects
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
-import com.koushikdutta.scratch.http.client.executeFollowRedirects
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
@@ -389,5 +390,34 @@ class HttpTests {
         }
 
         assertTrue(gotClose)
+    }
+
+    @Test
+    fun testConnectionUpgrade() {
+        var protocolSwitched = false
+        val pipeServer = createAsyncPipeServerSocket()
+        val httpServer = AsyncHttpServer {
+            AsyncHttpResponse.SWITCHING_PROTOCOLS {
+                protocolSwitched = true
+            }
+        }
+        httpServer.listen(pipeServer)
+
+        async {
+            val httpClient = AsyncHttpClient()
+            val clientSocket = pipeServer.connect()
+            val headers = Headers()
+            headers["Connection"] = "Upgrade"
+            headers["Upgrade"] = "TestProtocol"
+            val request = AsyncHttpRequest.GET("http://example.org", headers)
+            try {
+                httpClient.execute(request, clientSocket)
+            }
+            catch (switching: AsyncHttpClientSwitchingProtocols) {
+                return@async
+            }
+            throw Exception("Expected client to switch protocols")
+        }
+        assertTrue(protocolSwitched)
     }
 }

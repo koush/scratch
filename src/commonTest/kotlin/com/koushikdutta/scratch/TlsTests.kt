@@ -230,6 +230,7 @@ class TlsTests {
         // these are big due to certs. oof.
         assertTrue(mid - start < 250000)
         // check streaming allocations
+        println(ByteBufferList.totalObtained - mid)
         assertTrue(ByteBufferList.totalObtained - mid < 80000)
     }
 

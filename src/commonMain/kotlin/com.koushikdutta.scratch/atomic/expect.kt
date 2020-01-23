@@ -4,17 +4,8 @@ expect class AtomicBoolean(initialValue: Boolean) {
     constructor()
     fun get(): Boolean
     fun set(value: Boolean)
-    fun getAndSet(value: Boolean): Boolean
+    fun getAndSet(newValue: Boolean): Boolean
     fun compareAndSet(expect: Boolean, update: Boolean): Boolean
-}
-
-fun AtomicBoolean.update(update: (value: Boolean) -> Boolean): Boolean {
-    while (true) {
-        val currentValue = get()
-        val newValue = update(currentValue)
-        if (compareAndSet(currentValue, newValue))
-            return newValue
-    }
 }
 
 expect class AtomicReference<V>(initialValue: V) {
@@ -22,15 +13,6 @@ expect class AtomicReference<V>(initialValue: V) {
     fun get(): V
     fun getAndSet(newValue: V): V
     fun set(value: V)
-}
-
-fun <V> AtomicReference<V>.update(update: (value: V) -> V): V {
-    while (true) {
-        val currentValue = get()
-        val newValue = update(currentValue)
-        if (compareAndSet(currentValue, newValue))
-            return newValue
-    }
 }
 
 /**

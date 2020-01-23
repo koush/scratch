@@ -189,12 +189,14 @@ abstract class ByteBufferCommonBase(protected var bytes: ByteArray? = null, prot
         byteBuffer.position += length
         return this
     }
-    fun put(bytes: ByteArray): ByteBufferCommonBase {
-        ensureRemaining(bytes.size)
-        bytes.copyInto(this.bytes!!, arrayOffsetPosition, 0, bytes.size)
-        position += bytes.size
+    fun put(bytes: ByteArray): ByteBufferCommonBase = put(bytes, 0, bytes.size)
+    fun put(bytes: ByteArray, offset: Int, length: Int): ByteBufferCommonBase {
+        ensureRemaining(length)
+        bytes.copyInto(this.bytes!!, arrayOffsetPosition, offset, offset + length)
+        position += length
         return this
     }
+
     abstract fun put(value: Byte): ByteBufferCommonBase
     abstract fun putShort(value: Short): ByteBufferCommonBase
     abstract fun putInt(value: Int): ByteBufferCommonBase

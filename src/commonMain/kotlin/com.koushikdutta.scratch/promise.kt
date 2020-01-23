@@ -11,6 +11,7 @@ import kotlin.coroutines.suspendCoroutine
 
 typealias PromiseCallback<T, R> = suspend (T) -> R
 typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
+typealias PromiseRecover<T> = suspend (throwable: Throwable) -> T
 
 internal interface PromiseResult<T> {
     fun getOrThrow(): T
@@ -130,6 +131,28 @@ open class PromiseBase<T> {
             catch (throwable: Throwable) {
                 callback(throwable)
                 throw throwable
+            }
+        }
+    }
+
+    fun recover(callback: PromiseRecover<T>): Promise<T> {
+        return Promise {
+            try {
+                suspendCoroutine<T> {
+                    if (!callbacks.push(it).frozen)
+                        return@suspendCoroutine
+                    try {
+                        atomicReference.get()!!.value.getOrThrow()
+                        return@suspendCoroutine
+                        // ignore result
+                    }
+                    catch (throwable: Throwable) {
+                        it.resumeWithException(throwable)
+                    }
+                }
+            }
+            catch (throwable: Throwable) {
+                return@Promise callback(throwable)
             }
         }
     }

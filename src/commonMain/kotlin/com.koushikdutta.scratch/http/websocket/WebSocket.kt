@@ -10,10 +10,10 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.GET
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.AsyncHttpSwitchingProtocols
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
 import com.koushikdutta.scratch.parser.readAllString
-import com.koushikdutta.scratch.uri.URI
 import kotlin.random.Random
+
 
 interface WebSocketMessage {
     val binary: ReadableBuffers
@@ -22,7 +22,7 @@ interface WebSocketMessage {
         }
     val text: String
         get() {
-            throw IllegalStateException("Message is not a binary message")
+            throw IllegalStateException("Message is not a text message")
         }
 
     val isData: Boolean
@@ -37,26 +37,52 @@ interface WebSocketMessage {
         get() = false
 }
 
-class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, server: Boolean = false): AsyncSocket, AsyncAffinity by socket {
+class WebSocketCloseMessage(val code: Int, val reason: String)
+
+class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protocol: String? = null, server: Boolean = false): AsyncSocket, AsyncAffinity by socket {
     private val parser = HybiParser(reader, server)
 
     val isClosed
         get() = parser.isClosed
 
+    var closeMessage: WebSocketCloseMessage? = null
+        internal set
+
     val isEnded
         get() = parser.isEnded
 
-    val payload = ByteBufferList()
     suspend fun readMessage(): WebSocketMessage? {
         if (isEnded)
             return null
 
-        payload.free()
+        val payload = ByteBufferList()
+        var opcode: Int? = null
         while (true) {
-            val message = parser.parse()
-            if (message.opcode == HybiParser.OP_CLOSE)
+            val message = try {
+                parser.parse()
+            }
+            catch (throwable: Throwable) {
+                socket.close()
+                throw throwable
+            }
+
+            // the parser will validate the protocol on a per frame basis,
+            // but across multiple frames, when continuation frames are in use.
+            if (opcode == null) {
+                if (message.opcode == HybiParser.OP_CONTINUATION)
+                    throw HybiProtocolError("did not receive data frame prior to continuation frame")
+                opcode = message.opcode
+            }
+            else if (opcode != HybiParser.OP_CONTINUATION) {
+                throw HybiProtocolError("expected continuation frame")
+            }
+
+            if (message.opcode == HybiParser.OP_CLOSE) {
+                val reason = readAllString(message.read)
+                closeMessage = WebSocketCloseMessage(message.closeCode, reason)
                 return null
-            if (message.opcode == HybiParser.OP_PING) {
+            }
+            else if (message.opcode == HybiParser.OP_PING) {
                 val ping = readAllString(message.read)
                 return object : WebSocketMessage {
                     override val isText = true
@@ -76,7 +102,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, server: Bo
             message.read.drain(payload)
 
             if (message.final) {
-                if (message.opcode == HybiParser.OP_TEXT) {
+                if (opcode == HybiParser.OP_TEXT) {
                     return object : WebSocketMessage {
                         override val isText = true
                         override val text = payload.readUtf8String()
@@ -94,18 +120,20 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, server: Bo
         }
     }
 
-    fun ping(text: String) {
-        writeHandler.post {
-            val frame = parser.pingFrame(text)
-            socket::write.drain(frame)
-        }
+    fun send(text: String) = writeHandler.post {
+        socket::write.drain(parser.frame(text))
     }
 
-    fun pong(text: String) {
-        writeHandler.post {
-            val frame = parser.pongFrame(text)
-            socket::write.drain(frame)
-        }
+    fun send(binary: ByteBufferList) = writeHandler.post {
+        socket::write.drain(parser.frame(binary))
+    }
+
+    fun ping(text: String) = writeHandler.post {
+        socket::write.drain(parser.pingFrame(text))
+    }
+
+    fun pong(text: String) = writeHandler.post {
+        socket::write.drain(parser.pongFrame(text))
     }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
@@ -115,7 +143,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, server: Bo
                 return true
 
             if (message.isPing) {
-                ping(message.text)
+                pong(message.text)
                 continue
             }
             else if (message.isPong) {
@@ -157,9 +185,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, server: Bo
     }
 }
 
-suspend fun AsyncHttpClient.connectWebSocket(uri: String, headers: Headers = Headers(), vararg protocols: String): WebSocket {
-    val request = AsyncHttpRequest.GET(uri, headers)
-
+private fun addWebsocketHeaders(headers: Headers, vararg protocols: String) {
     val key = Random.nextBytes(16).encodeBase64ToString()
     headers["Sec-WebSocket-Version"] = "13";
     headers["Sec-WebSocket-Key"] = key;
@@ -171,13 +197,36 @@ suspend fun AsyncHttpClient.connectWebSocket(uri: String, headers: Headers = Hea
     for (protocol in protocols) {
         headers.add("Sec-WebSocket-Protocol", protocol)
     }
+}
+
+class WebSocketException(message: String): IOException(message)
+private const val MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+suspend fun AsyncHttpClient.connectWebSocket(uri: String, socket: AsyncSocket? = null, reader: AsyncReader? = null, headers: Headers = Headers(), vararg protocols: String): WebSocket {
+    val request = AsyncHttpRequest.GET(uri, headers)
+
+    addWebsocketHeaders(headers)
 
     try {
-        val response = execute(request)
+        val response = execute(request, socket, reader)
         response.close()
         throw IOException("WebSocket connection failed.")
     }
-    catch (switching: AsyncHttpSwitchingProtocols) {
-        return WebSocket(switching.socket, switching.socketReader)
+    catch (switching: AsyncHttpClientSwitchingProtocols) {
+        val responseHeaders = switching.responseHeaders
+
+        if (!"websocket".equals(responseHeaders["Upgrade"], true))
+            throw WebSocketException("Expected Upgrade: WebSocket header, received: ${responseHeaders["Upgrade"]}")
+
+        val sha1 = responseHeaders["Sec-WebSocket-Accept"] ?: throw WebSocketException("Missing header Sec-WebSocket-Accept")
+        val key = responseHeaders["Sec-WebSocket-Key"] ?: throw WebSocketException("Missing header Sec-WebSocket-Key")
+        val concat = key + MAGIC
+//        val expected: String = SHA1(concat).trim()
+
+
+        //        val extensions = headers["Sec-WebSocket-Extensions"]
+        val protocol = responseHeaders["Sec-WebSocket-Protocol"]
+
+        return WebSocket(switching.socket, switching.socketReader, protocol)
     }
 }

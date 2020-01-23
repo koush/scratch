@@ -5,6 +5,8 @@ import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
+import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
 import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.middleware.getHttpBody
@@ -60,12 +62,25 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
             val response = try {
                 handler(request)
             }
-            catch (exception: Exception) {
+            catch (throwable: Throwable) {
                 println("internal server error")
-                println(exception)
+                println(throwable)
                 val headers = Headers()
                 headers["Connection"] = "close"
                 AsyncHttpResponse.INTERNAL_SERVER_ERROR(headers = headers)
+            }
+
+            if (response is AsyncHttpResponseSwitchingProtocols) {
+                sendHeaders(socket, response)
+                val switching = object : AsyncHttpDetachedSocket {
+                    override val socket = socket
+                    override val socketReader = reader
+                }
+                val block = response.block
+                startSafeCoroutine {
+                    block(switching)
+                }
+                return
             }
 
             try {
@@ -99,10 +114,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
                     responseBody = { false }
                 }
 
-                val buffer = ByteBufferList()
-                buffer.putUtf8String(response.toMessageString())
-                socket::write.drain(buffer)
-
+                sendHeaders(socket, response)
                 responseBody.copy(socket::write)
 
                 val keepAlive = AsyncSocketMiddleware.isKeepAlive(request, response)
@@ -135,5 +147,11 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
     companion object {
         private const val HTTP2_INITIAL_CONNECTION_PREFACE = "PRI * HTTP/2.0\r\n"
         private const val HTTP2_REMAINING_CONNECTION_PREFACE = "\r\nSM\r\n\r\n"
+
+        private suspend fun sendHeaders(socket: AsyncSocket, response:AsyncHttpResponse) {
+            val buffer = ByteBufferList()
+            buffer.putUtf8String(response.toMessageString())
+            socket::write.drain(buffer)
+        }
     }
 }

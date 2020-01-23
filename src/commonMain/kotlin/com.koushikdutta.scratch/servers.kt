@@ -11,7 +11,7 @@ interface AsyncServerSocket<T: AsyncSocket> : AsyncAffinity {
 }
 
 class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serverSocket: AsyncServerSocket<T>): AsyncAffinity by serverSocket {
-    var observer: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit = { serverSocket, socket, throwable ->
+    private var observer: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit = { serverSocket, socket, throwable ->
         if (throwable != null) {
             serverSocket.post()
             throw throwable

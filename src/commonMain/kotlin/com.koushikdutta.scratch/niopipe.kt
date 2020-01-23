@@ -12,7 +12,7 @@ import com.koushikdutta.scratch.buffers.*
  * The pipe write will always fully succeed, and always take any available data written,
  * even if the write returns false. Ignoring the high water mark may result in out of memory errors.
  */
-class NonBlockingWritePipe(private val highWaterMark: Int = 65536, val writable: suspend NonBlockingWritePipe.() -> Unit) {
+class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val writable: suspend NonBlockingWritePipe.() -> Unit) {
     // baton data is true for a write, false for read to verify read is not called erroneously.
     private val baton = Baton<Boolean>()
     private val pending = FreezableBuffers()
@@ -27,6 +27,9 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, val writable:
         pending.freeze()
         return baton.finish(true)?.finished != true
     }
+
+    val hasEnded: Boolean
+        get() = baton.isFinished
 
     /**
      * The write call will return false when the high water mark is reached,

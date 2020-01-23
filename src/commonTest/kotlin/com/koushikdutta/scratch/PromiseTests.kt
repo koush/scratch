@@ -99,11 +99,11 @@ class PromiseTests {
         val promise = Promise {
             "test"
         }
-        .then {
+        .then<Int> {
             threw = true
             throw Throwable()
         }
-        .catch {
+        .recover {
             34
         }
 
@@ -122,11 +122,11 @@ class PromiseTests {
                 continuation = it
             }
         }
-        .then {
+        .then<Int> {
             threw = true
             throw Throwable()
         }
-        .catch {
+        .recover {
             34
         }
 

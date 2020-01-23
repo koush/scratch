@@ -49,18 +49,17 @@ fun readCallback(handle: CPointer<uv_stream_s>?, size: Long, buf: CPointer<uv_bu
     socket.pinnedBuffer = null
 
     if (size < 0 || socket.nio.hasEnded) {
-        if (!socket.nio.hasEnded) {
-            if (size.toInt() == UV_EOF)
-                socket.nio.end()
-            else
-                socket.nio.end(IOException("read error: $size"))
-        }
+        if (size.toInt() == UV_EOF)
+            socket.nio.end()
+        else
+            socket.nio.end(IOException("read error: $size"))
         return
     }
 
     val length = size.toInt()
     buffer.limit(length)
-    if (!socket.nio.write(buffer))
+    socket.buffers.add(buffer)
+    if (!socket.nio.write(socket.buffers))
         uv_read_stop(socket.socket.ptr)
 }
 
@@ -88,7 +87,7 @@ fun allocBufferCallback(handle: CPointer<uv_handle_t>?, size: ULong, buf: CPoint
     if (socket.pinned != null)
         throw IOException("pending allocation?")
 
-    val buffer = socket.nio.obtain(size.toInt())
+    val buffer = socket.buffers.obtain(size.toInt())
     val pinned = buffer.array().pin()
     socket.pinnedBuffer = buffer
     socket.pinned = pinned

@@ -15,40 +15,31 @@ actual class AsyncTlsSocket actual constructor(
     private val socketRead = InterruptibleRead({socket.read(it)})
     private val _sread: AsyncRead = {socketRead.read(it)}
     private val decryptedRead = _sread.pipe { read ->
-        val unfiltered = ByteBufferList();
-        decrypt@{ filtered ->
-            if (!read(unfiltered) && unfiltered.isEmpty)
-                return@decrypt false
-
-
-            // SSLEngine.unwrap
-            do {
-                // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
-                // take into account that wrap/unwrap in the context of a handshake may
-                // "produce" bytes that are only used for the handshake, and not actual application
-                // data.
+        val unfiltered = ByteBufferList()
+        while (read(unfiltered) || unfiltered.hasRemaining()) {
+            while (true) {
                 val available = unfiltered.remaining()
 
                 // must collapse into a single buffer because the unwrap call does not accept
                 // an array of ByteBuffers
                 val byteBuffer = unfiltered.readByteBuffer()
-                val existing = filtered.remaining()
-                val result = engine.unwrap(byteBuffer, filtered)
-                val bytesProduced = filtered.remaining() - existing
+                val existing = buffer.remaining()
+                val result = engine.unwrap(byteBuffer, buffer)
+                val bytesProduced = buffer.remaining() - existing
                 // add any unused data back to the unwrap buffer
                 unfiltered.add(byteBuffer)
                 val bytesConsumed = available - unfiltered.remaining()
                 // queue up the decrypted data for read
 
                 if (result == SSLStatus.SSL_ERROR_WANT_READ) {
-                    continue
+                    break
                 } else if (result == SSLStatus.SSL_ERROR_WANT_WRITE) {
                     encryptedWrite(ByteBufferList())
                     break
                 }
-            } while (bytesConsumed != 0 || bytesProduced != 0)
+            }
 
-            true
+            flush()
         }
     }
 
@@ -59,26 +50,14 @@ actual class AsyncTlsSocket actual constructor(
         buffer.read(unencryptedWriteBuffer)
 
         do {
-            // if the handshake is finished, don't attempt to wrap 0 bytes of data.
-            // this seems to terminate the ssl engine.
-            // if (engine.finishedHandshake && unencryptedWriteBuffer.isEmpty)
-            //     break
-
-            // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
-            // take into account that wrap/unwrap in the context of a handshake may
-            // "produce" bytes that are only used for the handshake, and not actual application
-            // data.
             val available = unencryptedWriteBuffer.remaining()
 
-            val unencrypted = unencryptedWriteBuffer.readByteBuffer()
             val existing = encryptedWriteBuffer.remaining()
-            val result = engine.wrap(unencrypted, encryptedWriteBuffer)
+            val result = engine.wrap(unencryptedWriteBuffer, encryptedWriteBuffer)
             val bytesProduced = encryptedWriteBuffer.remaining() - existing
-            // add unused unencrypted data back to the wrap buffer
-            unencryptedWriteBuffer.add(unencrypted)
             val bytesConsumed = available - unencryptedWriteBuffer.remaining()
             if (encryptedWriteBuffer.hasRemaining())
-                socket.write(encryptedWriteBuffer)
+                socket::write.drain(encryptedWriteBuffer)
 
             if (result == SSLStatus.SSL_ERROR_NONE) {
                 continue

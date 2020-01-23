@@ -122,16 +122,19 @@ class WebsocketTests {
     fun testWebSocket() {
         val pipe = createAsyncPipeSocketPair()
         val clientSocket = WebSocket(pipe.first, AsyncReader(pipe.first::read))
-        val serverSocket = WebSocket(pipe.second, AsyncReader(pipe.second::read), true)
+        val serverSocket = WebSocket(pipe.second, AsyncReader(pipe.second::read), server = true)
 
+        var data: String? = null
         async {
             clientSocket::write.drain("hello".createByteBufferList())
+            clientSocket::write.drain("world".createByteBufferList())
             clientSocket.close()
         }
 
         async {
-            val data = readAllString(serverSocket::read)
-            println(data)
+            data = readAllString(serverSocket::read)
         }
+
+        assertEquals("helloworld", data)
     }
 }

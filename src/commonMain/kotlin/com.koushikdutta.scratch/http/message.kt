@@ -128,6 +128,8 @@ class ResponseLine {
     val message: String
     val protocol: String
 
+    constructor(code: StatusCode, protocol: String) : this(code.code, code.message, protocol)
+
     constructor(code: Int, message: String, protocol: String) {
         this.code = code
         this.message = message
@@ -147,7 +149,7 @@ class ResponseLine {
     }
 }
 
-class AsyncHttpResponse : AsyncHttpMessage {
+open class AsyncHttpResponse : AsyncHttpMessage {
     private val responseLine: ResponseLine
     constructor (responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.responseLine = responseLine

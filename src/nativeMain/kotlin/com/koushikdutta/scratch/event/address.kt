@@ -34,7 +34,13 @@ actual class Inet6Address internal constructor(sockaddr: CValue<sockaddr>) : Ine
     }
 }
 
-actual class InetSocketAddress actual constructor(addr: InetAddress, port: Int) {
-    val address: InetAddress = addr
-    val port: Int = port
+actual class InetSocketAddress actual constructor(private val addr: InetAddress, private val port: Int) {
+    actual constructor(port: Int) : this(UvEventLoop.parseInet4Address("0.0.0.0"), port)
+
+    actual fun getPort(): Int {
+        return port
+    }
+    actual fun getAddress(): InetAddress {
+        return addr
+    }
 }

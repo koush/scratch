@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBuffer
+import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.uv.*
@@ -27,10 +28,9 @@ fun EventLoopClosedException(): Exception {
 actual typealias AsyncNetworkSocket = UvSocket
 
 class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: AllocedHandle<uv_stream_t>) : AsyncSocket, AsyncAffinity by loop {
-    internal val nio = object : NonBlockingWritePipe() {
-        override fun writable() {
-            uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
-        }
+    val localPort: Int
+    internal val nio = NonBlockingWritePipe {
+        uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
     }
 
     init {
@@ -40,10 +40,19 @@ class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: 
         socket.struct.data = StableRef.create(this).asCPointer()
         // start reading.
         uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
+
+        localPort = memScoped {
+            val sockaddr: sockaddr_storage = alloc()
+            val sockaddrSize = alloc<IntVar>()
+            sockaddrSize.value = sockaddr_storage.size.toInt()
+            uv_tcp_getsockname(socket.ptr.reinterpret(), sockaddr.ptr.reinterpret(), sockaddrSize.ptr)
+            getAddrPort(sockaddr.reinterpret<sockaddr_in>().sin_port.toInt())
+        }
     }
 
-    internal val writeAlloc = Alloced<uv_write_t>(nativeHeap.alloc())
-    internal val bufsAlloc = AllocedArray<uv_buf_t>().ensure<uv_buf_t>(10)
+    private val writeAlloc = Alloced<uv_write_t>(nativeHeap.alloc())
+    private val bufsAlloc = AllocedArray<uv_buf_t>().ensure<uv_buf_t>(10)
+    internal val buffers = ByteBufferList()
     internal var pinnedBuffer: ByteBuffer? = null
     internal var pinned: Pinned<ByteArray>? = null
     override suspend fun read(buffer: WritableBuffers): Boolean {
@@ -54,19 +63,18 @@ class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: 
         }
     }
 
-    internal var writeBuffers: Array<ByteBuffer>? = null
-    internal var pinnedWrites: List<Pinned<ByteArray>>? = null
+    private var pinnedWrites: List<Pinned<ByteArray>>? = null
     override suspend fun write(buffer: ReadableBuffers) {
         if (buffer.isEmpty)
             return
-        writeBuffers = buffer.readAll()
-        pinnedWrites = writeBuffers!!.map { it.array().pin() }
+        val writeBuffers = buffer.readAll()
+        pinnedWrites = writeBuffers.map { it.array().pin() }
         bufsAlloc.ensure<uv_buf_t>(pinnedWrites!!.size)
         for (i in pinnedWrites!!.indices) {
             val b = pinnedWrites!![i]
             val buf = bufsAlloc.array!![i]
             buf.base = pinnedWrites!![i].addressOf(0)
-            buf.len = writeBuffers!![i].remaining().toULong()
+            buf.len = writeBuffers[i].remaining().toULong()
         }
         try {
             return loop.safeSuspendCoroutine {
@@ -83,20 +91,19 @@ class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: 
     }
 
     private fun closeInternal() {
-        if (!nio.hasEnded)
-            nio.end(EventLoopClosedException())
+        nio.end(EventLoopClosedException())
     }
 
     override suspend fun close() {
         await()
         socket.free()
-        closeInternal()
+        nio.end()
     }
 }
 
 actual typealias AsyncNetworkServerSocket = UvServerSocket
 
-class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int) : AsyncServerSocket<UvSocket>, AsyncAffinity by loop {
+class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localAddress: InetAddress, val localPort: Int) : AsyncServerSocket<UvSocket>, AsyncAffinity by loop {
     internal val socket: AllocedHandle<uv_tcp_t> = AllocedHandle(loop, socket)
 
     init {
@@ -106,7 +113,7 @@ class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int
         socket.data = StableRef.create(this).asCPointer()
     }
 
-    internal val queue = AsyncDequeueIterator<UvServerSocket>()
+    internal val queue = AsyncQueue<UvServerSocket>()
     val acceptIter = asyncIterator<UvSocket> {
         val iter = queue.iterator()
         while (iter.hasNext()) {
@@ -147,11 +154,40 @@ class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localPort: Int
         closeInternal()
     }
 
-    internal fun closeInternal() {
-        if (!queue.hasEnded)
-            queue.end()
+    private fun closeInternal() {
+        queue.end()
     }
 }
+
+class UvDatagram(val loop: UvEventLoop): AsyncSocket, AsyncAffinity by loop {
+    val localPort: Int = 0
+    suspend fun receivePacket(buffer: WritableBuffers): InetSocketAddress {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+    suspend fun sendPacket(socketAddress: InetSocketAddress, buffer: ReadableBuffers) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+    suspend fun connect(socketAddress: InetSocketAddress) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+    suspend fun disconnect() {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override suspend fun read(buffer: WritableBuffers): Boolean {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override suspend fun close() {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override suspend fun write(buffer: ReadableBuffers) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+}
+
+actual typealias AsyncDatagramSocket = UvDatagram
 
 
 actual typealias AsyncEventLoop = UvEventLoop
@@ -176,6 +212,10 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
             post()
             throw exception
         }
+    }
+
+    suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     suspend fun getAllByName(host: String): Array<InetAddress> = safeSuspendCoroutine {
@@ -219,7 +259,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         val connect = Alloced(nativeHeap.alloc<uv_connect_t>())
         val socket = AllocedHandle(this, nativeHeap.alloc<uv_tcp_t>())
         try {
-            connectInternal(socket, connect, socketAddress.port, socketAddress.address)
+            connectInternal(socket, connect, socketAddress.getPort(), socketAddress.getAddress())
         }
         catch (exception: Exception) {
             socket.free()
@@ -235,6 +275,10 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
     }
 
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): UvServerSocket {
+        return listenInternal(port, address ?: parseInet4Address("0.0.0.0"), backlog)
+    }
+
+    private suspend fun listenInternal(port: Int = 0, address: InetAddress, backlog: Int): UvServerSocket {
         val socket = AllocedHandle<uv_tcp_t>(this, nativeHeap.alloc())
 
         try {
@@ -243,14 +287,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
             memScoped {
                 val sockaddrPtr: CPointer<sockaddr>
                 // todo sanity check addresses
-                if (address == null) {
-                    // libuv notes: 0.0.0.0 binds ipv4, :: binds ipv4 and ipv6.
-                    // can specify ipv6 only with the UV_UDP_IPV6ONLY flag
-                    val sockaddr: sockaddr_in6 = alloc()
-                    uv_ip6_addr("0.0.0.0", port, sockaddr.ptr)
-                    sockaddrPtr = sockaddr.ptr.reinterpret()
-                }
-                else if (address is Inet4Address) {
+                if (address is Inet4Address) {
                     val sockaddr: sockaddr_in = alloc()
                     uv_ip4_addr(address.toString(), port, sockaddr.ptr)
                     sockaddrPtr = sockaddr.ptr.reinterpret()
@@ -268,7 +305,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
                 checkZero(uv_tcp_getsockname(socket.ptr, data.reinterpret<sockaddr>().ptr, sockaddrSize.ptr), "getsockname failed")
                 val localPort = getAddrPort(data.reinterpret<sockaddr_in>().sin_port.toInt())
 
-                return UvServerSocket(this@UvEventLoop, socket.struct, localPort)
+                return UvServerSocket(this@UvEventLoop, socket.struct, address, localPort)
             }
         }
         catch (exception: Exception) {
@@ -286,6 +323,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         uv_timer_start(timer.ptr, timerCallbackPtr, timeout.toULong(), 0)
     }
 
+    fun stop() = stop(false)
     fun stop(wait: Boolean = false) {
         if (!running)
             return
@@ -348,7 +386,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         fun parseInet4Address(address: String): Inet4Address {
             memScoped {
                 val sockaddr: sockaddr_in = alloc()
-                checkZero(uv_ip4_addr(address, 88, sockaddr.ptr), "not an Inet4Address")
+                checkZero(uv_ip4_addr(address, 0, sockaddr.ptr), "not an Inet4Address")
                 return Inet4Address(sockaddr.reinterpret<sockaddr>().readValue())
             }
         }
