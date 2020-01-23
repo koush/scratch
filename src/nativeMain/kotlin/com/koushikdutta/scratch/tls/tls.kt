@@ -11,25 +11,15 @@ actual class AsyncTlsSocket actual constructor(
     private val options: AsyncTlsOptions?
 ) : AsyncWrappingSocket, AsyncAffinity by socket {
 
-
     private val socketRead = InterruptibleRead({socket.read(it)})
     private val _sread: AsyncRead = {socketRead.read(it)}
     private val decryptedRead = _sread.pipe { read ->
         val unfiltered = ByteBufferList()
         while (read(unfiltered) || unfiltered.hasRemaining()) {
             while (true) {
-                val available = unfiltered.remaining()
-
                 // must collapse into a single buffer because the unwrap call does not accept
                 // an array of ByteBuffers
-                val byteBuffer = unfiltered.readByteBuffer()
-                val existing = buffer.remaining()
-                val result = engine.unwrap(byteBuffer, buffer)
-                val bytesProduced = buffer.remaining() - existing
-                // add any unused data back to the unwrap buffer
-                unfiltered.add(byteBuffer)
-                val bytesConsumed = available - unfiltered.remaining()
-                // queue up the decrypted data for read
+                val result = engine.unwrap(unfiltered, buffer)
 
                 if (result == SSLStatus.SSL_ERROR_WANT_READ) {
                     break
@@ -42,7 +32,6 @@ actual class AsyncTlsSocket actual constructor(
             flush()
         }
     }
-
 
     private val unencryptedWriteBuffer = ByteBufferList()
     private val encryptedWriteBuffer = ByteBufferList()

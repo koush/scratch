@@ -3,15 +3,16 @@ package com.koushikdutta.scratch.buffers
 import kotlin.math.max
 import kotlin.math.min
 
+private val DEFAULT_MIN_ALLOC = 1024
 
 /**
  * Track allocations from inconsistent sources, like the network
  * to choose somewhat optimal buffer sizes based on throughput.
  */
-class AllocationTracker {
+class AllocationTracker(minAlloc: Int = DEFAULT_MIN_ALLOC) {
     var lastAlloc = 0
-    var minAlloc = 1024
-        get() = max(field, 1024)
+    var minAlloc = minAlloc
+        get() = max(field, DEFAULT_MIN_ALLOC)
     var currentAlloc = 0
     var maxAlloc = ByteBufferList.MAX_ITEM_SIZE
     var overflowDivisor = 4
@@ -50,7 +51,7 @@ class AllocationTracker {
         lastAlloc = currentAlloc
         currentAlloc = 0
         // also reset the minAlloc
-        minAlloc = 1024
+        minAlloc = DEFAULT_MIN_ALLOC
     }
 }
 

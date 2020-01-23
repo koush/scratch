@@ -117,7 +117,7 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             val bytesConsumed = available - unencryptedWriteBuffer.remaining()
             // queue up the encrypted data for write
             if (encryptedWriteBuffer.hasRemaining())
-                socket.write(encryptedWriteBuffer)
+                socket::write.drain(encryptedWriteBuffer)
 
             if (result.status == SSLEngineResult.Status.BUFFER_OVERFLOW) {
                 // allow the loop to continue
@@ -140,9 +140,6 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             handleHandshakeStatus(result.handshakeStatus)
         } while (bytesConsumed != 0 || bytesProduced != 0)
         encryptAllocator.finishTracking()
-
-        // pass all free buffers upstream.
-        buffer.takeReclaimedBuffers(encryptedWriteBuffer)
     }
 
     var peerCertificates: Array<X509Certificate>? = null

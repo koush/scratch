@@ -38,16 +38,16 @@ kotlin {
     // For Linux, should be changed to e.g. linuxX64
     // For MacOS, should be changed to e.g. macosX64
     // For Windows, should be changed to e.g. mingwX64
-    macosX64("native") {
-        compilations.main.cinterops {
-            uv {
-                compilerOpts "-I./src/nativeInterop/cinterop/libuv/include"
-            }
-            crypto {
-                compilerOpts "-I./src/nativeInterop/cinterop/openssl/include"
-            }
-        }
-    }
+//    macosX64("native") {
+//        compilations.main.cinterops {
+//            uv {
+//                compilerOpts "-I./src/nativeInterop/cinterop/libuv/include"
+//            }
+//            crypto {
+//                compilerOpts "-I./src/nativeInterop/cinterop/openssl/include"
+//            }
+//        }
+//    }
     sourceSets {
         commonMain {
             dependencies {
@@ -114,15 +114,15 @@ kotlin {
 //                implementation kotlin('test-js')
 //            }
 //        }
-        nativeMain {
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
-            }
-        }
-        nativeTest {
-        }
+//        nativeMain {
+//            languageSettings {
+//                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+//                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+//                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+//                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+//            }
+//        }
+//        nativeTest {
+//        }
     }
 }

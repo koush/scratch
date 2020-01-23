@@ -1,10 +1,7 @@
 package com.koushikdutta.scratch.tls
 
 import com.koushikdutta.scratch.IOException
-import com.koushikdutta.scratch.buffers.ByteBuffer
-import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.WritableBuffers
-import com.koushikdutta.scratch.buffers.createByteBufferList
+import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.crypto.*
 import kotlinx.cinterop.*
 
@@ -13,7 +10,7 @@ actual interface SSLSession
 
 
 actual abstract class SSLEngine(internal val engine: CPointer<SSL>) {
-    abstract fun unwrap(src: ByteBuffer, dst: WritableBuffers): SSLStatus
+    abstract fun unwrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus
     abstract fun wrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus
     abstract val finishedHandshake: Boolean
     actual abstract fun getUseClientMode(): Boolean
@@ -128,11 +125,16 @@ enum class SSLStatus {
 class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) : SSLEngine(engine) {
     val rbio = BIO_new(BIO_s_mem())
     val wbio = BIO_new(BIO_s_mem())
+    val encryptAllocator = AllocationTracker()
+    val decryptAllocator = AllocationTracker()
 
     init {
         SSL_set_bio(engine, rbio, wbio);
         // todo: Dispose?
         SSL_set_ex_data(engine, SSLContext.engineIndex, StableRef.create(this).asCPointer())
+
+        encryptAllocator.minAlloc = 8192
+        decryptAllocator.minAlloc = 8192
     }
 
     private var clientMode: Boolean? = null
@@ -244,11 +246,20 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
     }
 
     override var finishedHandshake = false
-    override fun unwrap(src: ByteBuffer, dst: WritableBuffers): SSLStatus {
+    override fun unwrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus {
         ensureInitialized()
         // keep calling SSL_read to decrypt data until there's nothing left
         while (true) {
-            val bytesConsumed = if (src.hasRemaining()) writeBio(src) else 0
+            var bytesConsumed = 0
+            while (src.hasRemaining()) {
+                val buffer = src.readFirst()
+                val consumed = if (buffer.hasRemaining()) writeBio(buffer) else 0
+                buffer.position(buffer.position() + consumed)
+                src.addFirst(buffer)
+                if (consumed == 0)
+                    break
+                bytesConsumed += consumed
+            }
 
             // check if handshaking
             if (!finishedHandshake) {
@@ -270,6 +281,8 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
     }
 
     override fun wrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus {
+        encryptAllocator.finishTracking()
+
         ensureInitialized()
         while (true) {
             var bytesConsumed = 0
@@ -291,7 +304,7 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
                     return handshakeResult
             }
 
-            val bytesProduced = readBio(dst)
+            val bytesProduced = readBio(wbio, dst, encryptAllocator)
 
             if (bytesConsumed == 0 && bytesProduced == 0)
                 return SSLStatus.SSL_ERROR_NONE
@@ -303,13 +316,18 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
     }
 
     private fun readSSL(dst: WritableBuffers): Int {
+        decryptAllocator.finishTracking()
+
         var ret = 0
         while (true) {
-            val n = READ_op(::SSL_read, engine, dst)
+            val n = dst.putAllocatedBuffer(decryptAllocator.requestNextAllocation()) {
+                IO_op(::SSL_read, engine, it)
+            }
             if (n == 0)
                 return ret
             else if (n < 0)
                 return n
+            decryptAllocator.trackDataUsed(n)
             ret += n
         }
     }
@@ -322,10 +340,6 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
         return IO_op(::BIO_write, rbio, src)
     }
 
-    private fun readBio(dst: WritableBuffers): Int {
-        return readBio(wbio, dst)
-    }
-
     companion object {
         private fun <T> IO_op(op: (T?, CValuesRef<*>, dlen: Int) -> Int, io: T?, src: ByteBuffer): Int {
             src.array().usePinned { pinnedSrc ->
@@ -336,23 +350,18 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
             }
         }
 
-        private fun <T> READ_op(op: (T?, CValuesRef<*>, dlen: Int) -> Int, io: T?, dst: WritableBuffers): Int {
-            val buf = dst.obtain(8192)
-            val n = IO_op(op, io, buf)
-            buf.flip()
-            dst.add(buf)
-            return n
-        }
-
-        internal fun readBio(bio: CValuesRef<BIO>?, dst: WritableBuffers): Int {
+        internal fun readBio(bio: CValuesRef<BIO>?, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): Int {
             var ret = 0
             while (true) {
-                val n = READ_op(::BIO_read, bio, dst)
+                val n = dst.putAllocatedBuffer(tracker.requestNextAllocation()) {
+                    IO_op(::BIO_read, bio, it)
+                }
                 if (n <= 0) {
                     if (BIO_test_flags(bio, BIO_FLAGS_SHOULD_RETRY) == 0)
                         throw SSLException("wrap failed, !BIO_FLAGS_SHOULD_RETRY")
                     return ret
                 }
+                tracker.trackDataUsed(n)
                 ret += n
             }
         }
