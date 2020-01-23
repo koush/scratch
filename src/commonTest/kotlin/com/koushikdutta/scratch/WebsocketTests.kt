@@ -1,8 +1,13 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.createByteBufferList
+import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.server.AsyncHttpRouter
+import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.HybiParser
 import com.koushikdutta.scratch.http.websocket.WebSocket
+import com.koushikdutta.scratch.http.websocket.connectWebSocket
+import com.koushikdutta.scratch.http.websocket.webSocket
 import com.koushikdutta.scratch.parser.readAllBuffer
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random
@@ -133,6 +138,30 @@ class WebsocketTests {
 
         async {
             data = readAllString(serverSocket::read)
+        }
+
+        assertEquals("helloworld", data)
+    }
+
+    @Test
+    fun testWebSocketServer() {
+        val pipeServerSocket = AsyncPipeServerSocket()
+        val router = AsyncHttpRouter()
+        val httpServer = AsyncHttpServer(router::handle)
+        httpServer.listen(pipeServerSocket)
+
+        val webSocketServer = router.webSocket("/")
+        var data: String? = null
+        webSocketServer.acceptAsync {
+            data = readAllString(this::read)
+        }
+
+        val httpClient = AsyncHttpClient()
+        async {
+            val clientSocket = httpClient.connectWebSocket("http://example.org", pipeServerSocket.connect())
+            clientSocket::write.drain("hello".createByteBufferList())
+            clientSocket::write.drain("world".createByteBufferList())
+            clientSocket.close()
         }
 
         assertEquals("helloworld", data)

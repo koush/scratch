@@ -27,6 +27,8 @@ fun AsyncHttpResponse.Companion.FOUND(location: String, headers: Headers = Heade
 
 fun AsyncHttpResponse.Companion.NOT_FOUND(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null) = create(StatusCode.NOT_FOUND, headers, body, sent)
 
+fun AsyncHttpResponse.Companion.BAD_REQUEST(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null) = create(StatusCode.BAD_REQUEST, headers, body, sent)
+
 fun AsyncHttpResponse.Companion.INTERNAL_SERVER_ERROR(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null) = create(StatusCode.INTERNAL_SERVER_ERROR, headers, body, sent)
 
 internal class AsyncHttpResponseSwitchingProtocols(headers: Headers = Headers(), protocol: String = HTTP_1_1, internal val block: suspend(detachedSocket: AsyncHttpDetachedSocket) -> Unit)
@@ -40,6 +42,7 @@ enum class StatusCode(val code: Int, val message: String) {
     OK(200, "OK"),
     MOVED_PERMANENTLY(301, "Moved Permanently"),
     FOUND(302, "Found"),
+    BAD_REQUEST(400, "Bad Request"),
     NOT_FOUND(404, "Not Found"),
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
 }

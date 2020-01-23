@@ -64,11 +64,11 @@ fun parseStringMultimap(value: String?, delimiter: String, assigner: String, unq
 }
 
 
-fun parseSemicolonDelimited(header: String): StringMultimap {
+fun parseSemicolonDelimited(header: String?): StringMultimap {
     return parseStringMultimap(header, ";", true, null)
 }
 
-fun parseCommaDelimited(header: String): StringMultimap {
+fun parseCommaDelimited(header: String?): StringMultimap {
     return parseStringMultimap(header, ",", true, null)
 }
 
@@ -78,7 +78,7 @@ val QUERY_DECODER: StringDecoder = object : StringDecoder {
     }
 }
 
-fun parseQuery(query: String): StringMultimap {
+fun parseQuery(query: String?): StringMultimap {
     return parseStringMultimap(query, "&", false, QUERY_DECODER)
 }
 

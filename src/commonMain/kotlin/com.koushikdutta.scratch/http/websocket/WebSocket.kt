@@ -6,12 +6,14 @@ import com.koushikdutta.scratch.atomic.AtomicThrowingLock
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import com.koushikdutta.scratch.collections.parseCommaDelimited
 import com.koushikdutta.scratch.crypto.sha1
-import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.GET
-import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
+import com.koushikdutta.scratch.http.server.AsyncHttpRouter
+import com.koushikdutta.scratch.http.server.get
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random
 
@@ -40,7 +42,7 @@ interface WebSocketMessage {
 
 class WebSocketCloseMessage(val code: Int, val reason: String)
 
-class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protocol: String? = null, server: Boolean = false): AsyncSocket, AsyncAffinity by socket {
+class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protocol: String? = null, server: Boolean = false, val requestHeaders: Headers = Headers(), val responseHeaders: Headers = Headers()): AsyncSocket, AsyncAffinity by socket {
     private val parser = HybiParser(reader, server)
 
     val isClosed
@@ -228,6 +230,50 @@ suspend fun AsyncHttpClient.connectWebSocket(uri: String, socket: AsyncSocket? =
 
         val protocol = responseHeaders["Sec-WebSocket-Protocol"]
 
-        return WebSocket(switching.socket, switching.socketReader, protocol)
+        return WebSocket(switching.socket, switching.socketReader, protocol, requestHeaders = headers, responseHeaders = responseHeaders)
     }
+}
+
+class WebSocketServerSocket: AsyncServerSocket<WebSocket>, AsyncAffinity by AsyncAffinity.NO_AFFINITY {
+    internal val queue = AsyncQueue<WebSocket>()
+    override fun accept(): AsyncIterable<out WebSocket> {
+        return queue
+    }
+
+    override suspend fun close() {
+        queue.end()
+    }
+}
+
+fun AsyncHttpRouter.webSocket(pathRegex: String, protocol: String? = null): WebSocketServerSocket {
+    val serverSocket = WebSocketServerSocket()
+
+    get(pathRegex) { request, match ->
+        val requestHeaders = request.headers
+        val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"])["Upgrade"] != null
+        if (!hasConnectionUpgrade)
+            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("Connection Upgrade expected"))
+        if (!"WebSocket".equals(requestHeaders["Upgrade"], true))
+            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("Upgrade to WebSocket expected"))
+
+        if (protocol != requestHeaders["Sec-WebSocket-Protocol"])
+            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("WebSocket Protocol Mismatch"))
+
+        val key = requestHeaders["Sec-WebSocket-Key"]
+        if (key == null)
+            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("Missing header Sec-WebSocket-Key"))
+        val concat = key + MAGIC
+        val expected = concat.encodeToByteArray().sha1().encodeBase64ToString()
+
+        val headers = Headers()
+        headers["Connection"] = "Upgrade"
+        headers["Upgrade"] = "WebSocket"
+        headers["Sec-WebSocket-Accept"] = expected
+
+        AsyncHttpResponse.SWITCHING_PROTOCOLS(headers) {
+            serverSocket.queue.add(WebSocket(it.socket, it.socketReader, protocol, true, requestHeaders, headers))
+        }
+    }
+
+    return serverSocket
 }
