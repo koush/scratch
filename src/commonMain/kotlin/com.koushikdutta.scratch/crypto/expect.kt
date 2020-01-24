@@ -7,6 +7,10 @@ interface Hash {
     fun final(): ByteArray
 }
 
+class SHA1: Hash by createSha1()
+class SHA256: Hash by createSha256()
+class MD5: Hash by createMd5()
+
 internal expect fun createSha1(): Hash
 internal expect fun createSha256(): Hash
 internal expect fun createMd5(): Hash
