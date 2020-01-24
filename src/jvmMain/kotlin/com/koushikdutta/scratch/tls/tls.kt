@@ -35,35 +35,17 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             val awaitingHandshake = !finishedHandshake
 
             while (true) {
-                // must collapse into a single buffer because the unwrap call does not accept
-                // an array of ByteBuffers
-                val byteBuffer = unfiltered.readByteBuffer()
+                val result = engine.unwrap(unfiltered, buffer, decryptAllocator)
 
-                val result = buffer.putAllocatedBuffer(decryptAllocator.requestNextAllocation()) {
-                    val before = it.remaining()
-                    val ret = engine.unwrap(byteBuffer, it)
-                    val bytesProduced = before - it.remaining()
-                    // track the allocation to estimate future allocation needs
-                    decryptAllocator.trackDataUsed(bytesProduced)
-                    ret
-                }
-
-                // add any unused data back to the unwrap buffer
-                unfiltered.add(byteBuffer)
-
-                if (result.status == SSLEngineResult.Status.BUFFER_OVERFLOW) {
-                    // allow the loop to continue
-                    decryptAllocator.minAlloc *= 2
-                    continue
-                } else if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+                if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
                     // need more data, so just break and wait for another read to come in to
                     // trigger the read again.
                     break
                 } else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
                     // this may complete the handshake
                     encryptedWrite(ByteBufferList())
-                } else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
-                    // wants an unwrap, a read is not necessary
+                }
+                else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
                     continue
                 }
 
@@ -79,7 +61,6 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
                     break
             }
 
-            decryptAllocator.finishTracking()
             if (!buffer.isEmpty)
                 flush()
         }
@@ -104,26 +85,8 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
 
         val awaitingHandshake = !finishedHandshake
         while (true) {
-            // SSLEngine bytesProduced/bytesConsumed is unreliable, it doesn't really
-            // take into account that wrap/unwrap in the context of a handshake may
-            // "produce" bytes that are only used for the handshake, and not actual application
-            // data.
-            val available = unencryptedWriteBuffer.remaining()
+            val result = engine.wrap(unencryptedWriteBuffer, encryptedWriteBuffer, encryptAllocator)
 
-            val unencrypted = unencryptedWriteBuffer.readAll()
-            val result = encryptedWriteBuffer.putAllocatedBuffer(encryptAllocator.requestNextAllocation()) {
-                val before = it.remaining()
-                val ret = engine.wrap(unencrypted, it)
-                val bytesProduced = before - it.remaining()
-                // track the allocation to estimate future allocation needs
-                encryptAllocator.trackDataUsed(bytesProduced)
-                ret
-            }
-
-            // add unused unencrypted data back to the wrap buffer
-            unencryptedWriteBuffer.addAll(*unencrypted)
-
-            // queue up the encrypted data for write
             if (encryptedWriteBuffer.hasRemaining()) {
                 // before the handshake is completed, ensure that all writes are fully written before
                 // returning to the handshake loop.
@@ -135,11 +98,7 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
                     socket::write.drain(encryptedWriteBuffer)
             }
 
-            if (result.status == SSLEngineResult.Status.BUFFER_OVERFLOW) {
-                // allow the loop to continue
-                encryptAllocator.minAlloc *= 2
-                continue
-            } else if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+            if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
                 // this should never happen, as it is not possible to underflow
                 // with application data
                 break
@@ -157,7 +116,6 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             if (finishedHandshake && unencryptedWriteBuffer.isEmpty)
                 break
         }
-        encryptAllocator.finishTracking()
     }
 
     var peerCertificates: Array<X509Certificate>? = null
