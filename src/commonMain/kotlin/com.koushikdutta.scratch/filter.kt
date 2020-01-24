@@ -17,8 +17,6 @@ class InterruptibleRead(private val input: AsyncRead) {
         startSafeCoroutine {
             val buffer = ByteBufferList()
             try {
-                pipe.write(ByteBufferList())
-
                 while (buffer.hasRemaining() || input(buffer)) {
                     pipe.write(buffer)
                 }
