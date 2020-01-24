@@ -77,7 +77,7 @@ class PipeTests {
     }
 
     @Test
-    fun testInterrupt() {
+    fun testInterruptRead() {
         val pipe = PipeSocket()
 
         var done = false
@@ -96,10 +96,36 @@ class PipeTests {
         }
 
         async {
-            pipe.interrupt()
+            pipe.interruptRead()
             pipe.write("hello".createByteBufferList())
-            pipe.interrupt()
+            pipe.interruptRead()
             pipe.write("world".createByteBufferList())
+        }
+
+        assertTrue(done)
+    }
+
+
+    @Test
+    fun testInterruptWrite() {
+        val pipe = PipeSocket()
+
+        var done = false
+
+        async {
+            val buffer = ByteBufferList()
+            buffer.putUtf8String("hello")
+            pipe.write(buffer)
+            assertEquals(buffer.peekUtf8String(), "hello")
+            pipe.write(buffer)
+        }
+
+        async {
+            pipe.interruptWrite()
+            val buffer = ByteBufferList()
+            assertTrue(pipe.read(buffer))
+            assertEquals(buffer.readUtf8String(), "hello")
+            done = true
         }
 
         assertTrue(done)

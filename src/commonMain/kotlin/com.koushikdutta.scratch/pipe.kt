@@ -39,12 +39,20 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
         }
     }
 
-    private val interrupt: BatonTakeCondition<ReadableBuffers?> = {
+    private val interruptRead: BatonTakeCondition<ReadableBuffers?> = {
         it.value == null
     }
 
-    fun interrupt() {
-        baton.takeIf(interruptBuffer, interrupt)
+    fun interruptRead() {
+        baton.takeIf(interruptBuffer, interruptRead)
+    }
+
+    private val interruptWrite: BatonTakeCondition<ReadableBuffers?> = {
+        it.value != null
+    }
+
+    fun interruptWrite() {
+        baton.takeIf(null, interruptWrite)
     }
 
     suspend fun close(throwable: Throwable) {
