@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.OK
@@ -18,7 +19,6 @@ import javax.net.ssl.SSLContext
 import kotlin.test.assertEquals
 
 class TLSTests {
-
     @Test
     fun testConscryptTlsServer() {
         val conscrypt = Conscrypt.newProvider()
@@ -51,6 +51,47 @@ class TLSTests {
         }
 
         assertEquals(data, "hello worldhello world")
+    }
+
+    @Test
+    fun testAlpn() {
+        val conscrypt = Conscrypt.newProvider()
+        val keypairCert = createSelfSignedCertificate("TestServer")
+
+        val serverContext = SSLContext.getInstance("TLS", conscrypt)
+        serverContext.init(keypairCert.first, keypairCert.second)
+
+
+        val server = createAsyncPipeServerSocket()
+        val tlsServer = server.listenTls {
+            val engine = serverContext.createSSLEngine()
+            Conscrypt.setApplicationProtocols(engine, arrayOf("foo"))
+            engine
+        }
+
+        val clientContext = SSLContext.getInstance("TLS", conscrypt)
+        clientContext.init(keypairCert.second)
+
+        var protocol = ""
+        async {
+            val tlsClient = tlsServer.accept().iterator().next()
+            protocol = Conscrypt.getApplicationProtocol(tlsClient.engine)
+            tlsClient::write.drain("hello world".createByteBufferList())
+            tlsClient.close()
+        }
+
+        var data = ""
+        async {
+            val socket = server.connect()
+            val engine = clientContext.createSSLEngine("TestServer", 0)
+            engine.useClientMode = true
+            Conscrypt.setApplicationProtocols(engine, arrayOf("foo"))
+            val tlsSocket = tlsHandshake(socket, engine)
+            data = readAllString(tlsSocket::read)
+        }
+
+        assert(data == "hello world")
+        assert(protocol == "foo")
     }
 
     @Test

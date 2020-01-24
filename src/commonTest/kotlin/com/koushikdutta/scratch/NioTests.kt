@@ -32,6 +32,30 @@ class NioTests {
     }
 
     @Test
+    fun testNioWriter2() {
+        var highWater = false
+        val pipe = NonBlockingWritePipe(0) {
+            highWater = true
+        }
+
+        val keepGoing = pipe.write(ByteBufferList().putUtf8String("Hello World"))
+        pipe.write(ByteBufferList().putUtf8String("Hello World"))
+        pipe.write(ByteBufferList().putUtf8String("Hello World"))
+        pipe.end()
+
+        // start reading after end, to ensure data after read is still available.
+        var data = ""
+        async {
+            data = readAllString({pipe.read(it)})
+        }
+
+        assertEquals(data, "Hello WorldHello WorldHello World")
+
+        assertTrue(!keepGoing)
+        assertTrue(highWater)
+    }
+
+    @Test
     fun testNioWriterWritable() {
         val yielder = Yielder()
         val pipe = NonBlockingWritePipe(0) {
