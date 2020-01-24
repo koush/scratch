@@ -1,5 +1,3 @@
-@file:Suppress("NAME_SHADOWING")
-
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList

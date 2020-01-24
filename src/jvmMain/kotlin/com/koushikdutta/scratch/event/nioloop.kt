@@ -3,18 +3,19 @@
 package com.koushikdutta.scratch.event
 
 
-import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.AsyncRandomAccessStorage
 import com.koushikdutta.scratch.event.NamedThreadFactory.Companion.newSynchronousWorkers
-import com.koushikdutta.scratch.external.Log
+import com.koushikdutta.scratch.synchronized
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
 import java.net.NetworkInterface
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
-import java.nio.file.OpenOption
 import java.util.*
-import java.util.concurrent.*
+import java.util.concurrent.Executor
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -304,7 +305,6 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             try {
                 mSelector.wakeupOnce()
             } catch (e: Exception) {
-                Log.i(LOGTAG, "Selector Exception? L Preview?")
             }
         }
     }

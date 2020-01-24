@@ -362,10 +362,8 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         checkZero(uv_async_init(loop.ptr, wakeup.ptr, asyncCallbackPtr), "uv_async_init failed")
         handles[wakeup] = {}
 
-        synchronized(this) {
-            check(!running) { "loop already running" }
-            running = true
-        }
+        check(!running) { "loop already running" }
+        running = true
 
         try {
             while (running) {

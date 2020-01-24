@@ -196,7 +196,7 @@ object OkHostnameVerifier : HostnameVerifier {
         result.add(altName as String)
       }
       return result
-    } catch (_: CertificateParsingException) {
+    } catch (_: Throwable) {
       return emptyList()
     }
   }

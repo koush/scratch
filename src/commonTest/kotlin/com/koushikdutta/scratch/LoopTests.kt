@@ -297,29 +297,39 @@ class LoopTests {
         var requestsCompleted = 0
         val httpClient = AsyncHttpClient(this)
         val random = Random.Default
-        suspendCoroutine<Unit> { resume ->
-            for (i in 1..numRequests) {
-                async {
-                    sleep(abs(random.nextLong()) % 5000)
-                    val body = AsyncReader {
-                        it.putAllocatedBytes(10000) { bytes, bytesOffset ->
-                            random.nextBytes(bytes, bytesOffset, bytesOffset + 10000)
-                        }
-                        true
-                    }.pipe(createContentLengthPipe(postLength.toLong()))
+        val promises = mutableListOf<Promise<Unit>>()
 
+        for (i in 1..numRequests) {
+            val promise = async {
+                // due to some platform specific goofiness, this may cause connection resets. so keep trying until success.
+                while (true) {
+                    try {
+                        sleep(abs(random.nextLong()) % 5000)
+                        val body = AsyncReader {
+                            it.putAllocatedBytes(10000) { bytes, bytesOffset ->
+                                random.nextBytes(bytes, bytesOffset, bytesOffset + 10000)
+                            }
+                            true
+                        }.pipe(createContentLengthPipe(postLength.toLong()))
 
-                    val request =
-                        AsyncHttpRequest(URI.create("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
-                    val data = httpClient.execute(request) { readAllString(it.body!!) }
-                    assertEquals(data, "hello world")
-                    requestsCompleted++
-
-                    if (requestsCompleted == numRequests)
-                        resume.resume(Unit)
+                        val request =
+                                AsyncHttpRequest(URI.create("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
+                        val data = httpClient.execute(request) { readAllString(it.body!!) }
+                        assertEquals(data, "hello world")
+                        requestsCompleted++
+                        break
+                    }
+                    catch (throwable: Throwable) {
+                        continue
+                    }
                 }
+                Unit
             }
+
+            promises.add(promise)
         }
+
+        promises.awaitAll()
 
         assertEquals(requestsCompleted, numRequests)
     }
