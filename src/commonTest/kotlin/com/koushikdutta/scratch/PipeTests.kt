@@ -2,11 +2,11 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.test.fail
 
 class PipeTests {
     @Test
@@ -74,5 +74,34 @@ class PipeTests {
         }
 
         assertEquals(count, 1000000 * 100)
+    }
+
+    @Test
+    fun testInterrupt() {
+        val pipe = PipeSocket()
+
+        var done = false
+
+        async {
+            val buffer = ByteBufferList()
+            assertTrue(pipe.read(buffer))
+            assertTrue(buffer.isEmpty)
+            assertTrue(pipe.read(buffer))
+            assertEquals(buffer.readUtf8String(), "hello")
+            assertTrue(pipe.read(buffer))
+            assertTrue(buffer.isEmpty)
+            assertTrue(pipe.read(buffer))
+            assertEquals(buffer.readUtf8String(), "world")
+            done = true
+        }
+
+        async {
+            pipe.interrupt()
+            pipe.write("hello".createByteBufferList())
+            pipe.interrupt()
+            pipe.write("world".createByteBufferList())
+        }
+
+        assertTrue(done)
     }
 }

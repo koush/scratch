@@ -1,8 +1,11 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.AsyncAffinity.Companion.NO_AFFINITY
+import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+
+private val interruptBuffer = ByteBufferList()
 
 internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
     private val baton = Baton<ReadableBuffers?>()
@@ -10,12 +13,17 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
     override suspend fun read(buffer: WritableBuffers): Boolean {
         return baton.pass(null) {
             it.rethrow()
-            if (!it.finished && it.value == null && !it.resumed)
-                throw IOException("read cancelled by another read")
+            if (it.value !== interruptBuffer) {
+                if (!it.finished && it.value == null && !it.resumed)
+                    throw IOException("read cancelled by another read")
 
-            // handle the buffer transfer inside the baton lock
-            it.value?.read(buffer)
-            !it.finished
+                // handle the buffer transfer inside the baton lock
+                it.value?.read(buffer)
+                !it.finished
+            }
+            else {
+                true
+            }
         }
     }
 
@@ -29,6 +37,14 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
             if (it.finished)
                 throw IOException("pipe closed")
         }
+    }
+
+    private val interrupt: BatonTakeCondition<ReadableBuffers?> = {
+        it.value == null
+    }
+
+    fun interrupt() {
+        baton.takeIf(interruptBuffer, interrupt)
     }
 
     suspend fun close(throwable: Throwable) {
