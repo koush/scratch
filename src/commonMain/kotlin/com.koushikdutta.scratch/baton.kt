@@ -143,6 +143,7 @@ class Baton<T>() {
         get() = freeze.isFrozen
 
     private val defaultTossLock: BatonTossLock<T, T?> = {
+        it?.rethrow()
         it?.value
     }
 
@@ -179,6 +180,7 @@ class Baton<T>() {
     }
 
     private val defaultFinishLock: BatonTossLock<T, BatonResult<T>?> = {
+        it?.rethrow()
         it
     }
 
