@@ -249,9 +249,18 @@ class BatonTests {
     @Test
     fun testBatonTake() {
         val baton = Baton<Int>()
-        assertNull(baton.take(2), null)
+        assertEquals(baton.take(2), null)
         assertNull(baton.toss(3))
         assertEquals(baton.take(4), 3)
-        assertNull(baton.take(5), null)
+        assertEquals(baton.take(5), null)
+    }
+
+    @Test
+    fun testBatonTakeIf() {
+        val baton = Baton<Int>()
+        assertEquals(baton.take(2), null)
+        assertNull(baton.toss(3))
+        assertNull(baton.takeIf(4) { it.value == 5 })
+        assertEquals(baton.take(5), 3)
     }
 }

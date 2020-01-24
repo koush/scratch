@@ -24,6 +24,7 @@ private fun <T> Continuation<T>.resume(result: LockResult<T>) {
 class BatonResult<T>(throwable: Throwable?, value: T?, val resumed: Boolean, val finished: Boolean): LockResult<T>(throwable, value)
 typealias BatonLock<T, R> = (result: BatonResult<T>) -> R
 typealias BatonTossLock<T, R> = (result: BatonResult<T>?) -> R
+typealias BatonTakeCondition<T> = (result: BatonResult<T>) -> Boolean
 
 private fun <T, R> BatonTossLock<T, R>.resultInvoke(result: BatonResult<T>?): LockResult<R> {
     return try {
@@ -83,10 +84,10 @@ private data class BatonWaiter<T, R>(val continuation: Continuation<R>?, val dat
     }
 }
 
-class Baton<T>() {
+class Baton<T> {
     private val freeze = FreezableReference<BatonWaiter<T, *>>()
 
-    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonTossLock<T, R>? = null, take: Boolean = false, finish: Boolean = false, continuation: Continuation<R>? = null): R? {
+    private fun <R> passInternal(throwable: Throwable?, value: T?, lock: BatonTossLock<T, R>? = null, take: BatonTakeCondition<T>? = null, finish: Boolean = false, continuation: Continuation<R>? = null): R? {
         val immediate = continuation == null
         val dataLock = if (immediate) null else lock
         val cdata = if (finish) {
@@ -97,14 +98,32 @@ class Baton<T>() {
             else
                 BatonContinuationLockedData(null, null, false)
         }
+        else if (take != null) {
+            val taken: BatonContinuationLockedData<T, out Any?>
+            while (true) {
+                val found = freeze.get()
+                if (found == null) {
+                    taken = BatonContinuationLockedData(null, null, false)
+                    break
+                }
+                if (take(BatonResult(found.value.data.throwable, found.value.data.value, true, found.frozen))) {
+                    if (freeze.compareAndSetNull(found)) {
+                        taken = found.value.getContinuationLockedData()
+                        break
+                    }
+                }
+                else {
+                    taken = BatonContinuationLockedData(null, null, false)
+                    break
+                }
+            }
+            taken
+        }
         else {
             val resume = freeze.nullSwap()
             if (resume != null) {
                 // fast path with no extra allocations in case there's a waiter
                 resume.value.getContinuationLockedData()
-            }
-            else if (take) {
-                BatonContinuationLockedData(null, null, false)
             }
             else {
                 // slow path with allocations and spin lock
@@ -147,20 +166,29 @@ class Baton<T>() {
         it?.value
     }
 
+    fun takeIf(value: T, takeCondition: BatonTakeCondition<T>): T? {
+        return passInternal(null, value, take = takeCondition, lock = defaultTossLock)
+    }
+
+    fun <R> takeIf(value: T, takeCondition: BatonTakeCondition<T>, tossLock: BatonTossLock<T, R>): R {
+        return passInternal(null, value, take = takeCondition, lock = tossLock)!!
+    }
+
+    private val defaultTakeCondition: BatonTakeCondition<T> = { true }
     fun take(value: T): T? {
-        return passInternal(null, value, take = true, lock = defaultTossLock)
+        return passInternal(null, value, take = defaultTakeCondition, lock = defaultTossLock)
     }
 
     fun takeRaise(throwable: Throwable): T? {
-        return passInternal(throwable, null, take = true, lock = defaultTossLock)
+        return passInternal(throwable, null, take = defaultTakeCondition, lock = defaultTossLock)
     }
 
     fun <R> take(value: T, tossLock: BatonTossLock<T, R>): R {
-        return passInternal(null, value, take = true, lock = tossLock)!!
+        return passInternal(null, value, take = defaultTakeCondition, lock = tossLock)!!
     }
 
     fun <R> takeRaise(throwable: Throwable, tossLock: BatonTossLock<T, R>): R {
-        return passInternal(throwable, null, take = true, lock = tossLock)!!
+        return passInternal(throwable, null, take = defaultTakeCondition, lock = tossLock)!!
     }
 
     fun toss(value: T): T? {
