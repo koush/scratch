@@ -89,8 +89,10 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     fun ensureSocketReader(session: AsyncHttpClientSession) {
-        session.interrupt = InterruptibleRead({session.socket!!.read(it)})
-        session.socketReader = AsyncReader({session.interrupt!!.read(it)})
+        if (session.interrupt == null)
+            session.interrupt = InterruptibleRead({session.socket!!.read(it)})
+        if (session.socketReader == null)
+            session.socketReader = AsyncReader({session.interrupt!!.read(it)})
     }
 
     override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {

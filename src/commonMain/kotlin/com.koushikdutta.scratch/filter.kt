@@ -20,8 +20,7 @@ class InterruptibleRead(private val input: AsyncRead) {
                 pipe.write(ByteBufferList())
 
                 while (buffer.hasRemaining() || input(buffer)) {
-                    if (buffer.hasRemaining())
-                        pipe.write(buffer)
+                    pipe.write(buffer)
                 }
             }
             catch (throwable: Throwable) {
