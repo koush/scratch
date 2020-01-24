@@ -6,8 +6,11 @@ import com.koushikdutta.scratch.atomic.AtomicThrowingLock
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import com.koushikdutta.scratch.codec.base64
 import com.koushikdutta.scratch.collections.parseCommaDelimited
 import com.koushikdutta.scratch.crypto.sha1
+import com.koushikdutta.scratch.extensions.encode
+import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
@@ -189,7 +192,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
 }
 
 private fun addWebsocketHeaders(headers: Headers, vararg protocols: String) {
-    val key = Random.nextBytes(16).encodeBase64ToString()
+    val key = Random.nextBytes(16).encode().base64()
     headers["Sec-WebSocket-Version"] = "13";
     headers["Sec-WebSocket-Key"] = key;
     headers["Connection"] = "Upgrade";
@@ -224,7 +227,7 @@ suspend fun AsyncHttpClient.connectWebSocket(uri: String, socket: AsyncSocket? =
         val sha1 = responseHeaders["Sec-WebSocket-Accept"] ?: throw WebSocketException("Missing header Sec-WebSocket-Accept")
         val key = headers["Sec-WebSocket-Key"] ?: throw WebSocketException("Missing header Sec-WebSocket-Key")
         val concat = key + MAGIC
-        val expected = concat.encodeToByteArray().sha1().encodeBase64ToString()
+        val expected = concat.encodeToByteArray().hash().sha1().encode().base64()
         if (!sha1.equals(expected, true))
             throw WebSocketException("Sha1 mismatch $expected vs $sha1")
 
@@ -263,7 +266,7 @@ fun AsyncHttpRouter.webSocket(pathRegex: String, protocol: String? = null): WebS
         if (key == null)
             return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("Missing header Sec-WebSocket-Key"))
         val concat = key + MAGIC
-        val expected = concat.encodeToByteArray().sha1().encodeBase64ToString()
+        val expected = concat.encodeToByteArray().hash().sha1().encode().base64()
 
         val headers = Headers()
         headers["Connection"] = "Upgrade"

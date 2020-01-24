@@ -38,16 +38,16 @@ kotlin {
     // For Linux, should be changed to e.g. linuxX64
     // For MacOS, should be changed to e.g. macosX64
     // For Windows, should be changed to e.g. mingwX64
-//    macosX64("native") {
-//        compilations.main.cinterops {
-//            uv {
-//                compilerOpts "-I./src/nativeInterop/cinterop/libuv/include"
-//            }
-//            crypto {
-//                compilerOpts "-I./src/nativeInterop/cinterop/openssl/include"
-//            }
-//        }
-//    }
+    macosX64("native") {
+        compilations.main.cinterops {
+            uv {
+                compilerOpts "-I./src/nativeInterop/cinterop/libuv/include"
+            }
+            crypto {
+                compilerOpts "-I./src/nativeInterop/cinterop/openssl/include"
+            }
+        }
+    }
     sourceSets {
         commonMain {
             dependencies {
@@ -64,6 +64,12 @@ kotlin {
             dependencies {
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
+            }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
             }
         }
         jvmMain {
@@ -95,7 +101,12 @@ kotlin {
                 implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
 
                 implementation group: 'io.netty', name: 'netty-all', version: '4.1.42.Final'
-
+            }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
             }
         }
 //        jsMain {
@@ -114,15 +125,21 @@ kotlin {
 //                implementation kotlin('test-js')
 //            }
 //        }
-//        nativeMain {
-//            languageSettings {
-//                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-//                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-//                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-//                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
-//            }
-//        }
-//        nativeTest {
-//        }
+        nativeMain {
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
+        nativeTest {
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
     }
 }
