@@ -34,7 +34,11 @@ class FreezableBuffers: Freezable {
         }
         val hasData = ret.read(into)
         reclaim(ret)
-        return hasData
+        if (hasData)
+            return true
+        if (isImmutable)
+            return null
+        return false
     }
 
     internal fun reclaim(buffers: ByteBufferList) {
