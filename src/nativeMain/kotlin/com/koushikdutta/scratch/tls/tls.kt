@@ -17,8 +17,6 @@ actual class AsyncTlsSocket actual constructor(
         val unfiltered = ByteBufferList()
         while (read(unfiltered) || unfiltered.hasRemaining()) {
             while (true) {
-                // must collapse into a single buffer because the unwrap call does not accept
-                // an array of ByteBuffers
                 val result = engine.unwrap(unfiltered, buffer)
 
                 if (result == SSLStatus.SSL_ERROR_WANT_READ) {
