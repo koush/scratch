@@ -18,7 +18,15 @@ actual abstract class SSLEngine(internal val engine: CPointer<SSL>) {
     abstract fun setAlpnProtocols(protos: Collection<String>)
     abstract fun getNegotiatedAlpnProtocol(): String?
 }
-
+actual fun SSLEngine.runHandshakeTask() {
+    // noop
+}
+actual fun SSLEngine.checkHandshakeStatus(): SSLEngineHandshakeStatus {
+    return if (finishedHandshake)
+        SSLEngineHandshakeStatus.FINISHED
+    else
+        SSLEngineHandshakeStatus.NEED_TASK
+}
 actual open class SSLException(message: String) : IOException(message)
 actual open class SSLHandshakeException(message: String) : SSLException(message)
 

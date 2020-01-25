@@ -7,7 +7,6 @@ import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.external.OkHostnameVerifier
 import java.security.cert.X509Certificate
-import javax.net.ssl.SSLEngineResult
 import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLSession
 
@@ -37,15 +36,15 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
             while (true) {
                 val result = engine.unwrap(unfiltered, buffer, decryptAllocator)
 
-                if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+                if (result.status == SSLEngineStatus.BUFFER_UNDERFLOW) {
                     // need more data, so just break and wait for another read to come in to
                     // trigger the read again.
                     break
-                } else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
+                } else if (result.handshakeStatus == SSLEngineHandshakeStatus.NEED_WRAP) {
                     // this may complete the handshake
                     encryptedWrite(ByteBufferList())
                 }
-                else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
+                else if (result.handshakeStatus == SSLEngineHandshakeStatus.NEED_UNWRAP) {
                     continue
                 }
 
@@ -98,14 +97,14 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
                     socket::write.drain(encryptedWriteBuffer)
             }
 
-            if (result.status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+            if (result.status == SSLEngineStatus.BUFFER_UNDERFLOW) {
                 // this should never happen, as it is not possible to underflow
                 // with application data
                 break
-            } else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_UNWRAP) {
+            } else if (result.handshakeStatus == SSLEngineHandshakeStatus.NEED_UNWRAP) {
                 socketRead.interrupt()
                 break
-            } else if (result.handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP) {
+            } else if (result.handshakeStatus == SSLEngineHandshakeStatus.NEED_WRAP) {
                 continue
             }
 
@@ -121,13 +120,11 @@ actual class AsyncTlsSocket actual constructor(override val socket: AsyncSocket,
     var peerCertificates: Array<X509Certificate>? = null
         private set
 
-    private suspend fun handleHandshakeStatus(status: SSLEngineResult.HandshakeStatus) {
-        if (status == SSLEngineResult.HandshakeStatus.NEED_TASK) {
-            val task = engine.delegatedTask
-            task.run()
-        }
+    private suspend fun handleHandshakeStatus(status: SSLEngineHandshakeStatus) {
+        if (status == SSLEngineHandshakeStatus.NEED_TASK)
+            engine.runHandshakeTask()
 
-        if (!finishedHandshake && (engine.handshakeStatus == SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING || engine.handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED)) {
+        if (!finishedHandshake && engine.checkHandshakeStatus() == SSLEngineHandshakeStatus.FINISHED) {
             if (engine.useClientMode) {
                 var trusted = true
                 var peerUnverifiedCause: Exception? = null
