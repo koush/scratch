@@ -17,6 +17,7 @@
 package com.koushikdutta.scratch.external
 
 import com.koushikdutta.scratch.tls.HostnameVerifier
+import com.koushikdutta.scratch.tls.SSLEngine
 import java.security.cert.CertificateParsingException
 import java.security.cert.X509Certificate
 import java.util.*
@@ -52,9 +53,11 @@ object OkHostnameVerifier : HostnameVerifier {
   private const val ALT_DNS_NAME = 2
   private const val ALT_IPA_NAME = 7
 
-  override fun verify(host: String, session: SSLSession): Boolean {
+  override fun verify(engine: SSLEngine): Boolean {
     return try {
-      verify(host, session.peerCertificates[0] as X509Certificate)
+      if (engine.peerHost == null)
+        return true
+      verify(engine.peerHost, engine.session.peerCertificates[0] as X509Certificate)
     } catch (_: SSLException) {
       false
     }

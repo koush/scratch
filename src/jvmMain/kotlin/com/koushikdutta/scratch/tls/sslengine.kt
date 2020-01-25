@@ -3,6 +3,9 @@ package com.koushikdutta.scratch.tls
 import com.koushikdutta.scratch.buffers.AllocationTracker
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import com.koushikdutta.scratch.external.OkHostnameVerifier
+
+actual typealias DefaultHostnameVerifier = OkHostnameVerifier
 
 fun javax.net.ssl.SSLEngineResult.Status.convert(): SSLEngineStatus {
     return when (this) {
@@ -36,7 +39,7 @@ actual fun SSLEngine.checkHandshakeStatus(): SSLEngineHandshakeStatus {
 }
 
 // extension methods for unwrap with Buffers. manages overflows and allocations.
-fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult {
+actual fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker): SSLEngineResult {
     tracker.finishTracking()
     while (true) {
         val unfiltered = if (src.hasRemaining()) src.readFirst() else ByteBufferList.EMPTY_BYTEBUFFER
@@ -70,7 +73,7 @@ fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: Allocat
 }
 
 // extension methods for wrap with Buffers. manages overflows and allocations.
-fun SSLEngine.wrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult {
+actual fun SSLEngine.wrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker): SSLEngineResult {
     tracker.finishTracking()
     while (true) {
         val unencrypted = src.readAll()

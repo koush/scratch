@@ -1,8 +1,9 @@
 package com.koushikdutta.scratch.tls
 
-import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.AsyncWrappingSocket
 import com.koushikdutta.scratch.IOException
+import com.koushikdutta.scratch.buffers.AllocationTracker
+import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.WritableBuffers
 
 class SSLEngineResult constructor(val status: SSLEngineStatus, val handshakeStatus: SSLEngineHandshakeStatus)
 
@@ -30,7 +31,10 @@ expect abstract class SSLEngine {
 }
 expect fun SSLEngine.runHandshakeTask()
 expect fun SSLEngine.checkHandshakeStatus(): SSLEngineHandshakeStatus
-expect open class SSLException: IOException
+expect fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult
+expect fun SSLEngine.wrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult
+
+expect open class SSLException(message: String): IOException
 expect class SSLHandshakeException : SSLException
 
 expect interface RSAPrivateKey
@@ -42,7 +46,3 @@ expect fun SSLContext.init(pk: RSAPrivateKey, certificate: X509Certificate): SSL
 expect fun SSLContext.init(certificate: X509Certificate): SSLContext
 expect fun createTLSContext(): SSLContext
 expect fun getDefaultSSLContext(): SSLContext
-
-expect class AsyncTlsSocket(socket: AsyncSocket, engine: SSLEngine, options: AsyncTlsOptions?) : AsyncWrappingSocket {
-    internal suspend fun awaitHandshake()
-}

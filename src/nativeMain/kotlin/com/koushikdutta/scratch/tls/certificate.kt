@@ -213,10 +213,10 @@ actual fun createSelfSignedCertificate(subjectName: String): Pair<RSAPrivateKey,
         "not empty".encodeToByteArray().usePinned {
             PEM_write_bio_PrivateKey(bioKey, pkey, null, it.addressOf(0).reinterpret(), 0, null, null)
         }
-        SSLEngineImpl.readBio(bioKey, keyPem)
+        SSLEngine.readBio(bioKey, keyPem)
 
         PEM_write_bio_X509(bioCert, x509)
-        SSLEngineImpl.readBio(bioCert, certPem)
+        SSLEngine.readBio(bioCert, certPem)
     } finally {
         BIO_free(bioCert)
     }

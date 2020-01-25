@@ -5,18 +5,10 @@ import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.crypto.*
 import kotlinx.cinterop.*
 
-
-actual interface SSLSession
-
-
-actual abstract class SSLEngine(internal val engine: CPointer<SSL>) {
-    abstract fun unwrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus
-    abstract fun wrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus
-    abstract val finishedHandshake: Boolean
-    actual abstract fun getUseClientMode(): Boolean
-    actual abstract fun setUseClientMode(value: Boolean)
-    abstract fun setAlpnProtocols(protos: Collection<String>)
-    abstract fun getNegotiatedAlpnProtocol(): String?
+actual object DefaultHostnameVerifier : HostnameVerifier {
+    override fun verify(engine: SSLEngine): Boolean {
+        return true
+    }
 }
 actual fun SSLEngine.runHandshakeTask() {
     // noop
@@ -27,7 +19,7 @@ actual fun SSLEngine.checkHandshakeStatus(): SSLEngineHandshakeStatus {
     else
         SSLEngineHandshakeStatus.NEED_TASK
 }
-actual open class SSLException(message: String) : IOException(message)
+actual open class SSLException actual constructor(message: String) : IOException(message)
 actual open class SSLHandshakeException(message: String) : SSLException(message)
 
 actual fun createTLSContext(): SSLContext {
@@ -130,33 +122,46 @@ enum class SSLStatus {
     SSL_ERROR_NONE, SSL_ERROR_WANT_READ, SSL_ERROR_WANT_WRITE
 }
 
-class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) : SSLEngine(engine) {
+private fun SSLStatus.convertToHandshakeStatus(): SSLEngineHandshakeStatus {
+    return when (this) {
+        SSLStatus.SSL_ERROR_NONE -> SSLEngineHandshakeStatus.NEED_TASK
+        SSLStatus.SSL_ERROR_WANT_READ -> SSLEngineHandshakeStatus.NEED_WRAP
+        SSLStatus.SSL_ERROR_WANT_WRITE -> SSLEngineHandshakeStatus.NEED_UNWRAP
+    }
+}
+
+private fun SSLStatus.convertToEngineStatus(): SSLEngineStatus {
+    return when (this) {
+        SSLStatus.SSL_ERROR_NONE -> SSLEngineStatus.OK
+        SSLStatus.SSL_ERROR_WANT_READ -> SSLEngineStatus.BUFFER_UNDERFLOW
+        SSLStatus.SSL_ERROR_WANT_WRITE -> SSLEngineStatus.OK
+    }
+}
+
+actual abstract class SSLEngine(internal val ctx: CPointer<SSL_CTX>, internal val engine: CPointer<SSL>) {
     val rbio = BIO_new(BIO_s_mem())
     val wbio = BIO_new(BIO_s_mem())
-    val encryptAllocator = AllocationTracker()
-    val decryptAllocator = AllocationTracker()
 
     init {
         SSL_set_bio(engine, rbio, wbio);
         // todo: Dispose?
         SSL_set_ex_data(engine, SSLContext.engineIndex, StableRef.create(this).asCPointer())
-
-        encryptAllocator.minAlloc = 8192
-        decryptAllocator.minAlloc = 8192
     }
 
-    private var clientMode: Boolean? = null
+    protected var clientMode: Boolean? = null
     internal fun validate() {
         if (clientMode == null)
             throw SSLException("client/server mode not specified")
     }
 
-    override fun getUseClientMode(): Boolean {
-        return clientMode!!
-    }
+
+    abstract var finishedHandshake: Boolean
+        protected set
+    actual abstract fun getUseClientMode(): Boolean
+    actual abstract fun setUseClientMode(value: Boolean)
 
     private var hasInitialized = false
-    private fun ensureInitialized() {
+    internal fun ensureInitialized() {
         if (hasInitialized)
             return
         hasInitialized = true
@@ -169,10 +174,6 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
             SSL_set_accept_state(engine)
 
         setupAlpn()
-    }
-
-    override fun setUseClientMode(value: Boolean) {
-        clientMode = value
     }
 
     internal fun encodeAlpn(): ByteArray {
@@ -203,12 +204,12 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
     }
 
     val alpnprotos = mutableListOf<String>()
-    override fun setAlpnProtocols(protos: Collection<String>) {
+    fun setAlpnProtocols(protos: Collection<String>) {
         alpnprotos.clear()
         alpnprotos.addAll(protos)
     }
 
-    override fun getNegotiatedAlpnProtocol(): String? {
+    fun getNegotiatedAlpnProtocol(): String? {
         val encoded = memScoped {
             val encoded = alloc<CPointerVar<UByteVar>>()
             val encodedLen = alloc<UIntVar>()
@@ -221,14 +222,15 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
         return encoded.stringFromUtf8()
     }
 
-    private fun getErrorString(n: ULong): String {
+
+    internal fun getErrorString(n: ULong): String {
         memScoped {
             return ERR_error_string(n, null)!!.toKString()
         }
     }
 
     var handshakeError: String? = null
-    private fun getStatusOrThrow(n: Int, stage: String): SSLStatus {
+    internal fun getStatusOrThrow(n: Int, stage: String): SSLStatus {
         return when (val err = SSL_get_error(engine, n)) {
             SSL_ERROR_NONE -> SSLStatus.SSL_ERROR_NONE
             SSL_ERROR_WANT_WRITE -> SSLStatus.SSL_ERROR_WANT_WRITE
@@ -241,7 +243,7 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
         }
     }
 
-    private fun doSSLHandshake(): SSLStatus {
+    internal fun doSSLHandshake(): SSLStatus {
         // try to finish the handshake
         try {
             val handshakeResult = getStatusOrThrow(SSL_do_handshake(engine), "handshake")
@@ -253,98 +255,29 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
         }
     }
 
-    override var finishedHandshake = false
-    override fun unwrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus {
-        ensureInitialized()
-        // keep calling SSL_read to decrypt data until there's nothing left
-        while (true) {
-            var bytesConsumed = 0
-            while (src.hasRemaining()) {
-                val buffer = src.readFirst()
-                val consumed = if (buffer.hasRemaining()) writeBio(buffer) else 0
-                buffer.position(buffer.position() + consumed)
-                src.addFirst(buffer)
-                if (consumed == 0)
-                    break
-                bytesConsumed += consumed
-            }
-
-            // check if handshaking
-            if (!finishedHandshake) {
-                // try to finish the handshake
-                val handshakeResult = doSSLHandshake()
-                if (handshakeResult != SSLStatus.SSL_ERROR_WANT_WRITE)
-                    return handshakeResult
-            }
-
-            val bytesProduced = readSSL(dst)
-
-            if (bytesConsumed == 0 && bytesProduced == 0)
-                return SSLStatus.SSL_ERROR_NONE
-
-            val status = getStatusOrThrow(bytesProduced, "unwrap")
-            if (bytesProduced <= 0)
-                return status
-        }
-    }
-
-    override fun wrap(src: ByteBufferList, dst: WritableBuffers): SSLStatus {
-        encryptAllocator.finishTracking()
-
-        ensureInitialized()
-        while (true) {
-            var bytesConsumed = 0
-            while (src.hasRemaining()) {
-                val buffer = src.readFirst()
-                val consumed = if (buffer.hasRemaining()) writeSSL(buffer) else 0
-                buffer.position(buffer.position() + consumed)
-                src.addFirst(buffer)
-                if (consumed == 0)
-                    break
-                bytesConsumed += consumed
-            }
-
-            // check if handshaking
-            if (!finishedHandshake) {
-                // try to finish the handshake
-                val handshakeResult = doSSLHandshake()
-                if (handshakeResult != SSLStatus.SSL_ERROR_WANT_READ)
-                    return handshakeResult
-            }
-
-            val bytesProduced = readBio(wbio, dst, encryptAllocator)
-
-            if (bytesConsumed == 0 && bytesProduced == 0)
-                return SSLStatus.SSL_ERROR_NONE
-
-            // keep going until nothing is produced or consumed
-            if (bytesProduced <= 0 && bytesConsumed <= 0)
-                return getStatusOrThrow(bytesConsumed, "wrap")
-        }
-    }
-
-    private fun readSSL(dst: WritableBuffers): Int {
-        decryptAllocator.finishTracking()
+    internal fun readSSL(dst: WritableBuffers, tracker: AllocationTracker): Int {
+        tracker.minAlloc = 65536
+        tracker.finishTracking()
 
         var ret = 0
         while (true) {
-            val n = dst.putAllocatedBuffer(decryptAllocator.requestNextAllocation()) {
+            val n = dst.putAllocatedBuffer(tracker.requestNextAllocation()) {
                 IO_op(::SSL_read, engine, it)
             }
             if (n == 0)
                 return ret
             else if (n < 0)
                 return n
-            decryptAllocator.trackDataUsed(n)
+                tracker.trackDataUsed(n)
             ret += n
         }
     }
 
-    private fun writeSSL(src: ByteBuffer): Int {
+    internal fun writeSSL(src: ByteBuffer): Int {
         return IO_op(::SSL_write, engine, src)
     }
 
-    private fun writeBio(src: ByteBuffer): Int {
+    internal fun writeBio(src: ByteBuffer): Int {
         return IO_op(::BIO_write, rbio, src)
     }
 
@@ -375,3 +308,95 @@ class SSLEngineImpl(private val ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) :
         }
     }
 }
+
+class SSLEngineImpl(ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) : SSLEngine(ctx, engine) {
+
+    override fun getUseClientMode(): Boolean {
+        return clientMode!!
+    }
+
+    override fun setUseClientMode(value: Boolean) {
+        clientMode = value
+    }
+
+    override var finishedHandshake = false
+}
+
+actual fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker): SSLEngineResult {
+    tracker.minAlloc = 65536
+    ensureInitialized()
+    // keep calling SSL_read to decrypt data until there's nothing left
+    while (true) {
+        var bytesConsumed = 0
+        while (src.hasRemaining()) {
+            val buffer = src.readFirst()
+            val consumed = if (buffer.hasRemaining()) writeBio(buffer) else 0
+            buffer.position(buffer.position() + consumed)
+            src.addFirst(buffer)
+            if (consumed == 0)
+                break
+            bytesConsumed += consumed
+        }
+
+        // check if handshaking
+        if (bytesConsumed == 0 && !finishedHandshake) {
+            // try to finish the handshake
+            val handshakeResult = doSSLHandshake()
+            if (handshakeResult == SSLStatus.SSL_ERROR_WANT_READ)
+                return SSLEngineResult(SSLEngineStatus.BUFFER_UNDERFLOW, SSLEngineHandshakeStatus.NEED_TASK)
+            if (handshakeResult == SSLStatus.SSL_ERROR_NONE)
+                return SSLEngineResult(SSLEngineStatus.OK, handshakeResult.convertToHandshakeStatus())
+        }
+
+        val bytesProduced = readSSL(dst, tracker)
+
+        if (!finishedHandshake)
+            return SSLEngineResult(SSLEngineStatus.OK, SSLEngineHandshakeStatus.NEED_WRAP)
+
+        if (bytesConsumed == 0 && bytesProduced == 0)
+            return SSLEngineResult(SSLEngineStatus.OK, if (finishedHandshake) SSLEngineHandshakeStatus.FINISHED else SSLEngineHandshakeStatus.NEED_TASK)
+
+        val status = getStatusOrThrow(bytesProduced, "unwrap")
+        if (bytesProduced <= 0)
+            return SSLEngineResult(status.convertToEngineStatus(), if (finishedHandshake) SSLEngineHandshakeStatus.FINISHED else SSLEngineHandshakeStatus.NEED_TASK)
+    }
+}
+
+actual fun SSLEngine.wrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker): SSLEngineResult {
+    tracker.finishTracking()
+
+    ensureInitialized()
+    while (true) {
+        var bytesConsumed = 0
+        while (src.hasRemaining()) {
+            val buffer = src.readFirst()
+            val consumed = if (buffer.hasRemaining()) writeSSL(buffer) else 0
+            buffer.position(buffer.position() + consumed)
+            src.addFirst(buffer)
+            if (consumed == 0)
+                break
+            bytesConsumed += consumed
+        }
+
+        // check if handshaking
+        if (bytesConsumed == 0 && !finishedHandshake) {
+            // try to finish the handshake
+            val handshakeResult = doSSLHandshake()
+            if (handshakeResult != SSLStatus.SSL_ERROR_WANT_READ)
+                return SSLEngineResult(SSLEngineStatus.OK, handshakeResult.convertToHandshakeStatus())
+        }
+
+        val bytesProduced = SSLEngine.readBio(wbio, dst, tracker)
+
+        if (!finishedHandshake)
+            return SSLEngineResult(SSLEngineStatus.OK, SSLEngineHandshakeStatus.NEED_UNWRAP)
+
+        if (bytesConsumed == 0 && bytesProduced == 0)
+            return SSLEngineResult(SSLEngineStatus.OK, if (finishedHandshake) SSLEngineHandshakeStatus.FINISHED else SSLEngineHandshakeStatus.NEED_TASK)
+
+        // keep going until nothing is produced or consumed
+        // if (bytesProduced <= 0 && bytesConsumed <= 0)
+        //     return SSLEngineResult(getStatusOrThrow(bytesConsumed, "wrap").convertToEngineStatus(), if (finishedHandshake) SSLEngineHandshakeStatus.FINISHED else SSLEngineHandshakeStatus.NEED_TASK)
+    }
+}
+
