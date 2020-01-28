@@ -17,7 +17,7 @@ open class AsyncIteratorScope<T> internal constructor(private val baton: Baton<A
 
     private fun validateMessage(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
         if (!message.hasNext && !message.next)
-            throw Exception("iterator hasNext/next called before completion of prior invocation")
+            throw Exception("iterator yield called before completion of prior invocation")
         return message
     }
 
@@ -34,6 +34,8 @@ open class AsyncIteratorScope<T> internal constructor(private val baton: Baton<A
         waitNext()
     }
 }
+
+class AsyncIteratorConcurrentException(val resumed: Boolean): Exception("iterator hasNext/next called before completion of prior invocation")
 
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val baton = Baton<AsyncIteratorMessage<T>>()
@@ -55,16 +57,17 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
             baton.rethrow()
         }
 
-        private fun validateMessage(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
-            if (message.hasNext || message.next)
-                throw Exception("iterator hasNext/next called before completion of prior invocation")
-            return message
+        private val lock: BatonLock<AsyncIteratorMessage<T>, AsyncIteratorMessage<T>> = {
+            it.rethrow()
+            if (it.value!!.hasNext || it.value.next)
+                throw AsyncIteratorConcurrentException(it.resumed)
+            it.value
         }
 
         private suspend fun checkResumeNext(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
-            val result = validateMessage(baton.pass(message))
+            val result = baton.pass(message, lock)
             if (result.resuming)
-                return validateMessage(baton.pass(message))
+                return baton.pass(message, lock)
             return result
         }
 

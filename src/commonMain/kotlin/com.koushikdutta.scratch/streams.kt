@@ -84,6 +84,10 @@ interface AsyncWrappingSocket : AsyncSocket {
     val socket: AsyncSocket
 }
 
+class AsyncDoubleReadException: IOException("read cancelled by another read")
+class AsyncDoubleWriteException: IOException("write already in progress")
+class AsyncWriteClosedException: IOException()
+
 internal fun <T> genericPipe(read: T, pipe: GenericAsyncPipe<T>): AsyncRead {
     val buffer = ByteBufferList()
     val iterator = asyncIterator<Unit> {
@@ -93,11 +97,22 @@ internal fun <T> genericPipe(read: T, pipe: GenericAsyncPipe<T>): AsyncRead {
 
     return read@{
         buffer.takeReclaimedBuffers(it)
-        if (!iterator.hasNext())
-            return@read false
-        iterator.next()
-        buffer.read(it)
-        return@read true
+        while (true) {
+            try {
+                if (!iterator.hasNext())
+                    return@read false
+                iterator.next()
+                buffer.read(it)
+                return@read true
+            }
+            catch (iteratorException: AsyncIteratorConcurrentException) {
+                if (iteratorException.resumed)
+                    continue
+                throw AsyncDoubleReadException()
+            }
+        }
+        // this is dead code but the IDE is complaining.
+        true
     }
 }
 

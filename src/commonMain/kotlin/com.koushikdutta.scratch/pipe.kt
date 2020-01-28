@@ -15,7 +15,7 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
             it.rethrow()
             if (it.value !== interruptBuffer) {
                 if (!it.finished && it.value == null && !it.resumed)
-                    throw IOException("read cancelled by another read")
+                    throw AsyncDoubleReadException()
 
                 // handle the buffer transfer inside the baton lock
                 it.value?.read(buffer)
@@ -33,9 +33,9 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
         baton.pass(buffer) {
             it.rethrow()
             if (!it.finished && it.value != null && it.resumed)
-                throw IOException("write already in progress")
+                throw AsyncDoubleWriteException()
             if (it.finished)
-                throw IOException("pipe closed")
+                throw AsyncWriteClosedException()
         }
     }
 

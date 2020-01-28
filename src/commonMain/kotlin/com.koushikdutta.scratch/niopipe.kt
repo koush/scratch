@@ -66,7 +66,7 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
         if (result == null) {
             // wait for the baton to finish or throw/finish
             if (baton.pass(false) { it.rethrow(); it.isSuccess && !it.value!! && !it.resumed })
-                throw IOException("read cancelled by another read")
+                throw AsyncDoubleReadException()
             return !baton.isFinished
         }
 
@@ -80,7 +80,7 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
             return true
 
         if (baton.pass(false) { it.isSuccess && !it.value!! && !it.resumed })
-            throw IOException("read cancelled by another read")
+            throw AsyncDoubleReadException()
 
         return true
     }

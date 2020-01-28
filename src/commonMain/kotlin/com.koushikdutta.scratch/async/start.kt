@@ -12,7 +12,7 @@ class UnhandledAsyncExceptionError(throwable: Throwable): Error(throwable)
 /**
  * callers of this internal function MUST rethrow UnhandledAsyncExceptionError
  */
-@Deprecated(message = "deprecated for caller note: callers of this internal function MUST rethrow UnhandledAsyncExceptionError")
+@Deprecated(message = "must not throw.")
 internal fun startSafeCoroutine(block: suspend() -> Unit) {
     val wrappedBlock : suspend() -> Unit = {
         try {

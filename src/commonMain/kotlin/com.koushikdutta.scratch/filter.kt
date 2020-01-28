@@ -12,11 +12,13 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
  */
 class InterruptibleRead(private val input: AsyncRead) {
     private val pipe = PipeSocket()
+    private val baton = Baton<Unit>()
 
     init {
         startSafeCoroutine {
             val buffer = ByteBufferList()
             try {
+                baton.pass(Unit)
                 while (buffer.hasRemaining() || input(buffer)) {
                     pipe.write(buffer)
                 }
@@ -30,7 +32,12 @@ class InterruptibleRead(private val input: AsyncRead) {
         }
     }
 
-    suspend fun read(buffer: WritableBuffers) = pipe.read(buffer)
-    fun interrupt() = pipe.interruptRead()
+    suspend fun read(buffer: WritableBuffers): Boolean {
+        baton.toss(Unit)
+        return pipe.read(buffer)
+    }
+    fun interrupt() {
+        pipe.interruptRead()
+    }
     fun readTransient() = pipe.interruptWrite()
 }

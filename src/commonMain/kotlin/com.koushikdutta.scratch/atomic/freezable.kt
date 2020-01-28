@@ -67,8 +67,8 @@ class FreezableReference<T>: Freezable {
         return setInternal(value, false)
     }
 
-    fun compareAndSet(existing: FreezableValue<T>, value: T, freeze: Boolean = false): Boolean {
-        if (existing.frozen == true)
+    fun compareAndSet(existing: FreezableValue<T>?, value: T, freeze: Boolean = false): Boolean {
+        if (existing?.frozen == true)
             return false
         return atomicReference.compareAndSet(existing, FreezableValue(freeze, value))
     }
