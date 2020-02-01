@@ -14,12 +14,13 @@ class UnhandledAsyncExceptionError(throwable: Throwable): Error(throwable)
  */
 @Deprecated(message = "must not throw.")
 internal fun startSafeCoroutine(block: suspend() -> Unit) {
+    val originalStack = Exception()
     val wrappedBlock : suspend() -> Unit = {
         try {
             block()
         }
         catch (exception: Throwable) {
-            exitProcess(UnhandledAsyncExceptionError(exception))
+            exitProcess(UnhandledAsyncExceptionError(exception), originalStack)
         }
     }
     wrappedBlock.startCoroutine(Continuation(EmptyCoroutineContext){

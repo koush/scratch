@@ -5,7 +5,7 @@ actual open class IOException: Exception {
     actual constructor(message: String): super(message)
 }
 
-actual fun exitProcess(throwable: Throwable): Nothing {
+actual fun exitProcess(throwable: Throwable, originalstack: Throwable): Nothing {
     println(throwable)
     kotlin.system.exitProcess(-1)
 }

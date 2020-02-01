@@ -4,4 +4,4 @@ expect open class IOException(): Exception {
     constructor(message: String)
 }
 
-internal expect fun exitProcess(throwable: Throwable): Nothing
+internal expect fun exitProcess(throwable: Throwable, originalstack: Throwable): Nothing
