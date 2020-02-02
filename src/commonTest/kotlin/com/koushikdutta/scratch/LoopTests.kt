@@ -246,7 +246,6 @@ class LoopTests {
     @Test
     fun testSocketsALotConcurrent() = networkContextTest{
         val server = listen(0, null, 10000)
-        var resume: Continuation<Unit>? = null
         var connected = 0
         // there seems to be a weird issue with opening a ton of file descriptors too quickly.
         // the file limit is not hit, but connects will fail with "Connection reset by peer"
@@ -254,23 +253,28 @@ class LoopTests {
         // sticking a sleep in there seems to fix it.
         val connectCount = 5000
         val random = Random.Default
+        val promises = mutableListOf<Promise<Unit>>()
         for (i in 0 until connectCount) {
             // this test is flaky. connection resets if the system can't handle it.
-            async {
-                sleep(abs(random.nextLong()) % 5000)
-                val socket = connect("127.0.0.1", server.localPort)
-                sleep(10)
-                socket.close()
-                connected++
-                if (connected == connectCount)
-                    resume!!.resume(Unit)
+            val promise = async {
+                while (true) {
+                    try {
+                        sleep(abs(random.nextLong()) % 5000)
+                        val socket = connect("127.0.0.1", server.localPort)
+                        sleep(10)
+                        socket.close()
+                        connected++
+                        break
+                    }
+                    catch (throwable: Throwable) {
+                        continue
+                    }
+                }
             }
-            .rethrow()
+            promises.add(promise)
         }
-        suspendCoroutine<Unit> {
-            resume = it
-        }
-        assertTrue(true)
+        promises.awaitAll()
+        assertEquals(connectCount, connected)
     }
 
     @Test

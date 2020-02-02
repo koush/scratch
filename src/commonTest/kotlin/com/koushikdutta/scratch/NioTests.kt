@@ -114,4 +114,35 @@ class NioTests {
 
         assertFalse(gotData)
     }
+
+    @Test
+    fun testNioDoubleFinish() {
+        val pipe = NonBlockingWritePipe {}
+
+        assertTrue(pipe.end())
+        assertFalse(pipe.end())
+    }
+
+    @Test
+    fun testNioDoubleRaiseFinish() {
+        val pipe = NonBlockingWritePipe {}
+
+        assertTrue(pipe.end(Exception()))
+        assertFalse(pipe.end())
+    }
+
+    @Test
+    fun testBlockingDoubleFinish() {
+        val pipe = BlockingWritePipe {}
+        assertTrue(pipe.close())
+        assertFalse(pipe.close())
+    }
+
+    @Test
+    fun testBlockingDoubleRaiseFinish() {
+        val pipe = BlockingWritePipe {}
+
+        assertTrue(pipe.close(Exception()))
+        assertFalse(pipe.close())
+    }
 }

@@ -20,12 +20,18 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
 
     fun end(throwable: Throwable): Boolean {
         pending.freeze()
-        return baton.raiseFinish(throwable)?.finished != true
+        return baton.raiseFinish(throwable) {
+            // eat exceptions
+            it?.finished != true
+        }
     }
 
     fun end(): Boolean {
         pending.freeze()
-        return baton.finish(true)?.finished != true
+        return baton.finish(true) {
+            // eat exceptions
+            it?.finished != true
+        }
     }
 
     val hasEnded: Boolean
@@ -132,7 +138,10 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
 
     fun close(): Boolean = close(IOException("pipe closed"))
     fun close(exception: Throwable): Boolean {
-        return baton.raiseFinish(exception)?.finished != true
+        return baton.raiseFinish(exception) {
+            // eat exceptions
+            it?.finished != true
+        }
     }
 
     suspend fun write(buffer: ReadableBuffers) {
