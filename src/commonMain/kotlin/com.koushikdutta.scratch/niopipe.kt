@@ -157,7 +157,7 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
                 }
             }
             catch (throwable: Throwable) {
-                baton.raiseFinish(throwable)
+                close(throwable)
                 throw throwable
             }
         }
