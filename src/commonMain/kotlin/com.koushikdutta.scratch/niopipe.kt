@@ -129,7 +129,7 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
     private val baton = Baton<Unit>()
     private val pending = ByteBufferList()
     private val writeLock = AtomicThrowingLock {
-        IOException("write already in progress")
+        AsyncDoubleWriteException()
     }
 
     fun writable() {
