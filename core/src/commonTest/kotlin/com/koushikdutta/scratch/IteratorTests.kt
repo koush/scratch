@@ -20,7 +20,6 @@ class IteratorTests {
         assertEquals(sum, 12)
     }
 
-
     @Test
     fun testIterator2() {
         val iter = asyncIterator<Int> {
@@ -38,6 +37,29 @@ class IteratorTests {
             assertFalse(iter.hasNext())
         }
         assertEquals(sum, 12)
+    }
+
+
+    @Test
+    fun testIterator3() {
+        var setValue = 4
+        val iter = asyncIterator<Int> {
+            yield(3)
+            yield(4)
+            yield(5)
+            setValue = 6
+        }
+
+        var sum = 0
+        async {
+            sum += iter.next()
+            sum += iter.next()
+            sum += iter.next()
+            assertFalse(iter.hasNext())
+            assertFalse(iter.hasNext())
+        }
+        assertEquals(sum, 12)
+        assertEquals(setValue, 6)
     }
 
     @Test

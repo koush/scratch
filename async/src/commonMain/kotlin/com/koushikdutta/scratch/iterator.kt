@@ -1,9 +1,9 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.atomic.FreezableQueue
-import com.koushikdutta.scratch.buffers.ByteBuffer
-import com.koushikdutta.scratch.buffers.ByteBufferList
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.startCoroutine
 
 interface AsyncIterator<out T> {
     suspend operator fun next(): T
@@ -11,7 +11,7 @@ interface AsyncIterator<out T> {
     fun rethrow()
 }
 
-class AsyncIteratorMessage<T>(val throwable: Throwable? = null, val value: T? = null, val done: Boolean = false, val hasNext: Boolean = false, val next: Boolean = false, val resuming: Boolean = false)
+class AsyncIteratorMessage<T>(val value: T? = null, val done: Boolean = false, val hasNext: Boolean = false, val next: Boolean = false, val resuming: Boolean = false)
 open class AsyncIteratorScope<T> internal constructor(private val baton: Baton<AsyncIteratorMessage<T>>) {
     private val resumingMessage = AsyncIteratorMessage<T>(resuming = true)
 
@@ -40,17 +40,23 @@ class AsyncIteratorConcurrentException(val resumed: Boolean): Exception("iterato
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {
     val baton = Baton<AsyncIteratorMessage<T>>()
     val scope = AsyncIteratorScope(baton)
-    startSafeCoroutine {
-        try {
-            scope.waitNext()
-            block(scope)
-            baton.finish(AsyncIteratorMessage(done = true))
+    val suspendBlock = suspend {
+        scope.waitNext()
+        block(scope)
+    }
+    suspendBlock.startCoroutine(Continuation(EmptyCoroutineContext) start@{
+        val throwable = try {
+            if (!it.isFailure) {
+                baton.finish(AsyncIteratorMessage(done = true))
+                return@start
+            }
+            it.exceptionOrNull()!!
         }
         catch (throwable: Throwable) {
-            baton.raise(throwable)
-            baton.finish(AsyncIteratorMessage(throwable = throwable, done = true))
+            throwable
         }
-    }
+        baton.raiseFinish(throwable)
+    })
 
     return object: AsyncIterator<T> {
         override fun rethrow() {
@@ -59,9 +65,10 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
 
         private val lock: BatonLock<AsyncIteratorMessage<T>, AsyncIteratorMessage<T>> = {
             it.rethrow()
-            if (it.value!!.hasNext || it.value.next)
+            val value = it.value!!
+            if (value.hasNext || value.next)
                 throw AsyncIteratorConcurrentException(it.resumed)
-            it.value
+            value
         }
 
         private suspend fun checkResumeNext(message: AsyncIteratorMessage<T>): AsyncIteratorMessage<T> {
@@ -167,39 +174,5 @@ open class AsyncQueue<T> : AsyncIterable<T> {
             else
                 queue.add(value)
         }
-    }
-}
-
-fun AsyncIterator<AsyncRead>.join(): AsyncRead {
-    var read: AsyncRead? = null
-    return read@{
-        if (read == null) {
-            if (!hasNext())
-                return@read false
-            read = next()
-        }
-
-        if (!read!!(it))
-            read = null
-
-        true
-    }
-}
-
-fun AsyncIterator<ByteBuffer>.createAsyncReadFromByteBuffers(): AsyncRead {
-    return read@{
-        if (!hasNext())
-            return@read false
-        it.add(next())
-        true
-    }
-}
-
-fun AsyncIterator<ByteBufferList>.createAsyncReadFromByteBufferLists(): AsyncRead {
-    return read@{
-        if (!hasNext())
-            return@read false
-        it.add(next())
-        true
     }
 }

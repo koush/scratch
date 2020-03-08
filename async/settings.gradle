@@ -1,4 +1,4 @@
-rootProject.name = 'promise'
+rootProject.name = 'async'
 
 
 enableFeaturePreview('GRADLE_METADATA')

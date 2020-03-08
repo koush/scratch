@@ -54,7 +54,7 @@ kotlin {
                 implementation kotlin('stdlib-common')
                 api project(':buffer')
                 api project(':atomic')
-                api project(':promise')
+                api project(':async')
             }
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name

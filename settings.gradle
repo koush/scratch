@@ -18,5 +18,5 @@ enableFeaturePreview('GRADLE_METADATA')
 include ':atomic'
 include ':buffer'
 include ':core'
-include ':promise'
+include ':async'
 

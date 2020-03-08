@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -161,5 +162,40 @@ suspend fun AsyncRead.copy(asyncWrite: AsyncWrite) {
 operator fun AsyncRead.plus(other: AsyncRead): AsyncRead {
     return {
         this(it) || other(it)
+    }
+}
+
+
+fun AsyncIterator<AsyncRead>.join(): AsyncRead {
+    var read: AsyncRead? = null
+    return read@{
+        if (read == null) {
+            if (!hasNext())
+                return@read false
+            read = next()
+        }
+
+        if (!read!!(it))
+            read = null
+
+        true
+    }
+}
+
+fun AsyncIterator<ByteBuffer>.createAsyncReadFromByteBuffers(): AsyncRead {
+    return read@{
+        if (!hasNext())
+            return@read false
+        it.add(next())
+        true
+    }
+}
+
+fun AsyncIterator<ByteBufferList>.createAsyncReadFromByteBufferLists(): AsyncRead {
+    return read@{
+        if (!hasNext())
+            return@read false
+        it.add(next())
+        true
     }
 }

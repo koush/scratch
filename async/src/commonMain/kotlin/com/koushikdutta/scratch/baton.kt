@@ -45,8 +45,16 @@ private data class BatonContinuationLockedData<T, RR>(val continuation: Continua
 
         // process locks and callbacks in the order they were received
         if (data != null) {
-            pendingResult = data.lock?.resultInvoke(BatonResult(throwable, value, false, finish))
-            val batonResult = BatonResult(data.throwable, data.value, true, frozen)
+            pendingResult = data.lock?.resultInvoke(
+                BatonResult(
+                    throwable,
+                    value,
+                    false,
+                    finish
+                )
+            )
+            val batonResult =
+                BatonResult(data.throwable, data.value, true, frozen)
             resumeResult = lock?.resultInvoke(batonResult)
         }
         else {
@@ -57,7 +65,11 @@ private data class BatonContinuationLockedData<T, RR>(val continuation: Continua
             pendingResult = null
         }
 
-        return BatonContinuationData(cdata.continuation, pendingResult, resumeResult)
+        return BatonContinuationData(
+            cdata.continuation,
+            pendingResult,
+            resumeResult
+        )
     }
 }
 
@@ -106,7 +118,14 @@ class Baton<T> {
                     taken = BatonContinuationLockedData(null, null, false)
                     break
                 }
-                if (take(BatonResult(found.value.data.throwable, found.value.data.value, true, found.frozen))) {
+                if (take(
+                        BatonResult(
+                            found.value.data.throwable,
+                            found.value.data.value,
+                            true,
+                            found.frozen
+                        )
+                    )) {
                     if (freeze.compareAndSetNull(found)) {
                         taken = found.value.getContinuationLockedData()
                         break
@@ -127,7 +146,13 @@ class Baton<T> {
             }
             else {
                 // slow path with allocations and spin lock
-                val waiter = freeze.swapIfNullElseNull(BatonWaiter(continuation, BatonData(throwable, value, dataLock), false))
+                val waiter = freeze.swapIfNullElseNull(
+                    BatonWaiter(
+                        continuation,
+                        BatonData(throwable, value, dataLock),
+                        false
+                    )
+                )
                 if (waiter == null)
                     BatonContinuationLockedData(null, null, false)
                 else
