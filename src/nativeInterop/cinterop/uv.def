@@ -1,8 +1,0 @@
-# vim: set syntax=make:
-
-package = com.koushikdutta.scratch.uv
-headers = uv.h
-headerFilter = uv.h uv/**
-libraryPaths = src/nativeInterop/cinterop/libuv/.libs scratch/src/nativeInterop/cinterop/libuv/.libs
-staticLibraries = libuv.a
-linkerOpts =

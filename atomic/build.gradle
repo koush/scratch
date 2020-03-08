@@ -1,0 +1,113 @@
+plugins {
+    id 'org.jetbrains.kotlin.multiplatform' version '1.3.61'
+}
+repositories {
+    mavenCentral()
+}
+group 'com.koushikdutta.scratch'
+version '0.0.1'
+
+apply plugin: 'maven-publish'
+
+kotlin {
+    jvm()
+//    js {
+//        browser {
+//        }
+//        nodejs {
+//        }
+//    }
+
+    compileKotlinJvm {
+        kotlinOptions {
+        }
+        kotlinOptions.freeCompilerArgs = [
+                "-Xallow-result-return-type",
+                "-Xallow-kotlin-package",
+                "-Xmulti-platform",
+                "-Xuse-experimental=kotlin.Experimental",
+                "-Xuse-experimental=kotlin.ExperimentalUnsignedTypes",
+                "-Xuse-experimental=kotlin.ExperimentalStdlibApi"
+        ]
+    }
+
+    // For ARM, should be changed to iosArm32 or iosArm64
+    // For Linux, should be changed to e.g. linuxX64
+    // For MacOS, should be changed to e.g. macosX64
+    // For Windows, should be changed to e.g. mingwX64
+    macosX64("native")
+    sourceSets {
+        commonMain {
+            dependencies {
+                implementation kotlin('stdlib-common')
+            }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
+        commonTest {
+            dependencies {
+                implementation kotlin('test-common')
+                implementation kotlin('test-annotations-common')
+            }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
+        jvmMain {
+            dependencies {
+                implementation kotlin('stdlib-jdk8')
+            }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
+        jvmTest {
+            dependencies {
+                implementation kotlin('test')
+                implementation kotlin('test-junit')
+            }
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
+//        jsMain {
+//            dependencies {
+//                implementation kotlin('stdlib-js')
+//            }
+//        }
+//        jsTest {
+//            dependencies {
+//                implementation kotlin('test-js')
+//            }
+//        }
+        nativeMain {
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
+        nativeTest {
+            languageSettings {
+                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
+                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+            }
+        }
+    }
+}

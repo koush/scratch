@@ -1,0 +1,8 @@
+# vim: set syntax=make:
+
+package = com.koushikdutta.scratch.crypto
+headers = openssl/ssl.h openssl/pem.h openssl/err.h openssl/bio.h openssl/x509v3.h openssl/md5.h
+headerFilter = openssl/ssl.h openssl/pem.h openssl/err.h openssl/x509v3.h openssl/bio.h openssl/**
+libraryPaths = core/src/nativeInterop/cinterop/openssl scratch/core/src/nativeInterop/cinterop/openssl
+staticLibraries = libcrypto.a libssl.a
+linkerOpts =

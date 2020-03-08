@@ -1,0 +1,4 @@
+rootProject.name = 'buffer'
+
+
+enableFeaturePreview('GRADLE_METADATA')
