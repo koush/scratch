@@ -3,13 +3,15 @@ pluginManagement {
         maven {
             url  "https://dl.bintray.com/kotlin/kotlin-eap/"
         }
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+        google()
         mavenCentral()
-//        jcenter()
+        jcenter()
     }
 }
 
 rootProject.name = 'scratch'
-
-
 enableFeaturePreview('GRADLE_METADATA')
 
