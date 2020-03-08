@@ -179,7 +179,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
 
     private val writeHandler = AsyncHandler(this)
     private val writeLock = AtomicThrowingLock {
-        IOException("write already in progress")
+        AsyncDoubleWriteException()
     }
 
     override suspend fun write(buffer: ReadableBuffers) = writeLock {
