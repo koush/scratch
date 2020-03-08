@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.startSafeCoroutine
-import com.koushikdutta.scratch.atomic.AtomicReference
 import com.koushikdutta.scratch.atomic.FreezableReference
 import com.koushikdutta.scratch.atomic.FreezableStack
 import kotlin.coroutines.Continuation
