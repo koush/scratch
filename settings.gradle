@@ -15,8 +15,11 @@ pluginManagement {
 //rootProject.name = 'scratch'
 enableFeaturePreview('GRADLE_METADATA')
 
-include ':atomic'
-include ':buffer'
-include ':core'
-include ':async'
-
+include ':scratch:atomic'
+project(":scratch:atomic").projectDir = new File("./atomic")
+include ':scratch:buffer'
+project(":scratch:buffer").projectDir = new File("./buffer")
+include ':scratch:core'
+project(":scratch:core").projectDir = new File("./core")
+include ':scratch:async'
+project(":scratch:async").projectDir = new File("./async")
