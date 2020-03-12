@@ -29,20 +29,21 @@ internal interface PromiseResult<T> {
     }
 }
 
-class Deferred<T>: Promise<T>() {
-    public override fun resolve(result: T) = super.resolve(result)
-    public override fun reject(throwable: Throwable) = super.reject(throwable)
+class Deferred<T> {
+    val promise = Promise<T>()
+    fun resolve(result: T) = promise.resolve(result)
+    fun reject(throwable: Throwable) = promise.reject(throwable)
 
     companion object {
         suspend fun <T> defer(block: suspend (resolve: (T) -> Boolean, reject: (Throwable) -> Boolean) -> Unit): T {
             val deferred = Deferred<T>()
             block(deferred::resolve, deferred::reject)
-            return deferred.await()
+            return deferred.promise.await()
         }
     }
 }
 
-expect open class Promise<T> : PromiseBase<T> {
+expect class Promise<T> : PromiseBase<T> {
     constructor(block: suspend () -> T)
     internal constructor()
 }
@@ -57,7 +58,7 @@ open class PromiseBase<T> {
 
     internal constructor()
 
-    protected open fun reject(throwable: Throwable): Boolean {
+    internal fun reject(throwable: Throwable): Boolean {
         if (atomicReference.freeze(PromiseResult.failure(throwable))?.frozen == true)
             return false
         callbacks.freeze()
@@ -67,7 +68,7 @@ open class PromiseBase<T> {
         return true
     }
 
-    protected open fun resolve(result: T): Boolean {
+    internal fun resolve(result: T): Boolean {
         if (atomicReference.freeze(PromiseResult.success(result))?.frozen == true)
             return false
         callbacks.freeze()
