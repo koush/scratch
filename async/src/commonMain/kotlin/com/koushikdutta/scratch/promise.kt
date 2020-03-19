@@ -4,17 +4,21 @@ import com.koushikdutta.scratch.atomic.FreezableReference
 import com.koushikdutta.scratch.atomic.FreezableStack
 import kotlin.coroutines.*
 
-typealias PromiseCallback<T, R> = suspend (T) -> R
+typealias PromiseThen<T, R> = suspend (T) -> R
 typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
 typealias PromiseRecover<T> = suspend (throwable: Throwable) -> T
 
 internal interface PromiseResult<T> {
+    fun resume(resume: Continuation<T>)
     fun getOrThrow(): T
     companion object {
         fun <T> failure(throwable: Throwable): PromiseResult<T> {
             return object : PromiseResult<T> {
                 override fun getOrThrow(): T {
                     throw throwable
+                }
+                override fun resume(resume: Continuation<T>) {
+                    resume.resumeWithException(throwable)
                 }
             }
         }
@@ -23,6 +27,9 @@ internal interface PromiseResult<T> {
             return object : PromiseResult<T> {
                 override fun getOrThrow(): T {
                     return value
+                }
+                override fun resume(resume: Continuation<T>) {
+                    resume.resume(value)
                 }
             }
         }
@@ -94,35 +101,16 @@ open class PromiseBase<T> {
         })
     }
 
-    fun <R> then(callback: PromiseCallback<T, R>): Promise<R> {
+    fun <R> then(callback: PromiseThen<T, R>): Promise<R> {
         return Promise {
-            val result = suspendCoroutine<T> {
-                if (!callbacks.push(it).frozen)
-                    return@suspendCoroutine
-                try {
-                    it.resume(atomicReference.get()!!.value.getOrThrow())
-                } catch (throwable: Throwable) {
-                    it.resumeWithException(throwable)
-                }
-            }
-            callback(result)
+            callback(await())
         }
     }
 
     fun catch(callback: PromiseCatch): Promise<T> {
         return Promise {
             try {
-                suspendCoroutine<T> {
-                    if (!callbacks.push(it).frozen)
-                        return@suspendCoroutine
-                    try {
-                        atomicReference.get()!!.value.getOrThrow()
-                        return@suspendCoroutine
-                        // ignore result
-                    } catch (throwable: Throwable) {
-                        it.resumeWithException(throwable)
-                    }
-                }
+                await()
             } catch (throwable: Throwable) {
                 callback(throwable)
                 throw throwable
@@ -133,17 +121,7 @@ open class PromiseBase<T> {
     fun recover(callback: PromiseRecover<T>): Promise<T> {
         return Promise {
             try {
-                suspendCoroutine<T> {
-                    if (!callbacks.push(it).frozen)
-                        return@suspendCoroutine
-                    try {
-                        atomicReference.get()!!.value.getOrThrow()
-                        return@suspendCoroutine
-                        // ignore result
-                    } catch (throwable: Throwable) {
-                        it.resumeWithException(throwable)
-                    }
-                }
+                await()
             } catch (throwable: Throwable) {
                 return@Promise callback(throwable)
             }
@@ -153,15 +131,7 @@ open class PromiseBase<T> {
     fun finally(callback: suspend () -> Unit): Promise<T> {
         return Promise {
             try {
-                suspendCoroutine<T> {
-                    if (!callbacks.push(it).frozen)
-                        return@suspendCoroutine
-                    try {
-                        it.resume(atomicReference.get()!!.value.getOrThrow())
-                    } catch (throwable: Throwable) {
-                        it.resumeWithException(throwable)
-                    }
-                }
+                await()
             } finally {
                 callback()
             }
@@ -172,14 +142,7 @@ open class PromiseBase<T> {
         return suspendCoroutine<T> {
             if (!callbacks.push(it).frozen)
                 return@suspendCoroutine
-            val result = try {
-                atomicReference.get()!!.value.getOrThrow()
-            }
-            catch (throwable: Throwable) {
-                it.resumeWithException(throwable)
-                return@suspendCoroutine
-            }
-            it.resume(result)
+            atomicReference.get()!!.value.resume(it)
         }
     }
 

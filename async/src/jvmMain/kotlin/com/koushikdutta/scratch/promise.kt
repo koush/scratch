@@ -4,21 +4,32 @@ actual class Promise<T> : PromiseBase<T> {
     actual constructor(block: suspend () -> T): super(block)
     internal actual constructor(): super()
 
-    fun setCallback(callback: JavaThenCallback<T>): Promise<T> {
+    fun result(callback: JavaResultCallback<T>): Promise<T> {
         return then {
             callback.then(it)
             it
         }
     }
 
-    fun setErrorCallback(callback: JavaErrorCallback): Promise<T> {
+    fun <R> apply(callback: JavaApplyCallback<T, R>): Promise<R> {
+        return then {
+            callback.apply(it).await()
+        }
+    }
+
+    fun error(callback: JavaErrorCallback): Promise<T> {
         return catch {
             callback.error(it)
         }
     }
 }
 
-interface JavaThenCallback<T> {
+interface JavaApplyCallback<T, R> {
+    @Throws(Throwable::class)
+    fun apply(result: T): Promise<R>
+}
+
+interface JavaResultCallback<T> {
     @Throws(Throwable::class)
     fun then(result: T)
 }

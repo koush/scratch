@@ -12,7 +12,7 @@ pluginManagement {
     }
 }
 
-//rootProject.name = 'scratch'
+rootProject.name = 'scratch'
 enableFeaturePreview('GRADLE_METADATA')
 
 include ':scratch:atomic'
