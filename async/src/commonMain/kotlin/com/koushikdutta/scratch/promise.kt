@@ -56,7 +56,7 @@ expect class Promise<T> : PromiseBase<T> {
 }
 
 open class PromiseBase<T> {
-    internal val atomicReference =
+    private val atomicReference =
         FreezableReference<PromiseResult<T>>()
     private val callbacks =
         FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
@@ -139,7 +139,7 @@ open class PromiseBase<T> {
     }
 
     suspend fun await(): T {
-        return suspendCoroutine<T> {
+        return suspendCoroutine {
             if (!callbacks.push(it).frozen)
                 return@suspendCoroutine
             atomicReference.get()!!.value.resume(it)
