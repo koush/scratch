@@ -3,6 +3,6 @@
 package = com.koushikdutta.scratch.uv
 headers = uv.h
 headerFilter = uv.h uv/**
-libraryPaths = core/src/nativeInterop/cinterop/libuv/.libs scratch/core/src/nativeInterop/cinterop/libuv/.libs
+libraryPaths = src/nativeInterop/cinterop/libuv/.libs core/src/nativeInterop/cinterop/libuv/.libs scratch/core/src/nativeInterop/cinterop/libuv/.libs
 staticLibraries = libuv.a
 linkerOpts =

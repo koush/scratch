@@ -13,6 +13,7 @@ import com.koushikdutta.scratch.http.client.middleware.OpenSSLMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
+import execute
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -37,14 +38,10 @@ class NativeTLSTests {
 
         var protocol = ""
         val pipeMiddleware = object : OpenSSLMiddleware(AsyncEventLoop.default, clientContext) {
-            override suspend fun wrapTlsSocket(
-                session: AsyncHttpClientSession,
-                tlsSocket: AsyncTlsSocket,
-                host: String,
-                port: Int
-            ): AsyncSocket {
+            override suspend fun wrapForTlsSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncTlsSocket {
+                val tlsSocket = super.wrapForTlsSocket(session, socket, host, port)
                 protocol = tlsSocket.engine.getNegotiatedAlpnProtocol()!!
-                return super.wrapTlsSocket(session, tlsSocket, host, port)
+                return tlsSocket
             }
 
             override suspend fun connectInternal(
