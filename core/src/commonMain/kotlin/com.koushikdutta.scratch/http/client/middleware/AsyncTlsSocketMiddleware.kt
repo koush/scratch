@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http.client.middleware
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
 import com.koushikdutta.scratch.tls.*
 
 open class AsyncTlsSocketMiddleware(eventLoop: AsyncEventLoop, val context: SSLContext = getDefaultSSLContext()) : AsyncSocketMiddleware(eventLoop) {

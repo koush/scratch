@@ -7,10 +7,7 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
-import com.koushikdutta.scratch.http.client.followRedirects
+import com.koushikdutta.scratch.http.client.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
@@ -347,8 +344,7 @@ class HttpTests {
             val httpClient = AsyncHttpClient().buildUpon().followRedirects().build()
             httpClient.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                    session.socket = pipeServer.connect()
-                    session.socketReader = AsyncReader(session.socket!!::read)
+                    session.socket = AsyncHttpClientSocket(pipeServer.connect())
                     session.protocol = session.request.protocol.toLowerCase()
                     return true
                 }
@@ -377,8 +373,7 @@ class HttpTests {
             val httpClient = AsyncHttpClient().buildUpon().followRedirects().build()
             httpClient.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                    session.socket = pipeServer.connect()
-                    session.socketReader = AsyncReader(session.socket!!::read)
+                    session.socket = AsyncHttpClientSocket(pipeServer.connect())
                     session.protocol = session.request.protocol.toLowerCase()
                     return true
                 }

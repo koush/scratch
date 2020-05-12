@@ -3,7 +3,6 @@ package com.koushikdutta.scratch.http.client.middleware
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncReaderPipe
-import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedInputPipe
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.StatusCode
@@ -37,11 +36,13 @@ fun createEndWatcher(read: AsyncRead, complete: suspend () -> Unit): AsyncRead {
     }
 }
 
-fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRead {
+fun getHttpBodyOrNull(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRead? {
     val read: AsyncRead
 
     val contentLength = headers.contentLength
     if (contentLength != null) {
+        if (contentLength == 0L)
+            return null
         read = reader.pipe(createContentLengthPipe(contentLength))
     }
     else if ("chunked" == headers.transferEncoding) {
@@ -52,8 +53,7 @@ fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRe
         // if this a client body is being parsed by the server,
         // and the client has not indicated a request body via either transfer-encoding or
         // content-length, there is no body.
-        read = { false }
-        return read
+        return null
     }
     else {
         // handling server response:
@@ -61,23 +61,33 @@ fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRe
         read = { reader.read(it) }
     }
 
-    // todo: inflate
-//    if ("deflate" == headers.get("Content-Encoding"))
-//        read = read.pipe(InflatePipe)
-
     return read
+}
+
+fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRead {
+    return getHttpBodyOrNull(headers, reader, server) ?: { false }
 }
 
 class AsyncBodyDecoder : AsyncHttpClientMiddleware() {
     override suspend fun onResponseStarted(session: AsyncHttpClientSession) {
         val statusCode = StatusCode.values().find { it.code == session.response!!.code }
-        if (statusCode?.hasBody == false)
-            session.response!!.body = { false }
+        val body = if (statusCode?.hasBody == false)
+            null
         else
-            session.response!!.body = getHttpBody(session.response!!.headers, session.socketReader!!, false)
+            getHttpBodyOrNull(session.response!!.headers, session.socket!!.reader, false)
 
-        session.response!!.body = createEndWatcher(session.response!!.body!!) {
-            session.executor.client.onResponseComplete(session)
+        session.response!!.body = if (body == null) {
+            session.responseCompleted = true
+            session.socket?.completion?.invoke(null);
+            { false }
+        }
+        else {
+            session.response!!.body = createEndWatcher(session.response!!.body!!) {
+                session.responseCompleted = true
+                session.socket?.completion?.invoke(null)
+            }
+
+            body
         }
     }
 }

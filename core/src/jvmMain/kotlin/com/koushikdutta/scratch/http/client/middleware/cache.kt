@@ -16,6 +16,7 @@ import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSessionProperties
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -302,8 +303,7 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
 
         val socketReader = AsyncReader(socket::read)
         val response = createCachedResponse(headerFile, dataFile, responseLine, headers, cacheData)
-        session.socket = socket;
-        session.socketReader = socketReader
+        session.socket = AsyncHttpClientSocket(socket, socketReader)
         session.response = response
         return response
     }

@@ -19,11 +19,7 @@ suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSo
 
     val session = AsyncHttpClientSession(this, request)
     if (socket != null) {
-        session.socket = socket
-        if (socketReader == null)
-            session.socketReader = AsyncReader(socket::read)
-        else
-            session.socketReader = socketReader
+        session.socket = AsyncHttpClientSocket(socket, socketReader)
         session.properties.manageSocket = false
         session.protocol = session.request.protocol.toLowerCase()
     }
@@ -82,7 +78,6 @@ suspend fun AsyncHttpExecutor.randomAccess(uri: String): AsyncRandomAccessInput 
         it.headers.contentLength!!
     }
 
-    var closed = false
     val currentReader = FreezableReference<AsyncHttpResponse?>()
     var currentPosition: Long = 0
     var currentRemaining: Long = 0

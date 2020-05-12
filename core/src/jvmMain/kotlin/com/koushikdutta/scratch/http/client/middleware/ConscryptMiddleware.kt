@@ -4,6 +4,7 @@ import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
 import com.koushikdutta.scratch.tls.AsyncTlsSocket
 import com.koushikdutta.scratch.tls.SSLContext
 import com.koushikdutta.scratch.tls.SSLEngine

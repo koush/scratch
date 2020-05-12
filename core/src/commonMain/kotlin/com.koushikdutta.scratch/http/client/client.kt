@@ -4,12 +4,8 @@ import AsyncHttpExecutor
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.IOException
-import com.koushikdutta.scratch.InterruptibleRead
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.Headers
-import com.koushikdutta.scratch.http.StatusCode
+import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.*
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
@@ -28,11 +24,12 @@ var AsyncHttpClientSessionProperties.manageSocket: Boolean
         set("manage-socket", value)
     }
 
-class AsyncHttpClientSession constructor(val executor: AsyncHttpExecutor, val request: AsyncHttpRequest) {
-    var socket: AsyncSocket? = null
-    var socketReader: AsyncReader? = null
-    var socketOwner: AsyncHttpClientMiddleware? = null
+class AsyncHttpClientSocket(val socket: AsyncSocket, reader: AsyncReader? = null, val owner: AsyncHttpClientMiddleware? = null, val completion: AsyncHttpMessageCompletion? = null) {
+    val reader = reader ?: AsyncReader(socket::read)
+}
 
+class AsyncHttpClientSession constructor(val executor: AsyncHttpExecutor, val request: AsyncHttpRequest) {
+    var socket: AsyncHttpClientSocket? = null
     var response: AsyncHttpResponse? = null
     var responseCompleted = false
     var protocol: String? = null
@@ -76,7 +73,7 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
             if (session.socket == null) {
                 for (middleware in middlewares) {
                     if (middleware.connectSocket(session)) {
-                        session.socketOwner = middleware
+//                        session.socketOwner = middleware
                         break
                     }
                 }
@@ -98,7 +95,7 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
                 // if the request was expecting an upgrade, throw a special exception with the socket and socket reader,
                 // and completely bail on this request.
                 if (session.request.headers["Connection"]?.equals("Upgrade", true) == true && session.request.headers["Upgrade"] != null)
-                    throw AsyncHttpClientSwitchingProtocols(session.response!!.headers, session.socket!!, session.socketReader!!)
+                    throw AsyncHttpClientSwitchingProtocols(session.response!!.headers, session.socket!!.socket, session.socket!!.reader)
                 throw IOException("Received unexpected connection upgrade")
             }
 
@@ -118,16 +115,8 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
         catch (throwable: Throwable) {
             if (!sent)
                 session.request.sent?.invoke(throwable)
-            session.socket?.close()
+            session.socket?.socket?.close()
             throw throwable
-        }
-    }
-
-    internal suspend fun onResponseComplete(session: AsyncHttpClientSession) {
-        session.responseCompleted = true
-        // there's nothing to report cleanup errors to. what do.
-        for (middleware in middlewares) {
-            middleware.onResponseComplete(session)
         }
     }
 }

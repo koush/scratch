@@ -7,11 +7,10 @@ import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
 class AsyncHttp2TransportMiddleware: AsyncHttpTransportMiddleware() {
     override suspend fun exchangeMessages(session: AsyncHttpClientSession): Boolean {
-        if (session.protocol!! != Protocol.HTTP_2.toString())
+        if (session.protocol != Protocol.HTTP_2.toString())
             return false
 
-        session.response = Http2ExchangeCodec.createResponse(session.socket as Http2Stream)
+        session.response = Http2ExchangeCodec.createResponse(session.socket!!.socket as Http2Stream)
         return true
     }
 }
-

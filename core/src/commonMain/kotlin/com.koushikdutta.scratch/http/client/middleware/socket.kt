@@ -2,7 +2,6 @@ package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.InterruptibleRead
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.add
@@ -15,7 +14,7 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.manageSocket
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
@@ -49,7 +48,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     override suspend fun onResponseComplete(session: AsyncHttpClientSession) {
-        if (session.socketOwner != this)
+        if (session.socket?.owner != this)
             return
 
         // recycle keep alive sockets if possible.
@@ -58,11 +57,11 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         if (session.socketKey == null
                 || !isKeepAlive(session.request, session.response!!)
                 || (session.protocol != Protocol.HTTP_1_0.toString() && session.protocol != Protocol.HTTP_1_1.toString())) {
-            session.socket!!.close()
+            session.socket!!.socket.close()
             return
         }
 
-        observeKeepaliveSocket(session.socketKey!!, KeepAliveSocket(session.socket!!, session.socketReader!!))
+        observeKeepaliveSocket(session.socketKey!!, KeepAliveSocket(session.socket!!.socket, session.socket!!.reader))
     }
 
     companion object {
@@ -86,11 +85,6 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         return eventLoop.connect(host, port)
     }
 
-    fun ensureSocketReader(session: AsyncHttpClientSession) {
-        if (session.socketReader == null)
-            session.socketReader = AsyncReader({session.socket!!.read(it)})
-    }
-
     override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
         if (!scheme.contains(session.request.uri.scheme?.toLowerCase()))
             return false
@@ -104,8 +98,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         val keepaliveSocket = sockets.pop(socketKey)
         if (keepaliveSocket != null) {
             session.protocol = session.request.protocol.toLowerCase()
-            session.socket = keepaliveSocket.socket
-            session.socketReader = keepaliveSocket.socketReader
+            session.socket = AsyncHttpClientSocket(keepaliveSocket.socket, keepaliveSocket.socketReader)
 
             // socket has been transfered over to the new session, interrupt the read
             // watcher so it can be safely read.
@@ -123,8 +116,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         }
 
         // todo: connect all IPs
-        session.socket = wrapSocket(session, connectInternal(session, host, port), host, port)
-        ensureSocketReader(session)
+        session.socket = AsyncHttpClientSocket(wrapSocket(session, connectInternal(session, host, port), host, port))
 
         return true
     }
@@ -133,8 +125,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     private suspend fun connectHttp2(session: AsyncHttpClientSession, connection: Http2Connection): Http2Stream {
         session.protocol = Protocol.HTTP_2.toString()
         val responseSocket = connection.newStream(session.request)
-        session.socket = responseSocket
-        ensureSocketReader(session)
+        session.socket = AsyncHttpClientSocket(responseSocket, session.socket?.reader)
         return responseSocket
     }
 
