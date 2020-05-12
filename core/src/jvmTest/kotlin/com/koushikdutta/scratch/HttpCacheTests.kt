@@ -43,9 +43,7 @@ class HttpCacheTests {
         val result = client.eventLoop.async {
             val get = AsyncHttpRequest.GET("http://example.com")
             val data = readAllString(client.execute(get).body!!)
-
-            println(data)
-
+            
             val data2 = client.get("http://example.com") {
                 expecting(it)
                 readAllString(it.body!!)

@@ -125,7 +125,36 @@ fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
     return genericPipe(this, pipe)
 }
 
-fun ReadableBuffers.reader(): AsyncRead {
+fun AsyncRead.tee(asyncWrite: AsyncWrite, callback: suspend (throwable: Throwable?) -> Unit = { if (it != null) throw it }): AsyncRead {
+    val self = this
+    val tee = pipe {
+        val tmp = ByteBufferList()
+        var error = false
+        while (self(buffer)) {
+            if (!error) {
+                val dup = buffer.readByteBuffer()
+                tmp.add(ByteBufferList.deepCopy(dup))
+                try {
+                    asyncWrite.drain(tmp)
+                }
+                catch (throwable: Throwable) {
+                    error = true
+                    callback(throwable)
+                }
+                tmp.free()
+
+                buffer.add(dup)
+            }
+
+            flush()
+        }
+
+        callback(null)
+    }
+    return tee
+}
+
+fun ReadableBuffers.createReader(): AsyncRead {
     return read@{
         if (isEmpty)
             return@read false

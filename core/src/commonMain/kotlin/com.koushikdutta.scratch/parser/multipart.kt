@@ -15,15 +15,15 @@ import kotlin.random.Random
 
 private fun createPartBoundaries(boundary: String, parts: AsyncIterator<Part>): AsyncIterator<AsyncRead> {
     return asyncIterator {
-        yield(ByteBufferList().putUtf8String("--").putUtf8String(boundary).reader())
+        yield(ByteBufferList().putUtf8String("--").putUtf8String(boundary).createReader())
         while (parts.hasNext()) {
-            yield(ByteBufferList().putUtf8String("\r\n").reader())
+            yield(ByteBufferList().putUtf8String("\r\n").createReader())
             val part = parts.next()
-            yield(ByteBufferList().putUtf8String(part.headers.toHeaderString()).reader())
+            yield(ByteBufferList().putUtf8String(part.headers.toHeaderString()).createReader())
             yield(part.body)
-            yield(ByteBufferList().putUtf8String("\r\n--").putUtf8String(boundary).reader())
+            yield(ByteBufferList().putUtf8String("\r\n--").putUtf8String(boundary).createReader())
         }
-        yield(ByteBufferList().putUtf8String("--\r\n").reader())
+        yield(ByteBufferList().putUtf8String("--\r\n").createReader())
     }
 }
 

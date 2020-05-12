@@ -375,28 +375,18 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         }
 
         val body = response.body!!
-        val newBody = response.body!!.pipe {
-            val tmp = ByteBufferList()
-            while (body(tmp)) {
-                val dup = tmp.readByteBuffer()
-                tmp.add(ByteBufferList.deepCopy(dup))
-                try {
-                    data::write.drain(tmp)
-                }
-                catch (ignored: Throwable) {
-                    ignored.printStackTrace()
-                }
-                tmp.free()
-
-                buffer.add(dup)
-                flush()
+        var error: Throwable? = null
+        val newBody = body.tee(data::write) {
+            if (it != null) {
+                // ignore any errors, but bail on the caching.
+                error = it
+                data.close()
+                dataTmpFile.delete()
             }
-
-            try {
+            else if (error == null) {
+                // cached successfully, move the file into place
                 data.close()
                 dataTmpFile.renameTo(dataFile)
-            }
-            catch (ignored: Throwable) {
             }
         }
 

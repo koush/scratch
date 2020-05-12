@@ -12,8 +12,8 @@ class AsyncReadTests {
     fun testAddition() {
         var result = ""
         async {
-            val stream1 = ByteBufferList().putUtf8String("Hello").reader()
-            val stream2 = ByteBufferList().putUtf8String("World").reader()
+            val stream1 = ByteBufferList().putUtf8String("Hello").createReader()
+            val stream2 = ByteBufferList().putUtf8String("World").createReader()
 
             val stream3 = stream1 + stream2
             result = readAllString(stream3)

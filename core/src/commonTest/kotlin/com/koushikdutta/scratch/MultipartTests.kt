@@ -32,7 +32,7 @@ class MultipartTests {
         val bb = ByteBufferList()
         bb.putUtf8String(expected)
 
-        val read = bb.reader()
+        val read = bb.createReader()
 
         val reader = AsyncReader(read)
 
