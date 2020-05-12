@@ -106,8 +106,7 @@ class StorageTests {
             httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
                     session.socket = pipeServer.connect()
-                    session.interrupt = InterruptibleRead(session.socket!!::read)
-                    session.socketReader = AsyncReader(session.interrupt!!::read)
+                    session.socketReader = AsyncReader(session.socket!!::read)
                     session.protocol = session.request.protocol.toLowerCase()
                     return true
                 }

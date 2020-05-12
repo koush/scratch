@@ -29,18 +29,17 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     protected open val scheme = setOf("http", "ws")
     open val defaultPort = 80
 
-    private data class KeepAliveSocket(val socket: AsyncSocket, val interrupt: InterruptibleRead, val socketReader: AsyncReader, val time: Long = nanoTime(), var observe: Boolean = true)
+    private data class KeepAliveSocket(val socket: AsyncSocket, val socketReader: AsyncReader, val time: Long = nanoTime(), var observe: Boolean = true)
     private val sockets: Multimap<String, KeepAliveSocket> = mutableMapOf()
 
     private fun observeKeepaliveSocket(socketKey: String, keepAliveSocket: KeepAliveSocket) {
         sockets.add(socketKey, keepAliveSocket)
         startSafeCoroutine {
             try {
-                while (keepAliveSocket.observe) {
-                    if (keepAliveSocket.socketReader.buffered > 0)
-                        throw IOException("keep alive socket received unexpected data")
-                    if (!keepAliveSocket.socketReader.readBuffer())
-                        throw IOException("keep alive socket closed")
+                eventLoop.sleep(5000)
+                if (keepAliveSocket.observe) {
+                    keepAliveSocket.socket.close()
+                    sockets.removeValue(socketKey, keepAliveSocket)
                 }
             }
             catch (exception: Exception) {
@@ -63,7 +62,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
             return
         }
 
-        observeKeepaliveSocket(session.socketKey!!, KeepAliveSocket(session.socket!!, session.interrupt!!, session.socketReader!!))
+        observeKeepaliveSocket(session.socketKey!!, KeepAliveSocket(session.socket!!, session.socketReader!!))
     }
 
     companion object {
@@ -88,10 +87,8 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     fun ensureSocketReader(session: AsyncHttpClientSession) {
-        if (session.interrupt == null)
-            session.interrupt = InterruptibleRead({session.socket!!.read(it)})
         if (session.socketReader == null)
-            session.socketReader = AsyncReader({session.interrupt!!.read(it)})
+            session.socketReader = AsyncReader({session.socket!!.read(it)})
     }
 
     override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
@@ -108,13 +105,11 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         if (keepaliveSocket != null) {
             session.protocol = session.request.protocol.toLowerCase()
             session.socket = keepaliveSocket.socket
-            session.interrupt = keepaliveSocket.interrupt
             session.socketReader = keepaliveSocket.socketReader
 
             // socket has been transfered over to the new session, interrupt the read
             // watcher so it can be safely read.
             keepaliveSocket.observe = false
-            session.interrupt!!.interrupt()
             return true
         }
 
