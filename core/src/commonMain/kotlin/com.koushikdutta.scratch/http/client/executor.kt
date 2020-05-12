@@ -5,7 +5,6 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.*
-import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 
 interface AsyncHttpExecutor {
     suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse
@@ -18,7 +17,7 @@ suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSo
     if (socketReader != null && socket == null)
         throw IllegalArgumentException("socket must not be null if socketReader is non null")
 
-    val session = AsyncHttpClientSession(this, client, request)
+    val session = AsyncHttpClientSession(this, request)
     if (socket != null) {
         session.socket = socket
         if (socketReader == null)
@@ -32,19 +31,13 @@ suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSo
 }
 
 suspend fun <R> AsyncHttpExecutor.execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
-    val session = AsyncHttpClientSession(this, client, request)
+    val session = AsyncHttpClientSession(this, request)
     return execute(session).handle(handler)
 }
 
 suspend fun <R> AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader, handler: AsyncHttpResponseHandler<R>): R {
-    val session = AsyncHttpClientSession(this, client, request)
-    session.socket = socket
-    session.socketReader = socketReader
-    session.properties.manageSocket = false
-    session.protocol = session.request.protocol.toLowerCase()
-    return execute(session).handle(handler)
+    return execute(request, socket, socketReader).handle(handler)
 }
-
 
 private suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHandler<R>): R {
     try {

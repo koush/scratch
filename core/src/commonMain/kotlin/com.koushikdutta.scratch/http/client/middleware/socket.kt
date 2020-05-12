@@ -59,8 +59,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         if (session.socketKey == null
                 || !isKeepAlive(session.request, session.response!!)
                 || (session.protocol != Protocol.HTTP_1_0.toString() && session.protocol != Protocol.HTTP_1_1.toString())) {
-            if (session.properties.manageSocket)
-                session.socket!!.close()
+            session.socket!!.close()
             return
         }
 

@@ -77,7 +77,7 @@ class AsyncBodyDecoder : AsyncHttpClientMiddleware() {
             session.response!!.body = getHttpBody(session.response!!.headers, session.socketReader!!, false)
 
         session.response!!.body = createEndWatcher(session.response!!.body!!) {
-            session.client.onResponseComplete(session)
+            session.executor.client.onResponseComplete(session)
         }
     }
 }

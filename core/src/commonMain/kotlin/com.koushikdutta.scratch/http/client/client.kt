@@ -28,7 +28,7 @@ var AsyncHttpClientSessionProperties.manageSocket: Boolean
         set("manage-socket", value)
     }
 
-class AsyncHttpClientSession constructor(val executor: AsyncHttpExecutor, val client: AsyncHttpClient, val request: AsyncHttpRequest) {
+class AsyncHttpClientSession constructor(val executor: AsyncHttpExecutor, val request: AsyncHttpRequest) {
     var socket: AsyncSocket? = null
     var interrupt: InterruptibleRead? = null
     var socketReader: AsyncReader? = null

@@ -122,6 +122,7 @@ private class ParsedCacheControl {
     var expires: String? = null
     var lastModified: String? = null
     var etag: String? = null
+    var vary: String? = null
 
     var cacheType: CacheType? = null
 }
@@ -159,6 +160,7 @@ private fun Headers.getResponseCacheControl(request: AsyncHttpRequest): ParsedCa
     cacheControl.expires = this["Expires"]
     cacheControl.lastModified = this["Last-Modified"]
     cacheControl.etag = this["ETag"]
+    cacheControl.vary = this["Vary"]
 
 //    o  the Authorization header field (see Section 4.2 of [RFC7235]) does
 //            not appear in the request, if the cache is shared, unless the
@@ -260,6 +262,10 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         headers["X-Scratch-Cache"] = CacheResult.Cache.toString()
 
         val cacheControl = headers.getResponseCacheControl(session.request)
+
+        // vary unhandled, implement this.
+        if (cacheControl.vary != null)
+            return null
 
         if (cacheControl.cacheType == CacheType.ConditionalCache) {
             if (cacheControl.etag != null)

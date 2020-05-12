@@ -104,4 +104,18 @@ class HttpCacheTests {
             AsyncHttpResponse.OK(headers = headers, body = Utf8StringBody("hello world"))
         }
     }
+
+    @Test
+    fun testConditionalCacheMismatch() = testHandlerExpecting({
+        assertNull(headers["X-Scratch-Cache"])
+    }) {
+        if (it.headers["If-None-Match"] == "world") {
+            AsyncHttpResponse.NOT_MODIFIED()
+        }
+        else {
+            val headers = Headers()
+            headers["ETag"] = "hello"
+            AsyncHttpResponse.OK(headers = headers, body = Utf8StringBody("hello world"))
+        }
+    }
 }
