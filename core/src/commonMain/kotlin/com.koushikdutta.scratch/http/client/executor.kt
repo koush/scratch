@@ -19,9 +19,8 @@ suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSo
 
     val session = AsyncHttpClientSession(this, request)
     if (socket != null) {
-        session.socket = AsyncHttpClientSocket(socket, socketReader)
+        session.transport = AsyncHttpClientTransport(socket, socketReader)
         session.properties.manageSocket = false
-        session.protocol = session.request.protocol.toLowerCase()
     }
     return execute(session)
 }

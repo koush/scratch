@@ -10,7 +10,7 @@ import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
 open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
     override suspend fun exchangeMessages(session: AsyncHttpClientSession): Boolean {
-        val protocol = session.protocol!!.toLowerCase()
+        val protocol = session.transport?.protocol?.toLowerCase()
         if (protocol != Protocol.HTTP_1_0.toString() && protocol != Protocol.HTTP_1_1.toString())
             return false
 
@@ -34,17 +34,17 @@ open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
 
         val buffer = ByteBufferList()
         buffer.putUtf8String(session.request.toMessageString())
-        session.socket!!.socket::write.drain(buffer)
+        session.transport!!.socket::write.drain(buffer)
 
-        requestBody.copy({session.socket!!.socket.write(it)})
+        requestBody.copy({session.transport!!.socket.write(it)})
 
-        val statusLine = session.socket!!.reader.readScanUtf8String("\r\n").trim()
-        val headers = session.socket!!.reader.readHeaderBlock()
+        val statusLine = session.transport!!.reader.readScanUtf8String("\r\n").trim()
+        val headers = session.transport!!.reader.readHeaderBlock()
 
-        session.response = AsyncHttpResponse(ResponseLine(statusLine), headers, {session.socket!!.reader.read(it)}) {
+        session.response = AsyncHttpResponse(ResponseLine(statusLine), headers, {session.transport!!.reader.read(it)}) {
             // if the response was handled without fully consuming the body, close the socket.
             if (session.properties.manageSocket && !session.responseCompleted)
-                session.socket?.socket?.close()
+                session.transport?.socket?.close()
         }
 
         return true

@@ -14,7 +14,7 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
+import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Stream
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
@@ -48,20 +48,21 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     override suspend fun onResponseComplete(session: AsyncHttpClientSession) {
-        if (session.socket?.owner != this)
+        if (session.transport?.owner != this)
             return
 
         // recycle keep alive sockets if possible.
         // requires connection: keep alive or http/1.1 implicit keep alive.
         // make sure we're using http/1.0 or http/1.1 (and not http 2)
+        val protocol = session.transport?.protocol
         if (session.socketKey == null
                 || !isKeepAlive(session.request, session.response!!)
-                || (session.protocol != Protocol.HTTP_1_0.toString() && session.protocol != Protocol.HTTP_1_1.toString())) {
-            session.socket!!.socket.close()
+                || (protocol != Protocol.HTTP_1_0.toString() && protocol != Protocol.HTTP_1_1.toString())) {
+            session.transport!!.socket.close()
             return
         }
 
-        observeKeepaliveSocket(session.socketKey!!, KeepAliveSocket(session.socket!!.socket, session.socket!!.reader))
+        observeKeepaliveSocket(session.socketKey!!, KeepAliveSocket(session.transport!!.socket, session.transport!!.reader))
     }
 
     companion object {
@@ -77,7 +78,6 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     protected open suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
-        session.protocol = session.request.protocol.toLowerCase()
         return socket
     }
 
@@ -97,8 +97,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
 
         val keepaliveSocket = sockets.pop(socketKey)
         if (keepaliveSocket != null) {
-            session.protocol = session.request.protocol.toLowerCase()
-            session.socket = AsyncHttpClientSocket(keepaliveSocket.socket, keepaliveSocket.socketReader)
+            session.transport = AsyncHttpClientTransport(keepaliveSocket.socket, keepaliveSocket.socketReader)
 
             // socket has been transfered over to the new session, interrupt the read
             // watcher so it can be safely read.
@@ -116,20 +115,23 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         }
 
         // todo: connect all IPs
-        session.socket = AsyncHttpClientSocket(wrapSocket(session, connectInternal(session, host, port), host, port))
+        session.transport = createTransport(session, host, port)
 
         return true
     }
 
+    protected open suspend fun createTransport(session: AsyncHttpClientSession, host: String, port: Int): AsyncHttpClientTransport {
+        return AsyncHttpClientTransport(wrapSocket(session, connectInternal(session, host, port), host, port))
+    }
+
     private val http2Connections = mutableMapOf<String, Http2Connection>()
     private suspend fun connectHttp2(session: AsyncHttpClientSession, connection: Http2Connection): Http2Stream {
-        session.protocol = Protocol.HTTP_2.toString()
         val responseSocket = connection.newStream(session.request)
-        session.socket = AsyncHttpClientSocket(responseSocket, session.socket?.reader)
+        session.transport = AsyncHttpClientTransport(responseSocket, session.transport?.reader, protocol = Protocol.HTTP_2.toString())
         return responseSocket
     }
 
-    open suspend fun manageHttp2Connection(session: AsyncHttpClientSession, host: String, port: Int, socket: AsyncSocket): AsyncSocket {
+    internal open suspend fun manageHttp2Connection(session: AsyncHttpClientSession, host: String, port: Int, socket: AsyncSocket): Http2Stream {
         val http2Connection = Http2Connection(socket, true)
 
         val socketKey = "$host:$port"

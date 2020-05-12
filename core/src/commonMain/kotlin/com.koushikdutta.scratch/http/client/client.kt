@@ -7,6 +7,7 @@ import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.*
+import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
 
@@ -24,15 +25,20 @@ var AsyncHttpClientSessionProperties.manageSocket: Boolean
         set("manage-socket", value)
     }
 
-class AsyncHttpClientSocket(val socket: AsyncSocket, reader: AsyncReader? = null, val owner: AsyncHttpClientMiddleware? = null, val completion: AsyncHttpMessageCompletion? = null) {
+// the http transport used to serve an http request and response.
+// note that protocol is different from the protocol that is sent on the request line.
+// the protocol field here describes the transport protocol used by the socket
+// for message exchange and interleaving. ie, http1 or http2.
+// http2 transport still sends HTTP/1.1 on the request line.
+// rtsp on the request line also uses http/1.1 as the transport.
+class AsyncHttpClientTransport(val socket: AsyncSocket, reader: AsyncReader? = null, val owner: AsyncHttpClientMiddleware? = null, val protocol: String = Protocol.HTTP_1_1.toString(), val completion: AsyncHttpMessageCompletion? = null) {
     val reader = reader ?: AsyncReader(socket::read)
 }
 
 class AsyncHttpClientSession constructor(val executor: AsyncHttpExecutor, val request: AsyncHttpRequest) {
-    var socket: AsyncHttpClientSocket? = null
+    var transport: AsyncHttpClientTransport? = null
     var response: AsyncHttpResponse? = null
     var responseCompleted = false
-    var protocol: String? = null
     var socketKey: String? = null
     val properties: AsyncHttpClientSessionProperties = mutableMapOf()
 }
@@ -70,7 +76,7 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
                 middleware.prepare(session)
             }
 
-            if (session.socket == null) {
+            if (session.transport == null) {
                 for (middleware in middlewares) {
                     if (middleware.connectSocket(session)) {
 //                        session.socketOwner = middleware
@@ -79,7 +85,7 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
                 }
             }
 
-            requireNotNull(session.socket) { "unable to find transport for uri ${session.request.uri}" }
+            requireNotNull(session.transport) { "unable to find transport for uri ${session.request.uri}" }
 
             for (middleware in middlewares) {
                 if (middleware.exchangeMessages(session))
@@ -95,7 +101,7 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
                 // if the request was expecting an upgrade, throw a special exception with the socket and socket reader,
                 // and completely bail on this request.
                 if (session.request.headers["Connection"]?.equals("Upgrade", true) == true && session.request.headers["Upgrade"] != null)
-                    throw AsyncHttpClientSwitchingProtocols(session.response!!.headers, session.socket!!.socket, session.socket!!.reader)
+                    throw AsyncHttpClientSwitchingProtocols(session.response!!.headers, session.transport!!.socket, session.transport!!.reader)
                 throw IOException("Received unexpected connection upgrade")
             }
 
@@ -115,7 +121,7 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
         catch (throwable: Throwable) {
             if (!sent)
                 session.request.sent?.invoke(throwable)
-            session.socket?.socket?.close()
+            session.transport?.socket?.close()
             throw throwable
         }
     }

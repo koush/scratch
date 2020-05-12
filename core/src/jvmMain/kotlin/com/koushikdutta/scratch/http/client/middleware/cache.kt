@@ -9,14 +9,12 @@ import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
 import com.koushikdutta.scratch.crypto.sha256
-import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSessionProperties
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
+import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -303,7 +301,7 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
 
         val socketReader = AsyncReader(socket::read)
         val response = createCachedResponse(headerFile, dataFile, responseLine, headers, cacheData)
-        session.socket = AsyncHttpClientSocket(socket, socketReader)
+        session.transport = AsyncHttpClientTransport(socket, socketReader)
         session.response = response
         return response
     }

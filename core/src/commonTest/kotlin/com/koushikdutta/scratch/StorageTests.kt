@@ -5,7 +5,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
+import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
@@ -106,8 +106,7 @@ class StorageTests {
             val httpClient = AsyncHttpClient()
             httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                    session.socket = AsyncHttpClientSocket(pipeServer.connect())
-                    session.protocol = session.request.protocol.toLowerCase()
+                    session.transport = AsyncHttpClientTransport(pipeServer.connect())
                     return true
                 }
             })

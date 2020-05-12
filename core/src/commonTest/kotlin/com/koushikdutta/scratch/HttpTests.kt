@@ -344,8 +344,7 @@ class HttpTests {
             val httpClient = AsyncHttpClient().buildUpon().followRedirects().build()
             httpClient.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                    session.socket = AsyncHttpClientSocket(pipeServer.connect())
-                    session.protocol = session.request.protocol.toLowerCase()
+                    session.transport = AsyncHttpClientTransport(pipeServer.connect())
                     return true
                 }
             })
@@ -373,8 +372,7 @@ class HttpTests {
             val httpClient = AsyncHttpClient().buildUpon().followRedirects().build()
             httpClient.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                    session.socket = AsyncHttpClientSocket(pipeServer.connect())
-                    session.protocol = session.request.protocol.toLowerCase()
+                    session.transport = AsyncHttpClientTransport(pipeServer.connect())
                     return true
                 }
             })

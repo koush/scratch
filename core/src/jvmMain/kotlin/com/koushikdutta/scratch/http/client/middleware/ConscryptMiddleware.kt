@@ -4,14 +4,13 @@ import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
-import com.koushikdutta.scratch.tls.AsyncTlsSocket
+import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
+import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.tls.SSLContext
 import com.koushikdutta.scratch.tls.SSLEngine
 import org.conscrypt.Conscrypt
 import java.security.KeyStore
 import java.security.SecureRandom
-import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.TrustManagerFactory
 
 
@@ -29,14 +28,16 @@ open class ConscryptMiddleware(eventLoop: AsyncEventLoop, context: SSLContext = 
         Conscrypt.setApplicationProtocols(engine, protocols)
     }
 
-    protected open suspend fun wrapTlsSocket(session: AsyncHttpClientSession, tlsSocket: AsyncTlsSocket, host: String, port: Int): AsyncSocket {
-        if ("h2" == Conscrypt.getApplicationProtocol(tlsSocket.engine))
-            return manageHttp2Connection(session, host, port, tlsSocket)
-        return tlsSocket
+    override suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
+        throw AssertionError("wrapSocket in ConscryptMiddleware should be unreachable")
     }
 
-    override suspend fun wrapSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncSocket {
-        return wrapTlsSocket(session, super.wrapSocket(session, socket, host, port) as AsyncTlsSocket, host, port)
+    override suspend fun createTransport(session: AsyncHttpClientSession, host: String, port: Int): AsyncHttpClientTransport {
+        val socket = connectInternal(session, host, port)
+        val tlsSocket = wrapForTlsSocket(session, socket, host, port)
+        if ("h2" == Conscrypt.getApplicationProtocol(tlsSocket.engine))
+            return AsyncHttpClientTransport(manageHttp2Connection(session, host, port, tlsSocket), protocol = Protocol.HTTP_2.toString())
+        return AsyncHttpClientTransport(tlsSocket)
     }
 
     companion object {

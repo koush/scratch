@@ -74,17 +74,17 @@ class AsyncBodyDecoder : AsyncHttpClientMiddleware() {
         val body = if (statusCode?.hasBody == false)
             null
         else
-            getHttpBodyOrNull(session.response!!.headers, session.socket!!.reader, false)
+            getHttpBodyOrNull(session.response!!.headers, session.transport!!.reader, false)
 
         session.response!!.body = if (body == null) {
             session.responseCompleted = true
-            session.socket?.completion?.invoke(null);
+            session.transport?.completion?.invoke(null);
             { false }
         }
         else {
             session.response!!.body = createEndWatcher(session.response!!.body!!) {
                 session.responseCompleted = true
-                session.socket?.completion?.invoke(null)
+                session.transport?.completion?.invoke(null)
             }
 
             body

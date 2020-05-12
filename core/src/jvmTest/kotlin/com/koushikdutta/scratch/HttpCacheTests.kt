@@ -6,10 +6,9 @@ import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSocket
+import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.useCache
-import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.http.server.AsyncHttpRequestHandler
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
@@ -36,8 +35,7 @@ class HttpCacheTests {
             }
 
             override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                session.socket = AsyncHttpClientSocket(serverSocket.connect())
-                session.protocol = Protocol.HTTP_1_0.toString()
+                session.transport = AsyncHttpClientTransport(serverSocket.connect())
                 return true
             }
         })

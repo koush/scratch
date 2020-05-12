@@ -9,6 +9,7 @@ import com.koushikdutta.scratch.http.POST
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
@@ -117,14 +118,10 @@ class TLSTests {
 
         var protocol = ""
         val pipeMiddleware = object : ConscryptMiddleware(client.eventLoop, clientContext) {
-            override suspend fun wrapTlsSocket(
-                session: AsyncHttpClientSession,
-                tlsSocket: AsyncTlsSocket,
-                host: String,
-                port: Int
-            ): AsyncSocket {
+            override suspend fun wrapForTlsSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncTlsSocket {
+                val tlsSocket = super.wrapForTlsSocket(session, socket, host, port)
                 protocol = Conscrypt.getApplicationProtocol(tlsSocket.engine)
-                return super.wrapTlsSocket(session, tlsSocket, host, port)
+                return tlsSocket
             }
 
             override suspend fun connectInternal(
