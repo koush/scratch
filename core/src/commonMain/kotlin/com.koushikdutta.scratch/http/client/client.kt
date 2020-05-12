@@ -1,11 +1,15 @@
 package com.koushikdutta.scratch.http.client
 
-import com.koushikdutta.scratch.*
-import com.koushikdutta.scratch.atomic.FreezableReference
-import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.WritableBuffers
+import AsyncHttpExecutor
+import com.koushikdutta.scratch.AsyncReader
+import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.IOException
+import com.koushikdutta.scratch.InterruptibleRead
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.AsyncHttpRequest
+import com.koushikdutta.scratch.http.AsyncHttpResponse
+import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.client.middleware.*
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
@@ -24,7 +28,7 @@ var AsyncHttpClientSessionProperties.manageSocket: Boolean
         set("manage-socket", value)
     }
 
-class AsyncHttpClientSession constructor(val client: AsyncHttpClient, val request: AsyncHttpRequest) {
+class AsyncHttpClientSession constructor(val executor: AsyncHttpExecutor, val client: AsyncHttpClient, val request: AsyncHttpRequest) {
     var socket: AsyncSocket? = null
     var interrupt: InterruptibleRead? = null
     var socketReader: AsyncReader? = null
@@ -49,8 +53,9 @@ interface AsyncHttpDetachedSocket {
 
 class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, override val socket: AsyncSocket, override val socketReader: AsyncReader): Exception(), AsyncHttpDetachedSocket
 
-class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
+class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop()): AsyncHttpExecutor {
     val middlewares = mutableListOf<AsyncHttpClientMiddleware>()
+    override val client = this
 
     init {
         addPlatformMiddleware(this)
@@ -62,7 +67,7 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         middlewares.add(AsyncBodyDecoder())
     }
 
-    private suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
+    override suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
         var sent = false
         try {
             for (middleware in middlewares) {
@@ -119,138 +124,11 @@ class AsyncHttpClient(val eventLoop: AsyncEventLoop = AsyncEventLoop()) {
         }
     }
 
-    suspend fun execute(request: AsyncHttpRequest, socket: AsyncSocket? = null, socketReader: AsyncReader? = null): AsyncHttpResponse {
-        if (socketReader != null && socket == null)
-            throw IllegalArgumentException("socket must not be null if socketReader is non null")
-
-        val session = AsyncHttpClientSession(this, request)
-        if (socket != null) {
-            session.socket = socket
-            if (socketReader == null)
-                session.socketReader = AsyncReader(socket::read)
-            else
-                session.socketReader = socketReader
-            session.properties.manageSocket = false
-            session.protocol = session.request.protocol.toLowerCase()
-        }
-        return execute(session)
-    }
-
-    suspend fun <R> execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
-        val session = AsyncHttpClientSession(this, request)
-        return execute(session).handle(handler)
-    }
-
-    suspend fun <R> execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader, handler: AsyncHttpResponseHandler<R>): R {
-        val session = AsyncHttpClientSession(this, request)
-        session.socket = socket
-        session.socketReader = socketReader
-        session.properties.manageSocket = false
-        session.protocol = session.request.protocol.toLowerCase()
-        return execute(session).handle(handler)
-    }
-
     internal suspend fun onResponseComplete(session: AsyncHttpClientSession) {
         session.responseCompleted = true
         // there's nothing to report cleanup errors to. what do.
         for (middleware in middlewares) {
             middleware.onResponseComplete(session)
-        }
-    }
-}
-
-private suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHandler<R>): R {
-    try {
-        return handler(this)
-    }
-    finally {
-        close()
-    }
-}
-
-internal const val defaultMaxRedirects = 5
-suspend fun <R> AsyncHttpClient.get(uri: String, handler: AsyncHttpResponseHandler<R>): R {
-    return executeFollowRedirects(AsyncHttpRequest.GET(uri), defaultMaxRedirects, handler)
-}
-
-suspend fun <R> AsyncHttpClient.head(uri: String, handler: AsyncHttpResponseHandler<R>): R {
-    return executeFollowRedirects(AsyncHttpRequest.HEAD(uri), defaultMaxRedirects, handler)
-}
-
-suspend fun <R> AsyncHttpClient.post(uri: String, handler: AsyncHttpResponseHandler<R>): R {
-    return execute(AsyncHttpRequest.POST(uri), handler)
-}
-
-suspend fun AsyncHttpClient.randomAccess(uri: String): AsyncRandomAccessInput {
-    val contentLength = head(uri) {
-        if (it.headers["Accept-Ranges"] != "bytes")
-            throw IOException("$uri can not fulfill range requests")
-        it.headers.contentLength!!
-    }
-
-    var closed = false
-    val currentReader = FreezableReference<AsyncHttpResponse?>()
-    var currentPosition: Long = 0
-    var currentRemaining: Long = 0
-    val temp = ByteBufferList()
-
-    return object : AsyncRandomAccessInput, AsyncAffinity by eventLoop {
-        override suspend fun size(): Long {
-            return contentLength
-        }
-
-        override suspend fun getPosition(): Long {
-            return currentPosition
-        }
-
-        override suspend fun setPosition(position: Long) {
-            currentReader.swap(null)?.value?.close()
-            currentPosition = position
-            currentRemaining = 0
-        }
-
-        override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
-            if (currentReader.isFrozen)
-                throw IOException("closed")
-
-            if (position == contentLength)
-                return false
-
-            if (position + length > contentLength)
-                throw IOException("invalid range")
-
-            // check if the existing read can fulfill this request, and not go over the
-            // requested length
-            if (currentPosition != position || currentRemaining <= 0L || currentRemaining > length) {
-                val headers = Headers()
-                headers["Range"] = "bytes=$position-${position + length - 1}"
-                val newRequest = AsyncHttpRequest.GET(uri, headers)
-                val newResponse = execute(newRequest)
-                val existing = currentReader.swap(newResponse)
-                if (existing?.frozen == true)
-                    newResponse.close()
-
-                currentPosition = position
-                currentRemaining = length
-            }
-
-            temp.takeReclaimedBuffers(buffer)
-            if (!currentReader.get()!!.value!!.body!!(temp))
-                return false
-
-            currentPosition += temp.remaining()
-            currentRemaining -= temp.remaining()
-            temp.read(buffer)
-
-            return true
-        }
-
-        override suspend fun read(buffer: WritableBuffers): Boolean {
-            return readPosition(currentPosition, contentLength - currentPosition, buffer)
-        }
-
-        override suspend fun close() {
-            currentReader.freeze(null)?.value?.close()
         }
     }
 }

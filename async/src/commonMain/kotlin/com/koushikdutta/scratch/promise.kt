@@ -146,9 +146,19 @@ open class PromiseBase<T> {
         }
     }
 
-    fun rethrow() {
-        atomicReference.get()?.value?.getOrThrow()
+    fun getOrThrow(): T {
+        val value = atomicReference.get() ?: throw Exception("Promise is unresolved");
+        return value.value.getOrThrow();
     }
 
-    fun getOrThrow() = atomicReference.get()!!.value.getOrThrow()
+    // just an alias that returns nothing.
+    fun rethrow() {
+        getOrThrow()
+    }
+
+    fun rethrowIfDone() {
+        val value = atomicReference.get()
+        value?.value?.getOrThrow();
+    }
 }
+

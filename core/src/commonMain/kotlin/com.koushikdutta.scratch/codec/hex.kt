@@ -4,7 +4,7 @@ import com.koushikdutta.scratch.extensions.DecodeExtensions
 import com.koushikdutta.scratch.extensions.EncodeExtensions
 
 fun EncodeExtensions<ByteArray>.hex(): String {
-    return value.joinToString("") { it.toString(16).toLowerCase() }
+    return value.joinToString("") { it.toUByte().toString(16).toLowerCase() }
 }
 
 fun DecodeExtensions<String>.hex(): ByteArray {

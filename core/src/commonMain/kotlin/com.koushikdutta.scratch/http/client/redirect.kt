@@ -1,8 +1,12 @@
 package com.koushikdutta.scratch.http.client
 
+import AsyncHttpExecutor
+import AsyncHttpExecutorBuilder
 import com.koushikdutta.scratch.drain
 import com.koushikdutta.scratch.http.AsyncHttpRequest
+import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.uri.URI
+import execute
 
 private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: String) {
     val value = from.headers.get(header)
@@ -10,18 +14,21 @@ private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: Str
         to.headers.set(header, value)
 }
 
-suspend fun <R> AsyncHttpClient.executeFollowRedirects(request: AsyncHttpRequest, maxRedirects: Int = defaultMaxRedirects, handler: AsyncHttpResponseHandler<R>): R {
-    return execute(request) {
-        val response = it
+private val defaultMaxRedirects = 5
+
+private class RedirectExecutor(val next: AsyncHttpExecutor, val maxRedirects: Int = defaultMaxRedirects) : AsyncHttpExecutor {
+    override val client = next.client
+
+    private suspend fun handleRedirects(redirects: Int, executor: AsyncHttpExecutor, request: AsyncHttpRequest, response: AsyncHttpResponse): AsyncHttpResponse {
         val responseCode = response.code
         // valid redirects
         if (responseCode != 301 && responseCode != 302 && responseCode != 307)
-            return@execute handler(response)
+            return response
 
         // drain the body to allow socket reuse.
         response.body?.drain()
 
-        if (maxRedirects <= 0)
+        if (redirects <= 0)
             throw Exception("Too many redirects")
 
         val location = response.headers.get("Location")
@@ -37,6 +44,18 @@ suspend fun <R> AsyncHttpClient.executeFollowRedirects(request: AsyncHttpRequest
         copyHeader(request, newRequest, "User-Agent")
         copyHeader(request, newRequest, "Range")
 
-        executeFollowRedirects(newRequest, maxRedirects - 1, handler)
+        return handleRedirects(redirects - 1, executor, newRequest, executor.execute(newRequest))
+    }
+
+    override suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
+        return handleRedirects(maxRedirects, session.executor, session.request, next.execute(session))
     }
 }
+
+fun AsyncHttpExecutorBuilder.followRedirects(maxRedirects: Int = defaultMaxRedirects): AsyncHttpExecutorBuilder {
+    wrapExecutor {
+        RedirectExecutor(it, maxRedirects)
+    }
+    return this
+}
+

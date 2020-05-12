@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import buildUpon
 import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
 import com.koushikdutta.scratch.TestUtils.Companion.createUnboundRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
@@ -9,13 +10,14 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
-import com.koushikdutta.scratch.http.client.executeFollowRedirects
+import com.koushikdutta.scratch.http.client.followRedirects
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
+import execute
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -342,8 +344,8 @@ class HttpTests {
 
         var data = ""
         async {
-            val httpClient = AsyncHttpClient()
-            httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
+            val httpClient = AsyncHttpClient().buildUpon().followRedirects().build()
+            httpClient.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
                     session.socket = pipeServer.connect()
                     session.interrupt = InterruptibleRead(session.socket!!::read)
@@ -353,7 +355,7 @@ class HttpTests {
                 }
             })
             val get = AsyncHttpRequest.GET("http://example/redirect")
-            data = httpClient.executeFollowRedirects(get) { readAllString(it.body!!) }
+            data = httpClient.execute(get) { readAllString(it.body!!) }
         }
         assertEquals(data, "hello world")
     }
@@ -373,8 +375,8 @@ class HttpTests {
         }
 
         async {
-            val httpClient = AsyncHttpClient()
-            httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
+            val httpClient = AsyncHttpClient().buildUpon().followRedirects().build()
+            httpClient.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
                 override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
                     session.socket = pipeServer.connect()
                     session.interrupt = InterruptibleRead(session.socket!!::read)
@@ -384,7 +386,7 @@ class HttpTests {
                 }
             })
             val get = AsyncHttpRequest.GET("http://example/")
-            httpClient.executeFollowRedirects(get) {
+            httpClient.execute(get) {
                 // do nothing with the data.
             }
         }

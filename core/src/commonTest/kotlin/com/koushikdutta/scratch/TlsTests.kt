@@ -15,6 +15,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
+import execute
 
 
 class TlsTests {

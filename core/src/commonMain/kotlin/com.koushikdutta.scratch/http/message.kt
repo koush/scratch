@@ -71,9 +71,10 @@ class RequestLine {
 }
 
 typealias AsyncHttpRequestProperties = MutableMap<String, Any>
+typealias AsyncHttpResponseProperties = MutableMap<String, Any>
 
 open class AsyncHttpRequest : AsyncHttpMessage {
-    private val requestLine: RequestLine
+    val requestLine: RequestLine
     constructor(requestLine: RequestLine, headers: Headers, body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.requestLine = requestLine
     }
@@ -117,8 +118,6 @@ open class AsyncHttpRequest : AsyncHttpMessage {
             return uri.rawQuery
         }
 
-    val properties: AsyncHttpRequestProperties = mutableMapOf()
-
     // need this for extension methods
     companion object
 }
@@ -150,7 +149,7 @@ class ResponseLine {
 }
 
 open class AsyncHttpResponse : AsyncHttpMessage {
-    private val responseLine: ResponseLine
+    val responseLine: ResponseLine
     constructor (responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.responseLine = responseLine
     }

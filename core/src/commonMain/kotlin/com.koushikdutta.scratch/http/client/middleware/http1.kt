@@ -1,15 +1,13 @@
 package com.koushikdutta.scratch.http.client.middleware
 
-import com.koushikdutta.scratch.AsyncRead
-import com.koushikdutta.scratch.AsyncReader
+import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.copy
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.manageSocket
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
-import com.koushikdutta.scratch.pipe
+
 open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
     override suspend fun exchangeMessages(session: AsyncHttpClientSession): Boolean {
         val protocol = session.protocol!!.toLowerCase()
@@ -36,7 +34,7 @@ open class AsyncHttpTransportMiddleware : AsyncHttpClientMiddleware() {
 
         val buffer = ByteBufferList()
         buffer.putUtf8String(session.request.toMessageString())
-        session.socket!!.write(buffer)
+        session.socket!!::write.drain(buffer)
 
         requestBody.copy({session.socket!!.write(it)})
 

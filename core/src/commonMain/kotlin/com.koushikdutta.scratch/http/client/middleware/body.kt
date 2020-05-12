@@ -6,6 +6,7 @@ import com.koushikdutta.scratch.AsyncReaderPipe
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedInputPipe
 import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.contentLength
 import com.koushikdutta.scratch.http.transferEncoding
@@ -69,7 +70,11 @@ fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRe
 
 class AsyncBodyDecoder : AsyncHttpClientMiddleware() {
     override suspend fun onResponseStarted(session: AsyncHttpClientSession) {
-        session.response!!.body = getHttpBody(session.response!!.headers, session.socketReader!!, false)
+        val statusCode = StatusCode.values().find { it.code == session.response!!.code }
+        if (statusCode?.hasBody == false)
+            session.response!!.body = { false }
+        else
+            session.response!!.body = getHttpBody(session.response!!.headers, session.socketReader!!, false)
 
         session.response!!.body = createEndWatcher(session.response!!.body!!) {
             session.client.onResponseComplete(session)

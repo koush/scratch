@@ -6,11 +6,11 @@ import com.koushikdutta.scratch.buffers.allocateByteBuffer
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
-import com.koushikdutta.scratch.http.client.randomAccess
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.server.randomAccessInput
 import com.koushikdutta.scratch.parser.readAllString
+import randomAccess
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

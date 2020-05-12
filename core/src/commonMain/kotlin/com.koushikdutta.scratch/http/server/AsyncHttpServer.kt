@@ -108,8 +108,8 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler) {
                     }
                 }
                 else {
-                    // todo: allow insane values?
-                    if (response.headers.contentLength == null)
+                    val statusCode = StatusCode.values().find { it.code == response.code }
+                    if (response.headers.contentLength == null && statusCode?.hasBody != false)
                         response.headers.contentLength = 0
                     responseBody = { false }
                 }

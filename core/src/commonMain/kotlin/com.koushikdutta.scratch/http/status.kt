@@ -15,6 +15,7 @@ internal fun create(statusCode: StatusCode, headers: Headers, body: AsyncHttpMes
 }
 
 fun AsyncHttpResponse.Companion.OK(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null) = create(StatusCode.OK, headers, body, sent)
+fun AsyncHttpResponse.Companion.NOT_MODIFIED(headers: Headers = Headers(), sent: AsyncHttpMessageCompletion? = null) = create(StatusCode.NOT_MODIFIED, headers, null, sent)
 
 fun AsyncHttpResponse.Companion.MOVED_PERMANENTLY(location: String, headers: Headers = Headers(), sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
     headers.set("Location", location)
@@ -37,12 +38,13 @@ internal class AsyncHttpResponseSwitchingProtocols(headers: Headers = Headers(),
 fun AsyncHttpResponse.Companion.SWITCHING_PROTOCOLS(headers: Headers = Headers(), protocol: String = HTTP_1_1, block: suspend(detachedSocket: AsyncHttpDetachedSocket) -> Unit) : AsyncHttpResponse
     = AsyncHttpResponseSwitchingProtocols(headers, protocol, block)
 
-enum class StatusCode(val code: Int, val message: String) {
-    SWITCHING_PROTOCOLS(101, "Switching Protocols"),
+enum class StatusCode(val code: Int, val message: String, val hasBody: Boolean = true) {
+    SWITCHING_PROTOCOLS(101, "Switching Protocols", false),
     OK(200, "OK"),
     MOVED_PERMANENTLY(301, "Moved Permanently"),
     FOUND(302, "Found"),
     BAD_REQUEST(400, "Bad Request"),
     NOT_FOUND(404, "Not Found"),
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
+    NOT_MODIFIED(304, "Not Modified", false),
 }

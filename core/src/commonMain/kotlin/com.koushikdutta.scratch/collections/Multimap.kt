@@ -30,11 +30,9 @@ fun <K, V> Multimap<K, V>.getFirst(key: K): V? {
 }
 
 
-interface StringDecoder {
-    fun decode(s: String): String
-}
+typealias StringDecoder = (s: String) -> String;
 
-fun parseStringMultimap(value: String?, delimiter: String, unquote: Boolean, decoder: StringDecoder?): StringMultimap {
+fun parseStringMultimap(value: String?, delimiter: String, unquote: Boolean, decoder: StringDecoder? = null): StringMultimap {
     return parseStringMultimap(value, delimiter, "=", unquote, decoder)
 }
 
@@ -55,8 +53,8 @@ fun parseStringMultimap(value: String?, delimiter: String, assigner: String, unq
         if (unquote && v != null && v.endsWith("\"") && v.startsWith("\""))
             v = v.substring(1, v.length - 1)
         if (decoder != null && v != null) {
-            key = decoder.decode(key)
-            v = decoder.decode(v)
+            key = decoder(key)
+            v = decoder(v)
         }
         map.add(key, v)
     }
@@ -72,20 +70,16 @@ fun parseCommaDelimited(header: String?): StringMultimap {
     return parseStringMultimap(header, ",", true, null)
 }
 
-val QUERY_DECODER: StringDecoder = object : StringDecoder {
-    override fun decode(s: String): String {
-        return URLDecoder.decode(s)
-    }
+val QUERY_DECODER: StringDecoder = {
+    URLDecoder.decode(it)
 }
 
 fun parseQuery(query: String?): StringMultimap {
     return parseStringMultimap(query, "&", false, QUERY_DECODER)
 }
 
-val URL_DECODER: StringDecoder = object : StringDecoder {
-    override fun decode(s: String): String {
-        return URLDecoder.decode(s)
-    }
+val URL_DECODER: StringDecoder = {
+    URLDecoder.decode(it)
 }
 
 fun parseUrlEncoded(query: String?): StringMultimap {

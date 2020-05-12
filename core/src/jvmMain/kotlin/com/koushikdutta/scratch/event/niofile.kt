@@ -67,7 +67,7 @@ class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: In
     val fileChannel: AsynchronousFileChannel
     init {
         if (write)
-            fileChannel = AsynchronousFileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE)
+            fileChannel = AsynchronousFileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
         else
             fileChannel = AsynchronousFileChannel.open(file.toPath(), StandardOpenOption.READ)
     }

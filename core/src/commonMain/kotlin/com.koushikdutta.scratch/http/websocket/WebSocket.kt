@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch.http.websocket
 
+import AsyncHttpExecutor
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.AsyncHandler
 import com.koushikdutta.scratch.atomic.AtomicThrowingLock
@@ -18,6 +19,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.get
 import com.koushikdutta.scratch.parser.readAllString
+import execute
 import kotlin.random.Random
 
 
@@ -208,7 +210,7 @@ private fun addWebsocketHeaders(headers: Headers, vararg protocols: String) {
 class WebSocketException(message: String): IOException(message)
 private const val MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
-suspend fun AsyncHttpClient.connectWebSocket(uri: String, socket: AsyncSocket? = null, reader: AsyncReader? = null, headers: Headers = Headers(), vararg protocols: String): WebSocket {
+suspend fun AsyncHttpExecutor.connectWebSocket(uri: String, socket: AsyncSocket? = null, reader: AsyncReader? = null, headers: Headers = Headers(), vararg protocols: String): WebSocket {
     val request = AsyncHttpRequest.GET(uri, headers)
 
     addWebsocketHeaders(headers)

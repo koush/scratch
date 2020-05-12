@@ -17,6 +17,7 @@ import org.conscrypt.Conscrypt
 import org.junit.Test
 import javax.net.ssl.SSLContext
 import kotlin.test.assertEquals
+import execute
 
 class TLSTests {
     @Test
