@@ -15,16 +15,11 @@ interface AsyncServer {
     fun listen(server: AsyncServerSocket<*>): AsyncAcceptObserver<*>
 }
 
-class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket: AsyncServerSocket<T>) {
+class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket: AsyncServerSocket<T>, block: suspend T.() ->Unit) {
     private var observer: suspend AsyncAcceptObserver<T>.(socket: T, exception: Throwable?) -> Unit = { socket, throwable ->
         socket.close()
         if (throwable != null)
             serverSocket.close(throwable)
-    }
-
-    internal val deferred = Deferred<Unit>()
-    suspend fun awaitClose() {
-        deferred.promise.await()
     }
 
     fun observe(block: suspend AsyncAcceptObserver<T>.(socket: T, exception: Throwable?) -> Unit): AsyncAcceptObserver<T> {
@@ -43,7 +38,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket:
         }
     }
 
-    internal suspend fun invokeObserver(socket: T, exception: Throwable?) {
+    private suspend fun invokeObserver(socket: T, exception: Throwable?) {
         try {
             observer(socket, exception)
         }
@@ -52,31 +47,23 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket:
             throw throwable
         }
     }
-}
 
-fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit): AsyncAcceptObserver<T> {
-    val ret = AsyncAcceptObserver(this)
-    startSafeCoroutine {
-        try {
-            for (socket in accept()) {
-                startSafeCoroutine socketCoroutine@{
-                    try {
-                        block(socket)
-                    }
-                    catch (throwable: Throwable) {
-                        ret.invokeObserver(socket, throwable)
-                        return@socketCoroutine
-                    }
-                    ret.invokeObserver(socket, null)
+    private val closePromise = Promise {
+        for (socket in serverSocket.accept()) {
+            startSafeCoroutine socketCoroutine@{
+                try {
+                    block(socket)
                 }
+                catch (throwable: Throwable) {
+                    invokeObserver(socket, throwable)
+                    return@socketCoroutine
+                }
+                invokeObserver(socket, null)
             }
         }
-        catch (throwable: Throwable) {
-            ret.deferred.reject(throwable)
-            return@startSafeCoroutine
-        }
-        ret.deferred.resolve(Unit)
     }
 
-    return ret
+    suspend fun awaitClose() = closePromise.await()
 }
+
+fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit) = AsyncAcceptObserver(this, block)
