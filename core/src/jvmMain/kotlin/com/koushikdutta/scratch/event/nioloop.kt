@@ -3,9 +3,9 @@
 package com.koushikdutta.scratch.event
 
 
-import com.koushikdutta.scratch.AsyncRandomAccessStorage
+import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.NamedThreadFactory.Companion.newSynchronousWorkers
-import com.koushikdutta.scratch.synchronized
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -112,6 +112,9 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
+    suspend fun AsyncServer.listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5) =
+        listen(this@NIOEventLoop.listen(port, address, backlog))
+
     suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket {
         await()
 
@@ -174,6 +177,21 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             ckey?.cancel()
             closeQuietly(socket)
             throw e
+        }
+    }
+
+    inner class AsyncFile(val file: File): AsyncSliceable {
+        constructor(filename: String): this(File(filename))
+        constructor(parent: String, child: String): this(File(parent, child))
+
+        override suspend fun size() = file.length()
+
+        override suspend fun slice(position: Long, length: Long): AsyncInput {
+            val storage = openFile(file)
+            val read = storage.slice(position, length)
+            return object : AsyncInput, AsyncResource by storage {
+                override suspend fun read(buffer: WritableBuffers) = read(buffer)
+            }
         }
     }
 

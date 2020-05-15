@@ -10,7 +10,6 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
-import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
@@ -19,6 +18,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import com.koushikdutta.scratch.http.http2.Http2Connection
 
 
 class HttpTests {
@@ -28,7 +28,7 @@ class HttpTests {
 
         async {
             val httpServer = AsyncHttpServer {
-                AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+                StatusCode.OK(body = Utf8StringBody("hello world"))
             }
 
             httpServer.accept(pair.second)
@@ -41,7 +41,7 @@ class HttpTests {
             val reader = AsyncReader({ pair.first.read(it) })
 
             for (i in 1..3) {
-                val data = httpClient.execute(AsyncHttpRequest.GET("http://example/foo"), pair.first, reader) { readAllString(it.body!!) }
+                val data = httpClient.execute(Methods.GET("http://example/foo"), pair.first, reader) { readAllString(it.body!!) }
                 assertEquals(data, "hello world")
                 requestsCompleted++
             }
@@ -59,9 +59,9 @@ class HttpTests {
                 // would be cool to pipe hte request right back to the response
                 // without buffering, but the http spec does not work that way.
                 // entire request must be received before sending a response.
-                val data = readAllString(it.body!!)
+                val data = readAllString(request.body!!)
                 assertEquals(data, "hello world")
-                AsyncHttpResponse.OK(body = Utf8StringBody(data))
+                StatusCode.OK(body = Utf8StringBody(data))
             }
 
             httpServer.accept(pair.second)
@@ -91,9 +91,9 @@ class HttpTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(it.body!!)
+            val data = readAllString(request.body!!)
             assertEquals(data, "hello world")
-            AsyncHttpResponse.OK(body = Utf8StringBody(data))
+            StatusCode.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(server)
@@ -133,7 +133,7 @@ class HttpTests {
 
         val server = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
-            AsyncHttpResponse.OK(body = BinaryBody(read = body))
+            StatusCode.OK(body = BinaryBody(read = body))
         }
 
         httpServer.listen(server)
@@ -145,7 +145,7 @@ class HttpTests {
             val socket = server.connect()
             val reader = AsyncReader({ socket.read(it) })
             val buffer = ByteBufferList()
-            client.execute(AsyncHttpRequest.GET("https://example.com/"), socket, reader) {
+            client.execute(Methods.GET("https://example.com/"), socket, reader) {
                 // stream the data and digest it
                 while (it.body!!(buffer)) {
                     val byteArray = buffer.readBytes()
@@ -187,13 +187,13 @@ class HttpTests {
         val httpServer = AsyncHttpServer {
             val buffer = ByteBufferList()
             // stream the data and digest it
-            while (it.body!!(buffer)) {
+            while (request.body!!(buffer)) {
                 val byteArray = buffer.readBytes()
                 received += byteArray.size
                 clientDigest.update(byteArray)
             }
 
-            AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+            StatusCode.OK(body = Utf8StringBody("hello world"))
         }
         httpServer.listen(server)
 
@@ -202,7 +202,7 @@ class HttpTests {
             val socket = server.connect()
             val reader = AsyncReader({ socket.read(it) })
             val data = client.execute(
-                AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)),
+                Methods.POST("https://example.com/", body = BinaryBody(read = body)),
                 socket,
                 reader
             ) {
@@ -228,24 +228,25 @@ class HttpTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(it.body!!)
+            val data = readAllString(request.body!!)
             assertEquals(data, "hello world")
-            AsyncHttpResponse.OK(body = Utf8StringBody(data))
+            StatusCode.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(server)
 
         var data = ""
         async {
-            val connection = Http2Connection(server.connect(), true)
+            val client = Http2Connection(server.connect(), true)
+            client.processMessagesAsync()
             val stream =
-                connection.newStream(
-                    AsyncHttpRequest.POST(
+                client.newStream(
+                    Methods.POST(
                         "https://example.com/",
                         body = Utf8StringBody("hello world")
                     )
                 )
-            data = readAllString({ stream.read(it) })
+            data = readAllString(stream::read)
         }
 
         assertEquals(data, "hello world")
@@ -261,12 +262,12 @@ class HttpTests {
             // entire request must be received before sending a response.
             var len = 0
             val buf = ByteBufferList()
-            while (it.body!!(buf)) {
+            while (request.body!!(buf)) {
                 len += buf.remaining()
                 buf.free()
             }
             assertEquals(postLength, len)
-            AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+            StatusCode.OK(body = Utf8StringBody("hello world"))
         }
 
         httpServer.listen(server)
@@ -298,7 +299,7 @@ class HttpTests {
         var responseSent = 0
         async {
             val httpServer = AsyncHttpServer {
-                AsyncHttpResponse.OK(body = Utf8StringBody("hello world")) {
+                StatusCode.OK(body = Utf8StringBody("hello world")) {
                     responseSent++
                 }
             }
@@ -312,7 +313,7 @@ class HttpTests {
             val httpClient = AsyncHttpClient()
             val reader = AsyncReader({ pair.first.read(it) })
 
-            val get = AsyncHttpRequest.GET("http://example/foo") {
+            val get = Methods.GET("http://example/foo") {
                 requestSent++
             }
             val data = httpClient.execute(get, pair.first, reader) { readAllString(it.body!!) }
@@ -330,10 +331,10 @@ class HttpTests {
         val pipeServer = createAsyncPipeServerSocket()
         async {
             val httpServer = AsyncHttpServer {
-                if (it.uri.path == "/redirect")
-                    AsyncHttpResponse.MOVED_PERMANENTLY("/")
+                if (request.uri.path == "/redirect")
+                    StatusCode.movedPermanently("/")
                 else
-                    AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+                    StatusCode.OK(body = Utf8StringBody("hello world"))
             }
 
             httpServer.listen(pipeServer)
@@ -348,7 +349,7 @@ class HttpTests {
                     return true
                 }
             })
-            val get = AsyncHttpRequest.GET("http://example/redirect")
+            val get = Methods.GET("http://example/redirect")
             data = httpClient.execute(get) { readAllString(it.body!!) }
         }
         assertEquals(data, "hello world")
@@ -360,7 +361,7 @@ class HttpTests {
         val pipeServer = createAsyncPipeServerSocket()
         async {
             val httpServer = AsyncHttpServer {
-                AsyncHttpResponse.OK(body = BinaryBody(createUnboundRandomRead()::read)) {
+                StatusCode.OK(body = BinaryBody(createUnboundRandomRead()::read)) {
                     gotClose = it != null
                 }
             }
@@ -376,7 +377,7 @@ class HttpTests {
                     return true
                 }
             })
-            val get = AsyncHttpRequest.GET("http://example/")
+            val get = Methods.GET("http://example/")
             httpClient.execute(get) {
                 // do nothing with the data.
             }
@@ -402,7 +403,7 @@ class HttpTests {
             val headers = Headers()
             headers["Connection"] = "Upgrade"
             headers["Upgrade"] = "TestProtocol"
-            val request = AsyncHttpRequest.GET("http://example.org", headers)
+            val request = Methods.GET("http://example.org", headers)
             try {
                 httpClient.execute(request, clientSocket)
             }

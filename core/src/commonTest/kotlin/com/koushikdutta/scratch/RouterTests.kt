@@ -1,8 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.OK
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.get
 import com.koushikdutta.scratch.http.server.post
@@ -15,17 +14,17 @@ class RouterTests {
     @Test
     fun testRouter() {
         val router = AsyncHttpRouter()
-        val ok1 = AsyncHttpResponse.OK()
-        val ok2 = AsyncHttpResponse.OK()
-        val ok3 = AsyncHttpResponse.OK()
+        val ok1 = StatusCode.OK()
+        val ok2 = StatusCode.OK()
+        val ok3 = StatusCode.OK()
 
-        router.get("/") { request, match ->
+        router.get("/") {
             ok1
         }
-        router.get("/foo") { request, match ->
+        router.get("/foo") {
             ok2
         }
-        router.post("/bar") { request, match ->
+        router.post("/bar") {
             ok3
         }
 
@@ -40,21 +39,21 @@ class RouterTests {
     @Test
     fun testRouterMatches() {
         val router = AsyncHttpRouter()
-        val ok1 = AsyncHttpResponse.OK()
-        val ok2 = AsyncHttpResponse.OK()
-        val ok3 = AsyncHttpResponse.OK()
+        val ok1 = StatusCode.OK()
+        val ok2 = StatusCode.OK()
+        val ok3 = StatusCode.OK()
 
-        router.get("/(.*?)/foo") { request, match ->
+        router.get("/(.*?)/foo") {
             assertEquals(match.groups[0]!!.value, "/test/foo")
             assertEquals(match.groups[1]!!.value, "test")
             ok1
         }
-        router.get("/foo/(.*?)") { request, match ->
+        router.get("/foo/(.*?)") {
             assertEquals(match.groups[0]!!.value, "/foo/bar")
             assertEquals(match.groups[1]!!.value, "bar")
             ok2
         }
-        router.put(".*") { request, match ->
+        router.put(".*") {
             ok3
         }
 

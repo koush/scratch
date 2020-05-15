@@ -4,10 +4,10 @@ import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
+import com.koushikdutta.scratch.http.server.webSocket
 import com.koushikdutta.scratch.http.websocket.HybiParser
 import com.koushikdutta.scratch.http.websocket.WebSocket
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
-import com.koushikdutta.scratch.http.websocket.webSocket
 import com.koushikdutta.scratch.parser.readAllBuffer
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random

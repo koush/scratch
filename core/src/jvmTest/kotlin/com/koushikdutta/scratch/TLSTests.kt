@@ -2,10 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.OK
-import com.koushikdutta.scratch.http.POST
+import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
@@ -137,9 +134,9 @@ class TLSTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(it.body!!)
+            val data = readAllString(request.body!!)
             assert(data == "hello world")
-            AsyncHttpResponse.OK(body = Utf8StringBody(data))
+            StatusCode.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(tlsServer)
@@ -147,7 +144,7 @@ class TLSTests {
         var data = ""
         async {
             pipeMiddleware.install(client)
-            data = client.execute(AsyncHttpRequest.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
+            data = client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
         }
 
         assert(data == "hello world")

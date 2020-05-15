@@ -1,21 +1,20 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.OK
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
+import execute
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
-import com.koushikdutta.scratch.TestUtils.Companion.countBytes
-import execute
 
 
 class TlsTests {
@@ -276,9 +275,9 @@ class TlsTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(it.body!!)
+            val data = readAllString(request.body!!)
             assertEquals(data, "hello world")
-            AsyncHttpResponse.OK(body = Utf8StringBody(data))
+            StatusCode.OK(body = Utf8StringBody(data))
         }
 
         httpServer.listen(tlsServer)

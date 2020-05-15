@@ -19,18 +19,23 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
         key.attach(this)
     }
 
-    private var closed = false
-    override suspend fun close() {
+    private fun closeInternal() {
         closeQuietly(channel)
         try {
             key.cancel()
         }
         catch (e: Exception) {
         }
-        if (!closed) {
-            closed = true
-            queue.end()
-        }
+    }
+
+    override suspend fun close() {
+        closeInternal()
+        queue.end()
+    }
+
+    override suspend fun close(throwable: Throwable) {
+        closeInternal()
+        queue.end(throwable)
     }
 
     // todo: backlog?

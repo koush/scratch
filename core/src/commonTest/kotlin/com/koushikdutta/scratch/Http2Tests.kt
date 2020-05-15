@@ -36,15 +36,17 @@ class Http2Tests {
         val pair = createAsyncPipeSocketPair()
 
         async {
-            val server = Http2Connection(pair.second, false) {
-                AsyncHttpResponse.OK(body = Utf8StringBody("Hello World"))
+            Http2Connection(pair.second, false) {
+                StatusCode.OK(body = Utf8StringBody("Hello World"))
             }
+            .processMessagesAsync()
         }
 
         var data = ""
         async {
             val client = Http2Connection(pair.first, true)
-            val connected = client.newStream(AsyncHttpRequest.GET("https://example.com/"))
+            client.processMessagesAsync()
+            val connected = client.newStream(Methods.GET("https://example.com/"))
             data = readAllString({connected.read(it)})
         }
 
@@ -77,7 +79,8 @@ class Http2Tests {
         var received = 0
         async {
             val client = Http2Connection(pair.first, true)
-            val connected = client.newStream(AsyncHttpRequest.GET("https://example.com/"))
+            client.processMessagesAsync()
+            val connected = client.newStream(Methods.GET("https://example.com/"))
             val buffer = ByteBufferList()
             // stream the data and digest it
             while (connected.read(buffer)) {
@@ -88,8 +91,9 @@ class Http2Tests {
         }
 
         Http2Connection(pair.second, false) {
-            AsyncHttpResponse.OK(body = BinaryBody(read = body))
+            StatusCode.OK(body = BinaryBody(read = body))
         }
+        .processMessagesAsync()
 
         val clientMd5 = clientDigest.digest()
         val serverMd5 = serverDigest.digest()
@@ -127,19 +131,21 @@ class Http2Tests {
         Http2Connection(pair.second, false) {
             val buffer = ByteBufferList()
             // stream the data and digest it
-            while (it.body!!(buffer)) {
+            while (request.body!!(buffer)) {
                 val byteArray = buffer.readBytes()
                 received += byteArray.size
                 clientDigest.update(byteArray)
             }
 
-            AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+            StatusCode.OK(body = Utf8StringBody("hello world"))
         }
+        .processMessagesAsync()
 
         async {
             val client = Http2Connection(pair.first, true)
+            client.processMessagesAsync()
             val connected =
-                client.newStream(AsyncHttpRequest.POST("https://example.com/", body = BinaryBody(read = body)))
+                client.newStream(Methods.POST("https://example.com/", body = BinaryBody(read = body)))
             val data = readAllString({connected.read(it)})
             assertEquals(data, "hello world")
         }

@@ -8,30 +8,44 @@ import com.koushikdutta.scratch.async.startSafeCoroutine
 interface AsyncServerSocket<T: AsyncSocket> : AsyncAffinity {
     fun accept(): AsyncIterable<out T>
     suspend fun close()
+    suspend fun close(throwable: Throwable)
 }
 
-class AsyncAcceptObserver<T: AsyncSocket> internal constructor(internal val serverSocket: AsyncServerSocket<T>): AsyncAffinity by serverSocket {
-    private var observer: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit = { serverSocket, socket, throwable ->
-        if (throwable != null) {
-            serverSocket.post()
-            throw throwable
-        }
+interface AsyncServer {
+    fun listen(server: AsyncServerSocket<*>): AsyncAcceptObserver<*>
+}
+
+class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket: AsyncServerSocket<T>) {
+    private var observer: suspend AsyncAcceptObserver<T>.(socket: T, exception: Throwable?) -> Unit = { socket, throwable ->
+        socket.close()
+        if (throwable != null)
+            serverSocket.close(throwable)
     }
-    suspend fun observe(block: suspend (serverSocket: AsyncServerSocket<T>, socket: T?, exception: Throwable?) -> Unit) {
-        await()
+
+    internal val deferred = Deferred<Unit>()
+    suspend fun awaitClose() {
+        deferred.promise.await()
+    }
+
+    fun observe(block: suspend AsyncAcceptObserver<T>.(socket: T, exception: Throwable?) -> Unit): AsyncAcceptObserver<T> {
         observer = block
+        return this
     }
-    suspend fun closeOnError() {
-        observe { serverSocket, socket, throwable ->
-            if (socket != null)
-                socket.close()
-            else
-                serverSocket.close()
+
+    fun observeIgnoreErrors(): AsyncAcceptObserver<T> {
+        return observe { socket, _ ->
+            socket.close()
         }
     }
-    suspend fun invokeObserver(socket: T?, exception: Throwable?) {
+
+    fun observeIgnoreErrorsLeaveOpen(): AsyncAcceptObserver<T> {
+        return observe { _, _ ->
+        }
+    }
+
+    internal suspend fun invokeObserver(socket: T, exception: Throwable?) {
         try {
-            observer(serverSocket, socket, exception)
+            observer(socket, exception)
         }
         catch (throwable: Throwable) {
             serverSocket.post()
@@ -58,10 +72,10 @@ fun <T: AsyncSocket> AsyncServerSocket<T>.acceptAsync(block: suspend T.() ->Unit
             }
         }
         catch (throwable: Throwable) {
-            ret.invokeObserver(null, throwable)
+            ret.deferred.reject(throwable)
             return@startSafeCoroutine
         }
-        ret.invokeObserver(null, null)
+        ret.deferred.resolve(Unit)
     }
 
     return ret

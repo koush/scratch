@@ -54,9 +54,9 @@ fun AsyncServerSocket<*>.listenTls(createSSLEngine: CreateSSLEngine): AsyncServe
             }
         }
 
-        override suspend fun close() {
-            wrapped.close()
-        }
+        override suspend fun close() = wrapped.close()
+
+        override suspend fun close(throwable: Throwable) = wrapped.close(throwable)
     }
 }
 

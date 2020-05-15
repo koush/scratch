@@ -2,7 +2,6 @@ package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.AsyncServerSocket
 import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 

@@ -1,6 +1,8 @@
 package com.koushikdutta.scratch.http
 
+import com.koushikdutta.scratch.AsyncRandomAccessInput
 import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.uri.URI
 
 typealias AsyncHttpMessageCompletion = suspend(throwable: Throwable?) -> Unit
@@ -48,6 +50,15 @@ interface AsyncHttpMessageBody {
     val read: AsyncRead
 }
 
+suspend fun AsyncRandomAccessInput.createHttpMessageBody(contentType: String? = null): AsyncHttpMessageBody {
+    val size = size()
+    val read = this::read
+    return object : AsyncHttpMessageBody {
+        override val contentType = contentType
+        override val contentLength = size
+        override val read: AsyncRead = read
+    }
+}
 
 class RequestLine {
     val method: String
@@ -127,9 +138,9 @@ class ResponseLine {
     val message: String
     val protocol: String
 
-    constructor(code: StatusCode, protocol: String) : this(code.code, code.message, protocol)
+    constructor(code: StatusCode, protocol: String = "HTTP/1.1") : this(code.code, code.message, protocol)
 
-    constructor(code: Int, message: String, protocol: String) {
+    constructor(code: Int, message: String, protocol: String = "HTTP/1.1") {
         this.code = code
         this.message = message
         this.protocol = protocol

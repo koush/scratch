@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http.http2
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.AsyncHandler
 import com.koushikdutta.scratch.async.startSafeCoroutine
+import com.koushikdutta.scratch.atomic.AtomicThrowingLock
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -10,6 +11,7 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.http2.okhttp.*
 import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
 import com.koushikdutta.scratch.http.server.AsyncHttpRequestHandler
+import com.koushikdutta.scratch.http.server.AsyncHttpResponseScope
 
 internal class Http2Stream(val connection: Http2Connection, val streamId: Int, val yielder: Yielder? = null) : AsyncSocket, AsyncAffinity by connection.socket {
     var headers: List<Header>? = null
@@ -111,7 +113,7 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
 
 typealias Http2ConnectionClose = (exception: Exception?) -> Unit
 
-internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpRequestHandler? = null) {
+internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), private val readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpRequestHandler? = null) {
     val handler = AsyncHandler(socket)
     var lastGoodStreamId: Int = 0
     var isShutdown = false
@@ -365,22 +367,24 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
             }
             flush()
         }
+    }
 
-        startSafeCoroutine {
-            try {
-                if (readConnectionPreface)
-                    reader.readConnectionPreface(readerHandler)
-                while (reader.nextFrame(false, readerHandler)) {
-                }
+    private val processLock = AtomicThrowingLock { IOException("Http2Connection has already started") }
+    suspend fun processMessages() = processLock {
+        try {
+            if (readConnectionPreface)
+                reader.readConnectionPreface(readerHandler)
+            while (true) {
+                reader.nextFrame(false, readerHandler)
             }
-            catch (e: Exception) {
-                failConnection(e)
-                return@startSafeCoroutine
-            }
-
-            failConnection(null)
+        }
+        catch (e: Exception) {
+            failConnection(e)
+            return
         }
     }
+
+    fun processMessagesAsync() = Promise(::processMessages)
 
     internal fun handleIncomingStream(request: Http2Stream) = startSafeCoroutine {
         if (requestListener == null) {
@@ -393,7 +397,7 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
 
 
         val httpRequest = Http2ExchangeCodec.createRequest(request.headers!!, {request.read(it)})
-        val response = requestListener!!(httpRequest)
+        val response = requestListener!!(AsyncHttpResponseScope(httpRequest))
         val outFinished = response.body == null
         request.outputClosed = outFinished
         handler.run {

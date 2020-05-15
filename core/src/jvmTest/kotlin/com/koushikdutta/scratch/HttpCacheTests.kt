@@ -41,7 +41,7 @@ class HttpCacheTests {
         })
 
         val result = client.eventLoop.async {
-            val get = AsyncHttpRequest.GET("http://example.com")
+            val get = Methods.GET("http://example.com")
             val data = readAllString(client.execute(get).body!!)
             
             val data2 = client.get("http://example.com") {
@@ -59,7 +59,7 @@ class HttpCacheTests {
     }
 
     fun testHeadersExpecting(callback: AsyncHttpResponse.() -> Unit, expecting: AsyncHttpResponse.() -> Unit) = testHandlerExpecting(expecting) {
-        val response = AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+        val response = StatusCode.OK(body = Utf8StringBody("hello world"))
         callback(response)
         response
     }
@@ -91,13 +91,13 @@ class HttpCacheTests {
     fun testConditionalCache() = testHandlerExpecting({
         assertEquals(headers["X-Scratch-Cache"], "Cache")
     }) {
-        if (it.headers["If-None-Match"] == "hello") {
-            AsyncHttpResponse.NOT_MODIFIED()
+        if (request.headers["If-None-Match"] == "hello") {
+            StatusCode.NOT_MODIFIED()
         }
         else {
             val headers = Headers()
             headers["ETag"] = "hello"
-            AsyncHttpResponse.OK(headers = headers, body = Utf8StringBody("hello world"))
+            StatusCode.OK(headers = headers, body = Utf8StringBody("hello world"))
         }
     }
 
@@ -105,13 +105,13 @@ class HttpCacheTests {
     fun testConditionalCacheMismatch() = testHandlerExpecting({
         assertNull(headers["X-Scratch-Cache"])
     }) {
-        if (it.headers["If-None-Match"] == "world") {
-            AsyncHttpResponse.NOT_MODIFIED()
+        if (request.headers["If-None-Match"] == "world") {
+            StatusCode.NOT_MODIFIED()
         }
         else {
             val headers = Headers()
             headers["ETag"] = "hello"
-            AsyncHttpResponse.OK(headers = headers, body = Utf8StringBody("hello world"))
+            StatusCode.OK(headers = headers, body = Utf8StringBody("hello world"))
         }
     }
 }

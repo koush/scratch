@@ -59,15 +59,15 @@ fun AsyncHttpExecutor.buildUpon(): AsyncHttpExecutorBuilder {
 }
 
 suspend fun <R> AsyncHttpExecutor.get(uri: String, handler: AsyncHttpResponseHandler<R>): R {
-    return execute(AsyncHttpRequest.GET(uri), handler)
+    return execute(Methods.GET(uri), handler)
 }
 
 suspend fun <R> AsyncHttpExecutor.head(uri: String, handler: AsyncHttpResponseHandler<R>): R {
-    return execute(AsyncHttpRequest.HEAD(uri), handler)
+    return execute(Methods.HEAD(uri), handler)
 }
 
 suspend fun <R> AsyncHttpExecutor.post(uri: String, handler: AsyncHttpResponseHandler<R>): R {
-    return execute(AsyncHttpRequest.POST(uri), handler)
+    return execute(Methods.POST(uri), handler)
 }
 
 suspend fun AsyncHttpExecutor.randomAccess(uri: String): AsyncRandomAccessInput {
@@ -112,7 +112,7 @@ suspend fun AsyncHttpExecutor.randomAccess(uri: String): AsyncRandomAccessInput 
             if (currentPosition != position || currentRemaining <= 0L || currentRemaining > length) {
                 val headers = Headers()
                 headers["Range"] = "bytes=$position-${position + length - 1}"
-                val newRequest = AsyncHttpRequest.GET(uri, headers)
+                val newRequest = Methods.GET(uri, headers)
                 val newResponse = execute(newRequest)
                 val existing = currentReader.swap(newResponse)
                 if (existing?.frozen == true)

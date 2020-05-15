@@ -137,7 +137,8 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         val socketKey = "$host:$port"
         http2Connections[socketKey] = http2Connection
 
-        http2Connection.closed {
+        http2Connection.processMessagesAsync()
+        .finally {
             http2Connections.remove(socketKey)
         }
 

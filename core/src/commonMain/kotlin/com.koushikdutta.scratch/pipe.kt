@@ -92,13 +92,9 @@ class PairedPipeSocket(val input: AsyncRead, val output: AsyncWrite, val outputC
 
 class AsyncPipeServerSocket : AsyncServerSocket<AsyncSocket>, AsyncAffinity by NO_AFFINITY {
     val sockets = AsyncQueue<AsyncSocket>()
-    var closed = false
 
-    suspend fun connect(): AsyncSocket {
-        check(!closed) { "server closed" }
-
+    fun connect(): AsyncSocket {
         val pair = createAsyncPipeSocketPair()
-
         sockets.add(pair.first)
         return pair.second
     }
@@ -108,7 +104,11 @@ class AsyncPipeServerSocket : AsyncServerSocket<AsyncSocket>, AsyncAffinity by N
     }
 
     override suspend fun close() {
-        closed = true
+        sockets.end()
+    }
+
+    override suspend fun close(throwable: Throwable) {
+        sockets.end(throwable)
     }
 }
 

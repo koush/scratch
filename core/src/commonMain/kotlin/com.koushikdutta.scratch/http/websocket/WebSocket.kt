@@ -16,6 +16,7 @@ import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
+import com.koushikdutta.scratch.http.server.AsyncHttpResponseScope
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.get
 import com.koushikdutta.scratch.parser.readAllString
@@ -211,7 +212,7 @@ class WebSocketException(message: String): IOException(message)
 private const val MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 suspend fun AsyncHttpExecutor.connectWebSocket(uri: String, socket: AsyncSocket? = null, reader: AsyncReader? = null, headers: Headers = Headers(), vararg protocols: String): WebSocket {
-    val request = AsyncHttpRequest.GET(uri, headers)
+    val request = Methods.GET(uri, headers)
 
     addWebsocketHeaders(headers)
 
@@ -248,37 +249,40 @@ class WebSocketServerSocket: AsyncServerSocket<WebSocket>, AsyncAffinity by Asyn
     override suspend fun close() {
         queue.end()
     }
+
+    override suspend fun close(throwable: Throwable) {
+        queue.end(throwable)
+    }
 }
 
-fun AsyncHttpRouter.webSocket(pathRegex: String, protocol: String? = null): WebSocketServerSocket {
-    val serverSocket = WebSocketServerSocket()
+class WebSocketUpgradeException(message: String): Exception(message)
 
-    get(pathRegex) { request, match ->
-        val requestHeaders = request.headers
-        val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"])["Upgrade"] != null
-        if (!hasConnectionUpgrade)
-            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("Connection Upgrade expected"))
-        if (!"WebSocket".equals(requestHeaders["Upgrade"], true))
-            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("Upgrade to WebSocket expected"))
+fun AsyncHttpResponseScope.upgradeWebsocket(protocol: String? = null, block: suspend (webSocket: WebSocket) -> Unit): AsyncHttpResponse {
+    if (request.method.toUpperCase() != Methods.GET.toString())
+        throw WebSocketUpgradeException("Expected GET method for WebScoket Upgrade")
 
-        if (protocol != requestHeaders["Sec-WebSocket-Protocol"])
-            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("WebSocket Protocol Mismatch"))
+    val requestHeaders = request.headers
+    val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"])["Upgrade"] != null
+    if (!hasConnectionUpgrade)
+        throw WebSocketUpgradeException("Connection Upgrade expected")
+    if (!"WebSocket".equals(requestHeaders["Upgrade"], true))
+        throw WebSocketUpgradeException("Upgrade to WebSocket expected")
 
-        val key = requestHeaders["Sec-WebSocket-Key"]
-        if (key == null)
-            return@get AsyncHttpResponse.BAD_REQUEST(body = Utf8StringBody("Missing header Sec-WebSocket-Key"))
-        val concat = key + MAGIC
-        val expected = concat.encodeToByteArray().hash().sha1().encode().base64()
+    if (protocol != requestHeaders["Sec-WebSocket-Protocol"])
+        throw WebSocketUpgradeException("WebSocket Protocol Mismatch")
 
-        val headers = Headers()
-        headers["Connection"] = "Upgrade"
-        headers["Upgrade"] = "WebSocket"
-        headers["Sec-WebSocket-Accept"] = expected
+    val key = requestHeaders["Sec-WebSocket-Key"]
+    if (key == null)
+        throw WebSocketUpgradeException("Missing header Sec-WebSocket-Key")
+    val concat = key + MAGIC
+    val expected = concat.encodeToByteArray().hash().sha1().encode().base64()
 
-        AsyncHttpResponse.SWITCHING_PROTOCOLS(headers) {
-            serverSocket.queue.add(WebSocket(it.socket, it.socketReader, protocol, true, requestHeaders, headers))
-        }
+    val headers = Headers()
+    headers["Connection"] = "Upgrade"
+    headers["Upgrade"] = "WebSocket"
+    headers["Sec-WebSocket-Accept"] = expected
+
+    return AsyncHttpResponse.SWITCHING_PROTOCOLS(headers) {
+        block(WebSocket(it.socket, it.socketReader, protocol, true, requestHeaders, headers))
     }
-
-    return serverSocket
 }

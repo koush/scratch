@@ -4,15 +4,21 @@ import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
+import com.koushikdutta.scratch.http.websocket.WebSocketServerSocket
+import com.koushikdutta.scratch.http.websocket.upgradeWebsocket
 
-typealias AsyncRouterResponseHandler = suspend (request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncHttpResponse
+class AsyncHttpRouteHandlerScope(request: AsyncHttpRequest, val match: MatchResult) : AsyncHttpResponseScope(request)
+
+typealias AsyncRouterResponseHandler = suspend AsyncHttpRouteHandlerScope.() -> AsyncHttpResponse
 
 interface AsyncHttpRouteHandler {
-    suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse?
+    suspend operator fun AsyncHttpResponseScope.invoke(): AsyncHttpResponse?
 }
 
 class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest) -> Unit = {}) : AsyncHttpRouteHandler {
-    override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse? {
+    override suspend operator fun AsyncHttpResponseScope.invoke(): AsyncHttpResponse? = invoke(request)
+
+    suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse? {
         onRequest(request)
 
         for (entry in routes) {
@@ -22,7 +28,7 @@ class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest)
                 continue
             val match = route.pathRegex.matchEntire(request.uri.path ?: "")
             if (match != null)
-                return handler(request, match)
+                return handler(AsyncHttpRouteHandlerScope(request, match))
         }
 
         return null
@@ -49,11 +55,11 @@ class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest)
         routes[Route(method?.toUpperCase(), pathRegex)] = handler
     }
 
-    suspend fun handle(request: AsyncHttpRequest): AsyncHttpResponse {
-        val response = this(request)
+    suspend fun handle(responseScope: AsyncHttpResponseScope): AsyncHttpResponse {
+        val response = this(responseScope.request)
         if (response != null)
             return response
-        return AsyncHttpResponse.NOT_FOUND()
+        return StatusCode.NOT_FOUND()
     }
 }
 
@@ -63,22 +69,29 @@ fun AsyncHttpRouter.get(pathRegex: String, handler: AsyncRouterResponseHandler) 
 fun AsyncHttpRouter.post(pathRegex: String, handler: AsyncRouterResponseHandler) = set("POST", pathRegex, handler)
 fun AsyncHttpRouter.put(pathRegex: String, handler: AsyncRouterResponseHandler) = set("PUT", pathRegex, handler)
 
-fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (headers: Headers, request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncSliceable?) {
-    head(pathRegex) { request, matchResult ->
+fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend AsyncHttpRouteHandlerScope.(headers: Headers) -> AsyncSliceable?) {
+    set(null, pathRegex) {
         val headers = Headers()
-        val input = handler(headers, request, matchResult)
+        val input = handler(headers)
         if (input == null)
-            return@head AsyncHttpResponse.NOT_FOUND()
+            return@set StatusCode.NOT_FOUND()
+        createResponse(input, headers)
+    }
+    head(pathRegex) {
+        val headers = Headers()
+        val input = handler(headers)
+        if (input == null)
+            return@head StatusCode.NOT_FOUND()
         headers.set("Accept-Ranges", "bytes")
         headers.set("Content-Length", input.size().toString())
-        return@head AsyncHttpResponse.OK(headers)
+        return@head StatusCode.OK(headers)
     }
 
-    get(pathRegex) { request, matchResult ->
+    get(pathRegex) {
         val headers = Headers()
-        val input = handler(headers, request, matchResult)
+        val input = handler(headers)
         if (input == null)
-            return@get AsyncHttpResponse.NOT_FOUND()
+            return@get StatusCode.NOT_FOUND()
 
         val totalLength = input.size()
 
@@ -94,7 +107,7 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (heade
             var parts = range.split("=").toTypedArray()
             // Requested range not satisfiable
             if (parts.size != 2 || "bytes" != parts[0])
-                return@get AsyncHttpResponse(ResponseLine(416, "Not Satisfiable", "HTTP/1.1"))
+                return@get AsyncHttpResponse(ResponseLine(StatusCode.NOT_SATISFIABLE))
 
             parts = parts[1].split("-").toTypedArray()
             try {
@@ -105,7 +118,7 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (heade
                 headers.set("Content-Range", "bytes $start-$end/$totalLength")
             }
             catch (e: Throwable) {
-                return@get AsyncHttpResponse(ResponseLine(416, "Not Satisfiable", "HTTP/1.1"))
+                return@get AsyncHttpResponse(ResponseLine(StatusCode.NOT_SATISFIABLE))
             }
 
             asyncInput = input.slice(start, end - start + 1)
@@ -115,7 +128,7 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (heade
         }
 
         if (code == 200) {
-            AsyncHttpResponse.OK(body = BinaryBody(asyncInput::read, contentLength = totalLength), headers = headers) {
+            StatusCode.OK(body = BinaryBody(asyncInput::read, contentLength = totalLength), headers = headers) {
                 asyncInput.close()
             }
         }
@@ -127,9 +140,9 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend (heade
     }
 }
 
-fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (headers: Headers, request: AsyncHttpRequest, matchResult: MatchResult) -> AsyncRandomAccessInput?) {
-    return randomAccessSlice(pathRegex) { headers, request, match ->
-        val input = handler(headers, request, match)
+fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend AsyncHttpRouteHandlerScope.(headers: Headers) -> AsyncRandomAccessInput?) {
+    return randomAccessSlice(pathRegex) { headers ->
+        val input = handler(headers)
         if (input == null)
             return@randomAccessSlice null
 
@@ -149,4 +162,14 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend (heade
             }
         }
     }
+}
+
+fun AsyncHttpRouter.webSocket(pathRegex: String, protocol: String? = null): WebSocketServerSocket {
+    val serverSocket = WebSocketServerSocket()
+    get(pathRegex) {
+        upgradeWebsocket(protocol) {
+            serverSocket.queue.add(it)
+        }
+    }
+    return serverSocket
 }

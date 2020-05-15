@@ -8,9 +8,10 @@ import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.InetSocketAddress
 import com.koushikdutta.scratch.event.connect
+import com.koushikdutta.scratch.event.run
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.OK
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
@@ -19,16 +20,13 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
-import kotlin.coroutines.Continuation
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import execute
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
-import execute
 
 class LoopTests {
     private fun networkContextTest(failureExpected: Boolean = false, runner: suspend AsyncEventLoop.() -> Unit) {
@@ -151,12 +149,31 @@ class LoopTests {
     }
 
     @Test
-    fun testServerNotCrash() = networkContextTest {
+    fun testServerExpectCrash() = networkContextTest(true) {
         val server = listen()
-        server.acceptAsync {
+        val observer = server.acceptAsync {
             throw ExpectedException()
         }
-        .closeOnError()
+        val client = connect("127.0.0.1", server.localPort)
+        try {
+            client.write(ByteBufferList().putUtf8String("hello!"))
+            val reader = AsyncReader({client.read(it)})
+            reader.readUtf8String(1)
+        }
+        catch (exception: IOException) {
+            // the server error should trigger a client close
+            // ignore and verify the server throws itself.
+        }
+        observer.awaitClose()
+    }
+
+    @Test
+    fun testServerNotCrash() = networkContextTest {
+        val server = listen()
+        val observer = server.acceptAsync {
+            throw ExpectedException()
+        }
+        .observeIgnoreErrors()
         val client = connect("127.0.0.1", server.localPort)
         try {
             client.write(ByteBufferList().putUtf8String("hello!"))
@@ -164,9 +181,9 @@ class LoopTests {
                 reader.readUtf8String(1)
         }
         catch (exception: IOException) {
-            return@networkContextTest
+            server.close()
         }
-        fail("IOException expected")
+        observer.awaitClose()
     }
 
     @Test
@@ -288,12 +305,12 @@ class LoopTests {
             // entire request must be received before sending a response.
             var len = 0
             val buf = ByteBufferList()
-            while (it.body!!(buf)) {
+            while (request.body!!(buf)) {
                 len += buf.remaining()
                 buf.free()
             }
             assertEquals(postLength, len)
-            AsyncHttpResponse.OK(body = Utf8StringBody("hello world"))
+            StatusCode.OK(body = Utf8StringBody("hello world"))
         }
 
         httpServer.listen(server)
@@ -385,5 +402,10 @@ class LoopTests {
         websocket.close()
         val data = readAllString(websocket::read)
         assertEquals("helloworld", data)
+    }
+
+    @Test
+    fun testRunSleep() = AsyncEventLoop().run {
+        sleep(10)
     }
 }

@@ -91,7 +91,7 @@ class StorageTests {
         val pipeServer = createAsyncPipeServerSocket()
         async {
             val router = AsyncHttpRouter()
-            router.randomAccessInput("/") { headers, request, matchResult ->
+            router.randomAccessInput("/") { headers ->
                 val bb = ByteBufferList().putUtf8String("hello world")
                 val storage = BufferStorage(bb)
                 storage

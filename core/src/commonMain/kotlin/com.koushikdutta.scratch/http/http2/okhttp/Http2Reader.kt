@@ -62,9 +62,7 @@ internal class Http2Reader(
   suspend fun readConnectionPreface(handler: Handler) {
     if (client) {
       // The client reads the initial SETTINGS frame.
-      if (!nextFrame(true, handler)) {
-        throw IOException("Required SETTINGS preface not received")
-      }
+      nextFrame(true, handler)
     } else {
       // The server reads the CONNECTION_PREFACE byte string.
       if (!reader.readLength(source, Http2.CONNECTION_PREFACE.size))
@@ -76,12 +74,12 @@ internal class Http2Reader(
     }
   }
 
-  suspend fun nextFrame(requireSettings: Boolean, handler: Handler): Boolean {
+  suspend fun nextFrame(requireSettings: Boolean, handler: Handler) {
     if (source.hasRemaining())
       throw AssertionError("source not empty")
 
     if (!reader.readLength(source, 9))
-      return false
+      throw IOException("unable to read full http2 frame header")
 
     //  0                   1                   2                   3
     //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -119,8 +117,6 @@ internal class Http2Reader(
       TYPE_WINDOW_UPDATE -> readWindowUpdate(handler, length, flags, streamId)
       else -> source.skip(length.toLong()) // Implementations MUST discard frames of unknown types.
     }
-
-    return true
   }
 
   private suspend fun readHeaders(handler: Handler, length: Int, flags: Int, streamId: Int) {
