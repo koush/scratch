@@ -46,7 +46,7 @@ class Http2Tests {
         async {
             val client = Http2Connection(pair.first, true)
             client.processMessagesAsync()
-            val connected = client.newStream(Methods.GET("https://example.com/"))
+            val connected = client.connect(Methods.GET("https://example.com/"))
             data = readAllString({connected.read(it)})
         }
 
@@ -80,7 +80,7 @@ class Http2Tests {
         async {
             val client = Http2Connection(pair.first, true)
             client.processMessagesAsync()
-            val connected = client.newStream(Methods.GET("https://example.com/"))
+            val connected = client.connect(Methods.GET("https://example.com/"))
             val buffer = ByteBufferList()
             // stream the data and digest it
             while (connected.read(buffer)) {
@@ -145,7 +145,7 @@ class Http2Tests {
             val client = Http2Connection(pair.first, true)
             client.processMessagesAsync()
             val connected =
-                client.newStream(Methods.POST("https://example.com/", body = BinaryBody(read = body)))
+                client.connect(Methods.POST("https://example.com/", body = BinaryBody(read = body)))
             val data = readAllString({connected.read(it)})
             assertEquals(data, "hello world")
         }

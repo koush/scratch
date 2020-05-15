@@ -2,21 +2,21 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.Methods
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
+import execute
 import org.conscrypt.Conscrypt
 import org.junit.Test
 import javax.net.ssl.SSLContext
 import kotlin.test.assertEquals
-import execute
 
 class TLSTests {
     @Test

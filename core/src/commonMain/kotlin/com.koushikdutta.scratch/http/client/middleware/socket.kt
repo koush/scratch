@@ -16,7 +16,7 @@ import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.http2.Http2Connection
-import com.koushikdutta.scratch.http.http2.Http2Stream
+import com.koushikdutta.scratch.http.http2.Http2Socket
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
 private typealias IOException = Exception
@@ -128,13 +128,13 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     val openHttp2Connections
         get(): Int = http2Connections.size
 
-    private suspend fun connectHttp2(session: AsyncHttpClientSession, connection: Http2Connection): Http2Stream {
-        val responseSocket = connection.newStream(session.request)
+    private suspend fun connectHttp2(session: AsyncHttpClientSession, connection: Http2Connection): Http2Socket {
+        val responseSocket = connection.connect(session.request)
         session.transport = AsyncHttpClientTransport(responseSocket, protocol = Protocol.HTTP_2.toString())
         return responseSocket
     }
 
-    internal open suspend fun manageHttp2Connection(session: AsyncHttpClientSession, host: String, port: Int, socket: AsyncSocket): Http2Stream {
+    internal open suspend fun manageHttp2Connection(session: AsyncHttpClientSession, host: String, port: Int, socket: AsyncSocket): Http2Socket {
         val http2Connection = Http2Connection(socket, true)
 
         val socketKey = "$host:$port"

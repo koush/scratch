@@ -2,7 +2,7 @@ package com.koushikdutta.scratch.http.http2.okhttp
 
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.http2.Http2Stream
+import com.koushikdutta.scratch.http.http2.Http2Socket
 import com.koushikdutta.scratch.uri.URI
 
 internal class Http2ExchangeCodec {
@@ -40,11 +40,11 @@ internal class Http2ExchangeCodec {
                 ENCODING,
                 UPGRADE)
 
-        fun createResponse(stream: Http2Stream): AsyncHttpResponse {
+        fun createResponse(socket: Http2Socket): AsyncHttpResponse {
             val outHeaders = Headers()
             var statusLine: String? = null
 
-            for (header in stream.headers!!) {
+            for (header in socket.headers!!) {
                 val name = header.name.string
                 val value = header.value.string
                 if (name == Header.RESPONSE_STATUS_UTF8) {
@@ -55,8 +55,8 @@ internal class Http2ExchangeCodec {
             }
             if (statusLine == null) throw Exception("Expected ':status' header not present")
 
-            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, {stream.read(it)}) {
-                stream.close()
+            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, {socket.read(it)}) {
+                socket.close()
             }
         }
 

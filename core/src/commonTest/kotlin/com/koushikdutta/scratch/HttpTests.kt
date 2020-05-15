@@ -239,7 +239,7 @@ class HttpTests {
         async {
             val connection = Http2Connection(server.connect(), true)
             val stream =
-                connection.newStream(
+                connection.connect(
                     Methods.POST(
                         "https://example.com/",
                         body = Utf8StringBody("hello world")
