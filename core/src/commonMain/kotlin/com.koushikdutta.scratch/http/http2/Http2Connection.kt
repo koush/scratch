@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http.http2
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.AsyncHandler
 import com.koushikdutta.scratch.async.startSafeCoroutine
+import com.koushikdutta.scratch.atomic.AtomicBoolean
 import com.koushikdutta.scratch.atomic.AtomicThrowingLock
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
@@ -55,27 +56,24 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
     override suspend fun write(buffer: ReadableBuffers) = output.write(buffer)
 
     // stops reading the input, tells peer to rst
-    var inputClosed = false
     fun closeInput(errorCode: ErrorCode, exception: Exception?) {
-        if (inputClosed)
-            return
-        inputClosed = true
-        connection.streams.remove(streamId)
-        if (exception == null) {
+        // input may have already ended.
+        val result = if (exception != null)
+            input.end(exception)
+        else
             input.end()
+        if (!result)
             return
-        }
-        input.end(exception)
+        connection.streams.remove(streamId)
         connection.handler.post {
             connection.writer.rstStream(streamId, errorCode)
         }
     }
 
-    var outputClosed = false
+    val outputClosed = AtomicBoolean()
     suspend fun closeOutput() {
-        if (outputClosed)
+        if (outputClosed.getAndSet(true))
             return
-        outputClosed = true
 
         connection.handler.run {
             connection.writer.data(true, streamId, null, 0)
@@ -87,7 +85,8 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
     override suspend fun close() {
         await()
 
-        closeInput(ErrorCode.NO_ERROR, null)
+        input.end()
+        closeInput(ErrorCode.CANCEL, null)
         closeOutput()
     }
 
@@ -107,19 +106,19 @@ internal class Http2Stream(val connection: Http2Connection, val streamId: Int, v
             acknowledgeData()
         }
         if (inFinished)
-            closeInput(ErrorCode.NO_ERROR, null)
+            input.end()
     }
 }
 
 typealias Http2ConnectionClose = (exception: Exception?) -> Unit
 
 internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), private val readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpRequestHandler? = null) {
-    val handler = AsyncHandler(socket)
-    var lastGoodStreamId: Int = 0
-    var isShutdown = false
-    var nextStreamId = if (client) 3 else 2
-    val streams = mutableMapOf<Int, Http2Stream>()
-    val localSettings = Settings().apply {
+    internal val handler = AsyncHandler(socket)
+    internal var lastGoodStreamId: Int = 0
+    internal var isShutdown = false
+    internal var nextStreamId = if (client) 3 else 2
+    internal val streams = mutableMapOf<Int, Http2Stream>()
+    internal val localSettings = Settings().apply {
         // Flow control was designed more for servers, or proxies than edge clients. If we are a client,
         // set the flow control window to 16MiB.  This avoids thrashing window updates every 64KiB, yet
         // small enough to avoid blowing up the heap.
@@ -127,20 +126,19 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
             set(Settings.INITIAL_WINDOW_SIZE, DEFAULT_CLIENT_WINDOW_SIZE)
         }
     }
-    var peerSettings = DEFAULT_SETTINGS
+    internal var peerSettings = DEFAULT_SETTINGS
     private var unacknowledgedBytes = 0L
-    var writeBytesAvailable: Long = peerSettings.initialWindowSize.toLong()
+    internal var writeBytesAvailable: Long = peerSettings.initialWindowSize.toLong()
         internal set
 
-    var closedCallback: Http2ConnectionClose? = null
-    val pinger = Yielder()
-    var awaitingPong = false
+    internal val pinger = Yielder()
+    internal var awaitingPong = false
 
     // okhttp uses a blocking sink. after all write operations, gotta flush this sink by actually
     // writing to the socket.
-    val sink = ByteBufferList()
-    val writer = Http2Writer(sink, client)
-    val output = BlockingWritePipe {
+    internal val sink = ByteBufferList()
+    internal val writer = Http2Writer(sink, client)
+    internal val output = BlockingWritePipe {
         // if the write would consume the window, block until
         // the window size is increased again. this prevents
         // spin loops of zero length writes.
@@ -148,8 +146,8 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
             return@BlockingWritePipe
         socket::write.drain(it)
     }
-    val reader = Http2Reader(socket, client, socketReader)
-    val readerHandler = object : Http2Reader.Handler {
+    internal val reader = Http2Reader(socket, client, socketReader)
+    internal val readerHandler = object : Http2Reader.Handler {
         override fun data(inFinished: Boolean, streamId: Int, source: BufferedSource, length: Int) {
             val stream = streams[streamId]
             if (stream == null) {
@@ -264,7 +262,9 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
         }
 
         override fun pushPromise(streamId: Int, promisedStreamId: Int, requestHeaders: List<Header>) {
-            throw AssertionError("pushPromise not implemented")
+            handler.post {
+                writer.rstStream(streamId, ErrorCode.CANCEL)
+            }
         }
 
         override fun alternateService(streamId: Int, origin: String, protocol: ByteString, host: String, port: Int, maxAge: Long) {
@@ -399,7 +399,8 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
         val httpRequest = Http2ExchangeCodec.createRequest(request.headers!!, {request.read(it)})
         val response = requestListener!!(AsyncHttpResponseScope(httpRequest))
         val outFinished = response.body == null
-        request.outputClosed = outFinished
+        if (outFinished)
+            request.outputClosed.set(true)
         handler.run {
             writer.headers(outFinished, request.streamId, Http2ExchangeCodec.createResponseHeaders(response))
             flush()
@@ -479,9 +480,5 @@ internal class Http2Connection(val socket: AsyncSocket, val client: Boolean, soc
             yielder.yield()
 
         return stream
-    }
-
-    fun closed(callback: Http2ConnectionClose) {
-        closedCallback = callback
     }
 }

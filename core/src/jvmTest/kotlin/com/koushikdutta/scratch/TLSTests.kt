@@ -7,6 +7,7 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
+import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
@@ -145,9 +146,12 @@ class TLSTests {
         async {
             pipeMiddleware.install(client)
             data = client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
+
+            data += client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
         }
 
-        assert(data == "hello world")
+        assertEquals((client.middlewares.find { it is AsyncSocketMiddleware }!! as AsyncSocketMiddleware).openHttp2Connections, 1)
+        assert(data == "hello worldhello world")
         assert(protocol == "h2")
     }
 }

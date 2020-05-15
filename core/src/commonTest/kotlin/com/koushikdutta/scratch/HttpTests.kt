@@ -237,10 +237,9 @@ class HttpTests {
 
         var data = ""
         async {
-            val client = Http2Connection(server.connect(), true)
-            client.processMessagesAsync()
+            val connection = Http2Connection(server.connect(), true)
             val stream =
-                client.newStream(
+                connection.newStream(
                     Methods.POST(
                         "https://example.com/",
                         body = Utf8StringBody("hello world")

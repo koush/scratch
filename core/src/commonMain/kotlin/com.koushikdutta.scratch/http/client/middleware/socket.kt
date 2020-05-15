@@ -125,9 +125,12 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     private val http2Connections = mutableMapOf<String, Http2Connection>()
+    val openHttp2Connections
+        get(): Int = http2Connections.size
+
     private suspend fun connectHttp2(session: AsyncHttpClientSession, connection: Http2Connection): Http2Stream {
         val responseSocket = connection.newStream(session.request)
-        session.transport = AsyncHttpClientTransport(responseSocket, session.transport?.reader, protocol = Protocol.HTTP_2.toString())
+        session.transport = AsyncHttpClientTransport(responseSocket, protocol = Protocol.HTTP_2.toString())
         return responseSocket
     }
 
