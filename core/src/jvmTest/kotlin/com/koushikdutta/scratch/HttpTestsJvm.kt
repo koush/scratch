@@ -8,7 +8,7 @@ import org.junit.Test
 import java.io.File
 
 class HttpTestsJvm {
-    @Test
+//    @Test
     fun testRunSleep() = AsyncEventLoop().runUnit {
         val cwd = File("").absolutePath
         AsyncHttpServer {

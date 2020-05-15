@@ -38,7 +38,7 @@ suspend fun AsyncHttpResponseScope.createResponse(input: AsyncSliceable, headers
         }
     }
 
-    val status = if (partial)
+    val status = if (!partial)
         StatusCode.OK
     else
         StatusCode.PARTIAL_CONTENT
@@ -52,6 +52,7 @@ suspend fun AsyncHttpResponseScope.createResponse(input: AsyncSliceable, headers
         }
     }
     else {
+        headers.contentLength = totalLength
         status(headers)
     }
 }
