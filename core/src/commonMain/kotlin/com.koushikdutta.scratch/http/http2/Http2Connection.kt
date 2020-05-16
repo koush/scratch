@@ -11,6 +11,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.http2.okhttp.*
 import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
 import com.koushikdutta.scratch.http.server.AsyncHttpRequestHandler
@@ -67,6 +68,11 @@ class Http2Socket internal constructor(val connection: Http2Connection, val stre
         writeBytesAvailable += delta
         if (writeBytesAvailable > 0)
             output.writable()
+    }
+
+    suspend fun writeHeaders(headers: Headers, outFinished: Boolean) = connection.handler.run {
+        connection.writer.headers(outFinished, streamId, headers.toHeaders())
+        connection.flush()
     }
 
     override suspend fun write(buffer: ReadableBuffers) = output.write(buffer)
@@ -136,7 +142,7 @@ class Http2Socket internal constructor(val connection: Http2Connection, val stre
 
 typealias Http2ConnectionClose = (exception: Exception?) -> Unit
 
-class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader({socket.read(it)}), private val readConnectionPreface: Boolean = true, private val requestListener: AsyncHttpRequestHandler? = null) {
+class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read), private val readConnectionPreface: Boolean = true): AsyncResource by socket, AsyncServerSocket<Http2Socket> {
     internal val handler = AsyncHandler(socket)
     internal var lastGoodStreamId: Int = 0
     private var isShutdown = false
@@ -202,7 +208,8 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
             if (inFinished)
                 stream.input.end()
 
-            handleIncomingStream(headerBlock.toHeaders(), stream)
+            stream.incomingHeaders.add(headerBlock.toHeaders())
+            incomingSockets.add(stream)
         }
 
         override fun rstStream(streamId: Int, errorCode: ErrorCode) {
@@ -319,7 +326,6 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
         writePing(false, 0x4f4b6f6b /* "OKok" */, -0xf607257 /* donut */)
     }
 
-
     internal suspend fun close(connectionCode: ErrorCode, streamCode: ErrorCode, cause: Exception?) {
         socket.await()
         shutdown(connectionCode)
@@ -401,31 +407,31 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
 
     fun processMessagesAsync() = Promise(::processMessages)
 
-    internal fun handleIncomingStream(requestHeaders: Headers, request: Http2Socket) = startSafeCoroutine {
-        if (requestListener == null) {
-            handler.run {
-                writer.rstStream(request.streamId, ErrorCode.REFUSED_STREAM)
-                flush()
-            }
-            return@startSafeCoroutine
-        }
-
-
-        val httpRequest = Http2ExchangeCodec.createRequest(requestHeaders, request::read)
-        val response = requestListener!!(AsyncHttpResponseScope(httpRequest))
-        val outFinished = response.body == null
-        if (outFinished)
-            request.outputClosed.set(true)
-        handler.run {
-            writer.headers(outFinished, request.streamId, response.createHttp2ConnectionHeader().toHeaders())
-            flush()
-        }
-
-        if (!outFinished) {
-            response.body!!.copy({request.write(it)})
-            request.closeOutput()
-        }
-    }
+//    internal fun handleIncomingStream(requestHeaders: Headers, request: Http2Socket) = startSafeCoroutine {
+//        if (requestListener == null) {
+//            handler.run {
+//                writer.rstStream(request.streamId, ErrorCode.REFUSED_STREAM)
+//                flush()
+//            }
+//            return@startSafeCoroutine
+//        }
+//
+//
+//        val httpRequest = Http2ExchangeCodec.createRequest(requestHeaders, request::read)
+//        val response = requestListener!!(AsyncHttpResponseScope(httpRequest))
+//        val outFinished = response.body == null
+//        if (outFinished)
+//            request.outputClosed.set(true)
+//        handler.run {
+//            writer.headers(outFinished, request.streamId, response.createHttp2ConnectionHeader().toHeaders())
+//            flush()
+//        }
+//
+//        if (!outFinished) {
+//            response.body!!.copy({request.write(it)})
+//            request.closeOutput()
+//        }
+//    }
 
     internal fun writeWindowUpdateLater(streamId: Int, unacknowledgedBytes: Long) = handler.post {
         if (unacknowledgedBytes == 0L)
@@ -473,6 +479,15 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
 
         return stream
     }
+
+    private val incomingSockets = AsyncQueue<Http2Socket>()
+    override fun accept(): AsyncIterable<out Http2Socket> {
+        return incomingSockets
+    }
+
+    override suspend fun close(throwable: Throwable) {
+        socket.close()
+    }
 }
 
 suspend fun Http2Connection.connect(request: AsyncHttpRequest): Http2Socket {
@@ -485,10 +500,41 @@ suspend fun Http2Connection.connect(request: AsyncHttpRequest): Http2Socket {
     return socket
 }
 
+suspend fun Http2Socket.createHttp2Request(): AsyncHttpRequest {
+    val headers = readHeaders()
+    return Http2ExchangeCodec.createRequest(headers, ::read)
+}
+
 fun AsyncHttpRequest.createHttp2ConnectionHeader(): Headers {
     return Http2ExchangeCodec.createRequestHeaders(this)
 }
 
 fun AsyncHttpResponse.createHttp2ConnectionHeader(): Headers {
     return Http2ExchangeCodec.createResponseHeaders(this)
+}
+
+fun Http2Connection.acceptHttpAsync(handler: AsyncHttpRequestHandler): Http2Connection {
+    acceptAsync {
+        val request = createHttp2Request()
+        val response = try {
+            handler(AsyncHttpResponseScope(request))
+        }
+        catch (exception: Exception) {
+            println("internal server error")
+            println(exception)
+            StatusCode.INTERNAL_SERVER_ERROR()
+        }
+
+        if (request.body != null)
+            request.body!!.drain()
+
+        val responseBody = response.body
+        writeHeaders(response.createHttp2ConnectionHeader(), responseBody == null)
+        if (responseBody != null) {
+            responseBody.copy(::write)
+            closeOutput()
+        }
+    }
+
+    return this
 }

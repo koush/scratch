@@ -7,6 +7,7 @@ import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
+import com.koushikdutta.scratch.http.http2.acceptHttpAsync
 import com.koushikdutta.scratch.http.http2.connect
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random
@@ -19,10 +20,11 @@ class Http2Tests {
         val pair = createAsyncPipeSocketPair()
 
         async {
-            Http2Connection(pair.second, false) {
+            Http2Connection(pair.second, false)
+            .acceptHttpAsync {
                 StatusCode.OK(body = Utf8StringBody("Hello World"))
             }
-            .processMessagesAsync()
+            .processMessages()
         }
 
         var data = ""
@@ -73,7 +75,8 @@ class Http2Tests {
             }
         }
 
-        Http2Connection(pair.second, false) {
+        Http2Connection(pair.second, false)
+        .acceptHttpAsync {
             StatusCode.OK(body = BinaryBody(read = body))
         }
         .processMessagesAsync()
@@ -111,7 +114,8 @@ class Http2Tests {
             }.pipe(createContentLengthPipe(100000000))
 
         var received = 0
-        Http2Connection(pair.second, false) {
+        Http2Connection(pair.second, false)
+        .acceptHttpAsync {
             val buffer = ByteBufferList()
             // stream the data and digest it
             while (request.body!!(buffer)) {
