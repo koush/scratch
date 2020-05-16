@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.TestUtils.Companion.createUnboundRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
@@ -90,7 +91,6 @@ class Http2Tests {
         assertEquals(clientMd5.joinToString { it.toString(16) }, serverMd5.joinToString { it.toString(16) })
     }
 
-
     // this will test the connection flow control.
     // default write window is 16mb.
     @Test
@@ -144,5 +144,32 @@ class Http2Tests {
         assertEquals(sent, 100000000)
 
         assertEquals(clientMd5.joinToString { it.toString(16) }, serverMd5.joinToString { it.toString(16) })
+    }
+
+//    @Test
+    fun testCancelledRequests() {
+        val pair = createAsyncPipeSocketPair()
+
+        Http2Connection(pair.second, false)
+                .acceptHttpAsync {
+                    StatusCode.OK(body = Utf8StringBody("hello world"))
+                }
+                .processMessagesAsync()
+
+        var completed = 0
+        async {
+            val client = Http2Connection(pair.first, true)
+            client.processMessagesAsync()
+
+            for (i in 0 until 10) {
+                val connected =
+                        client.connect(Methods.POST("https://example.com/", body = BinaryBody(createUnboundRandomRead()::read)))
+                val data = readAllString({connected.read(it)})
+                assertEquals(data, "hello world")
+                completed++
+            }
+        }
+
+        assertEquals(completed, 10)
     }
 }

@@ -525,8 +525,7 @@ fun Http2Connection.acceptHttpAsync(handler: AsyncHttpRequestHandler): Http2Conn
             StatusCode.INTERNAL_SERVER_ERROR()
         }
 
-        if (request.body != null)
-            request.body!!.drain()
+        endInput(null)
 
         val responseBody = response.body
         writeHeaders(response.createHttp2ConnectionHeader(), responseBody == null)

@@ -36,9 +36,6 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler): AsyncServer
                 StatusCode.INTERNAL_SERVER_ERROR()
             }
 
-            if (request.body != null)
-                request.body!!.drain()
-
             response
         }
         .processMessages()
