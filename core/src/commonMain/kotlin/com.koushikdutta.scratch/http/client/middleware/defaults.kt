@@ -9,7 +9,9 @@ class DefaultsMiddleware : AsyncHttpClientMiddleware() {
     }
 
     private fun addDefaultHeaders(session: AsyncHttpClientSession) {
-        addHeaderIfNotExists(session, "Host", session.request.uri.host!!)
+        val host = session.request.uri.host
+        if (host != null)
+            addHeaderIfNotExists(session, "Host", host)
         addHeaderIfNotExists(session, "User-Agent", "scratch/1.0")
     }
 

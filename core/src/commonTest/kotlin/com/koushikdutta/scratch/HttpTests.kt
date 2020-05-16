@@ -414,4 +414,45 @@ class HttpTests {
         }
         assertTrue(protocolSwitched)
     }
+
+    @Test
+    fun testNoHostFailure() {
+        var failed = false
+        async {
+            try {
+                val client = AsyncHttpClient()
+                client.execute(Methods.GET("/pathOnly"))
+            }
+            catch (throwable: Throwable) {
+                failed = true
+            }
+        }
+
+        assertTrue(failed)
+    }
+
+
+    @Test
+    fun testNoHostFallback() {
+        val httpServer = AsyncHttpServer {
+            StatusCode.OK(body = Utf8StringBody("hello world"))
+        }
+        val pipeServer = AsyncPipeServerSocket()
+        httpServer.listen(pipeServer)
+
+        var data = ""
+        async {
+            val client = AsyncHttpClient()
+            client.middlewares.add(object : AsyncHttpClientMiddleware() {
+                override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
+                    session.transport = AsyncHttpClientTransport(pipeServer.connect())
+                    return true
+                }
+            })
+
+            data = readAllString(client.execute(Methods.GET("/pathOnly")).body!!)
+        }
+
+        assertEquals("hello world", data)
+    }
 }
