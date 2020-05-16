@@ -64,8 +64,7 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
         }
 
         private val lock: BatonLock<AsyncIteratorMessage<T>, AsyncIteratorMessage<T>> = {
-            it.rethrow()
-            val value = it.value!!
+            val value = it.getOrThrow()!!
             if (value.hasNext || value.next)
                 throw AsyncIteratorConcurrentException(it.resumed)
             value
@@ -146,7 +145,7 @@ open class AsyncQueue<T> : AsyncIterable<T> {
             // end of queue, wait until the baton finishes.
             if (item.frozen) {
                 // rethrow the finisher, or continue if not finished.
-                if (baton.pass(Unit) { it.rethrow(); it.finished })
+                if (baton.pass(Unit) { it.getOrThrow(); it.finished })
                     break
             }
 

@@ -120,7 +120,7 @@ class BatonTests {
         async {
             val check1 = baton.finish(5)
             assertTrue(check1!!.finished)
-            assertEquals(check1.value, 7)
+            assertEquals(check1.getOrThrow(), 7)
             done++
         }
 
@@ -138,12 +138,12 @@ class BatonTests {
         async {
             val check1 = baton.finish(5)
             assertTrue(check1!!.finished)
-            assertEquals(check1.value, 7)
+            assertEquals(check1.getOrThrow(), 7)
             done++
 
             val check2 = baton.finish(4)
             assertTrue(check2!!.finished)
-            assertEquals(check2.value, 7)
+            assertEquals(check2.getOrThrow(), 7)
             done++
         }
 
@@ -260,7 +260,7 @@ class BatonTests {
         val baton = Baton<Int>()
         assertEquals(baton.take(2), null)
         assertNull(baton.toss(3))
-        assertNull(baton.takeIf(4) { it.value == 5 })
+        assertNull(baton.takeIf(4) { it.getOrThrow() == 5 })
         assertEquals(baton.take(5), 3)
     }
 }

@@ -25,13 +25,12 @@ class Http2Tests {
             .acceptHttpAsync {
                 StatusCode.OK(body = Utf8StringBody("Hello World"))
             }
-            .processMessages()
+            .awaitClose()
         }
 
         var data = ""
         async {
             val client = Http2Connection(pair.first, true)
-            client.processMessagesAsync()
             val connected = client.connect(Methods.GET("https://example.com/"))
             data = readAllString({connected.read(it)})
         }
@@ -65,7 +64,6 @@ class Http2Tests {
         var received = 0
         async {
             val client = Http2Connection(pair.first, true)
-            client.processMessagesAsync()
             val connected = client.connect(Methods.GET("https://example.com/"))
             val buffer = ByteBufferList()
             // stream the data and digest it
@@ -80,7 +78,6 @@ class Http2Tests {
         .acceptHttpAsync {
             StatusCode.OK(body = BinaryBody(read = body))
         }
-        .processMessagesAsync()
 
         val clientMd5 = clientDigest.digest()
         val serverMd5 = serverDigest.digest()
@@ -126,11 +123,9 @@ class Http2Tests {
 
             StatusCode.OK(body = Utf8StringBody("hello world"))
         }
-        .processMessagesAsync()
 
         async {
             val client = Http2Connection(pair.first, true)
-            client.processMessagesAsync()
             val connected =
                 client.connect(Methods.POST("https://example.com/", body = BinaryBody(read = body)))
             val data = readAllString({connected.read(it)})
@@ -146,7 +141,7 @@ class Http2Tests {
         assertEquals(clientMd5.joinToString { it.toString(16) }, serverMd5.joinToString { it.toString(16) })
     }
 
-//    @Test
+    @Test
     fun testCancelledRequests() {
         val pair = createAsyncPipeSocketPair()
 
@@ -154,16 +149,13 @@ class Http2Tests {
                 .acceptHttpAsync {
                     StatusCode.OK(body = Utf8StringBody("hello world"))
                 }
-                .processMessagesAsync()
 
         var completed = 0
         async {
             val client = Http2Connection(pair.first, true)
-            client.processMessagesAsync()
 
             for (i in 0 until 10) {
-                val connected =
-                        client.connect(Methods.POST("https://example.com/", body = BinaryBody(createUnboundRandomRead()::read)))
+                val connected = client.connect(Methods.POST("https://example.com/", body = BinaryBody(createUnboundRandomRead()::read)))
                 val data = readAllString({connected.read(it)})
                 assertEquals(data, "hello world")
                 completed++

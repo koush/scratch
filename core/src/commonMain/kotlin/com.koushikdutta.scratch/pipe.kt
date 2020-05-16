@@ -12,13 +12,13 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
         return baton.pass(null) {
-            it.rethrow()
-            if (it.value !== interruptBuffer) {
-                if (!it.finished && it.value == null && !it.resumed)
+            it.getOrThrow()
+            if (it.getOrThrow() !== interruptBuffer) {
+                if (!it.finished && it.getOrThrow() == null && !it.resumed)
                     throw AsyncDoubleReadException()
 
                 // handle the buffer transfer inside the baton lock
-                it.value?.read(buffer)
+                it.getOrThrow()?.read(buffer)
                 !it.finished
             }
             else {
@@ -31,8 +31,8 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
         if (buffer.isEmpty)
             return
         baton.pass(buffer) {
-            it.rethrow()
-            if (!it.finished && it.value != null && it.resumed)
+            it.getOrThrow()
+            if (!it.finished && it.getOrThrow() != null && it.resumed)
                 throw AsyncDoubleWriteException()
             if (it.finished)
                 throw AsyncWriteClosedException()
@@ -40,7 +40,7 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
     }
 
     private val interruptRead: BatonTakeCondition<ReadableBuffers?> = {
-        it.value == null
+        it.getOrThrow() == null
     }
 
     fun interruptRead() {
@@ -48,7 +48,7 @@ internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
     }
 
     private val interruptWrite: BatonTakeCondition<ReadableBuffers?> = {
-        it.value != null
+        it.getOrThrow() != null
     }
 
     fun interruptWrite() {

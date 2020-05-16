@@ -52,6 +52,17 @@ class FreezableBuffers: Freezable {
     }
 
     fun freeze() = stack.freeze()
+    fun clearFreeze(reclaim: ByteBufferList) {
+        stack.clearFreeze(reclaim) { collector, value ->
+            value.free()
+            collector.takeReclaimedBuffers(value)
+            collector
+        }
+    }
+    fun clearFreeze() {
+        stack.clearFreeze(Unit) { _, _ ->
+        }
+    }
 
     override val isFrozen: Boolean
         get() = stack.isFrozen

@@ -15,7 +15,6 @@
  */
 package com.koushikdutta.scratch.http.http2.okhttp
 
-import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.http.http2.*
 import com.koushikdutta.scratch.http.http2.okhttp.Http2.CONNECTION_PREFACE
@@ -43,11 +42,9 @@ internal class Http2Writer(
 ) {
   private val hpackBuffer: Buffer = Buffer()
   private var maxFrameSize: Int = INITIAL_MAX_FRAME_SIZE
-  private var closed: Boolean = false
   val hpackWriter: Hpack.Writer = Hpack.Writer(out = hpackBuffer)
 
   fun connectionPreface() {
-    if (closed) throw IOException("closed")
     if (!client) return // Nothing to write; servers don't send connection headers!
     sink.write(CONNECTION_PREFACE)
     sinkFlush()
@@ -55,7 +52,6 @@ internal class Http2Writer(
 
   /** Applies `peerSettings` and then sends a settings ACK. */
   fun applyAndAckSettings(peerSettings: Settings) {
-    if (closed) throw IOException("closed")
     this.maxFrameSize = peerSettings.getMaxFrameSize(maxFrameSize)
     if (peerSettings.headerTableSize != -1) {
       hpackWriter.resizeHeaderTable(peerSettings.headerTableSize)
@@ -86,7 +82,6 @@ internal class Http2Writer(
     promisedStreamId: Int,
     requestHeaders: List<Header>
   ) {
-    if (closed) throw IOException("closed")
     hpackWriter.writeHeaders(requestHeaders)
 
     val byteCount = hpackBuffer.remaining().toLong()
@@ -107,12 +102,10 @@ internal class Http2Writer(
   }
   
   fun flush() {
-    if (closed) throw IOException("closed")
     sinkFlush()
   }
 
   fun rstStream(streamId: Int, errorCode: ErrorCode) {
-    if (closed) throw IOException("closed")
     require(errorCode.httpCode != -1)
 
     frameHeader(
@@ -136,7 +129,6 @@ internal class Http2Writer(
    * @param byteCount must be between 0 and the minimum of `source.length` and [maxDataLength].
    */
   fun data(outFinished: Boolean, streamId: Int, source: ReadableBuffers?, byteCount: Int) {
-    if (closed) throw IOException("closed")
     var flags = FLAG_NONE
     if (outFinished) flags = flags or FLAG_END_STREAM
     dataFrame(streamId, flags, source, byteCount)
@@ -156,7 +148,6 @@ internal class Http2Writer(
 
   /** Write okhttp's settings to the peer. */
   fun settings(settings: Settings) {
-    if (closed) throw IOException("closed")
     frameHeader(
         streamId = 0,
         length = settings.size() * 6,
@@ -181,7 +172,6 @@ internal class Http2Writer(
    * `payload1` and `payload2` opaque binary, and there are no rules on the content.
    */
   fun ping(ack: Boolean, payload1: Int, payload2: Int) {
-    if (closed) throw IOException("closed")
     frameHeader(
         streamId = 0,
         length = 8,
@@ -202,7 +192,6 @@ internal class Http2Writer(
    * @param debugData only valid for HTTP/2; opaque debug data to send.
    */
   fun goAway(lastGoodStreamId: Int, errorCode: ErrorCode, debugData: ByteArray) {
-    if (closed) throw IOException("closed")
     require(errorCode.httpCode != -1) { "errorCode.httpCode == -1" }
     frameHeader(
         streamId = 0,
@@ -223,7 +212,6 @@ internal class Http2Writer(
    * connection if `streamId` is zero.
    */
   fun windowUpdate(streamId: Int, windowSizeIncrement: Long) {
-    if (closed) throw IOException("closed")
     require(windowSizeIncrement != 0L && windowSizeIncrement <= 0x7fffffffL) {
       "windowSizeIncrement == 0 || windowSizeIncrement > 0x7fffffffL: $windowSizeIncrement"
     }
@@ -266,7 +254,6 @@ internal class Http2Writer(
     streamId: Int,
     headerBlock: List<Header>
   ) {
-    if (closed) throw IOException("closed")
     hpackWriter.writeHeaders(headerBlock)
 
     val byteCount = hpackBuffer.remaining().toLong()

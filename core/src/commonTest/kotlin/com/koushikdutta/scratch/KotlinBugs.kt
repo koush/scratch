@@ -43,7 +43,7 @@ class KotlinBugs {
             val buffer = ByteBufferList()
             val random = TestUtils.createRandomRead(1000000)
             while (random(buffer)) {
-                write(buffer)
+                ::write.drain(buffer)
                 assertTrue(buffer.isEmpty)
             }
             close()

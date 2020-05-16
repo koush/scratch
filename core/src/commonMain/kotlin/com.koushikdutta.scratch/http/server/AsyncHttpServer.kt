@@ -38,7 +38,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler): AsyncServer
 
             response
         }
-        .processMessages()
+        .awaitClose()
     }
 
     internal suspend fun accept(server: AsyncServerSocket<*>?, socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) {

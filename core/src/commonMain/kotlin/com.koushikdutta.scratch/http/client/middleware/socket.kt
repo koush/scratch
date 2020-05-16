@@ -2,6 +2,8 @@ package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.Promise
+import com.koushikdutta.scratch.acceptAsync
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.add
@@ -141,7 +143,14 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         val socketKey = "$host:$port"
         http2Connections[socketKey] = http2Connection
 
-        http2Connection.processMessagesAsync()
+        Promise {
+            http2Connection
+            .acceptAsync {
+                // incoming connections are ignored.
+                close()
+            }
+            .awaitClose()
+        }
         .finally {
             http2Connections.remove(socketKey)
         }

@@ -36,6 +36,18 @@ class FreezableStack<T, V>(private val defaultAccumulate: V, private val accumul
         }
     }
 
+    fun <R> clearFreeze(initialValue: R, accumulate: (collector: R, value: T) -> R): R {
+        // no need to compare and set. it enters an immutable state and is idempotent.
+        var value = atomicReference.getAndSet(FreezableStackNode(null, null, true, 0, defaultAccumulate))
+        var ret = initialValue
+        while (value != null) {
+            if (!value.frozen)
+                ret = accumulate(ret, value.value!!)
+            value = value.previous
+        }
+        return ret
+    }
+
     fun freeze(): Boolean {
         while (true) {
             val top = atomicReference.get()

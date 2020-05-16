@@ -2,7 +2,10 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.atomic.*
-import com.koushikdutta.scratch.buffers.*
+import com.koushikdutta.scratch.buffers.Buffers
+import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
+import com.koushikdutta.scratch.buffers.WritableBuffers
 
 
 /**
@@ -43,6 +46,7 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
      * will be called once the reader has sufficiently drained the buffer.
      */
     fun write(buffer: ReadableBuffers): Boolean {
+//        println("pooped" + buffer.peekUtf8String())
         // provide the data and resume any readers.
         val read = baton.toss(true) {
             // this is a synchronization point between the write and read.
@@ -71,7 +75,7 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
         // if the read failed, the pipe is closing.
         if (result == null) {
             // wait for the baton to finish or throw/finish
-            if (baton.pass(false) { it.rethrow(); it.isSuccess && !it.value!! && !it.resumed })
+            if (baton.pass(false) { it.getOrThrow() && !it.resumed })
                 throw AsyncDoubleReadException()
             return !baton.isFinished
         }
@@ -85,7 +89,7 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
         if (result)
             return true
 
-        if (baton.pass(false) { it.isSuccess && !it.value!! && !it.resumed })
+        if (baton.pass(false) { it.isSuccess && !it.getOrThrow() && !it.resumed })
             throw AsyncDoubleReadException()
 
         return true
@@ -136,6 +140,9 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
         baton.take(Unit)
     }
 
+    val hasEnded
+        get() = baton.isFinished
+
     fun close(): Boolean = close(IOException("pipe closed"))
     fun close(exception: Throwable): Boolean {
         return baton.raiseFinish(exception) {
@@ -147,14 +154,15 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
     suspend fun write(buffer: ReadableBuffers) {
         writeLock {
             try {
-                buffer.read(pending)
-                while (pending.hasRemaining()) {
+                baton.rethrow()
+                if (!pending.hasRemaining())
+                    buffer.read(pending)
+                if (pending.hasRemaining()) {
                     writer(pending)
-                    buffer.takeReclaimedBuffers(pending)
-
                     if (pending.hasRemaining())
                         baton.pass(Unit)
                 }
+                buffer.takeReclaimedBuffers(pending)
             }
             catch (throwable: Throwable) {
                 close(throwable)
