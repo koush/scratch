@@ -10,7 +10,8 @@ class AsyncHttp2TransportMiddleware: AsyncHttpTransportMiddleware() {
         if (session.transport?.protocol != Protocol.HTTP_2.toString())
             return false
 
-        session.response = Http2ExchangeCodec.createResponse(session.transport!!.socket as Http2Socket)
+        val socket = session.transport!!.socket as Http2Socket
+        session.response = Http2ExchangeCodec.createResponse(socket.readHeaders(), socket)
         return true
     }
 }

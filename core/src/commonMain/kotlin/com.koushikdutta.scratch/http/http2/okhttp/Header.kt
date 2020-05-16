@@ -15,6 +15,7 @@
  */
 package com.koushikdutta.scratch.http.http2.okhttp
 
+import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.http2.ByteString
 import com.koushikdutta.scratch.http.http2.encodeUtf8
 import com.koushikdutta.scratch.http.http2.utf8

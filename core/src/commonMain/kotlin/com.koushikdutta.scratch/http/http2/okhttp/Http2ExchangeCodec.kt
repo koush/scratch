@@ -40,13 +40,13 @@ internal class Http2ExchangeCodec {
                 ENCODING,
                 UPGRADE)
 
-        fun createResponse(socket: Http2Socket): AsyncHttpResponse {
+        fun createResponse(responseHeaders: Headers, socket: Http2Socket): AsyncHttpResponse {
             val outHeaders = Headers()
             var statusLine: String? = null
 
-            for (header in socket.headers!!) {
-                val name = header.name.string
-                val value = header.value.string
+            for (header in responseHeaders) {
+                val name = header.name
+                val value = header.value
                 if (name == Header.RESPONSE_STATUS_UTF8) {
                     statusLine = "HTTP/1.1 $value"
                 } else if (name !in HTTP_2_SKIPPED_RESPONSE_HEADERS) {
@@ -55,56 +55,51 @@ internal class Http2ExchangeCodec {
             }
             if (statusLine == null) throw Exception("Expected ':status' header not present")
 
-            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, {socket.read(it)}) {
+            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, socket::read) {
                 socket.close()
             }
         }
 
-        private fun createHeaders(message: AsyncHttpMessage, headerList: MutableList<Header>) {
+        private fun createHeaders(message: AsyncHttpMessage, headers: Headers) {
             for (header in message.headers) {
                 // header names must be lowercase.
                 val name = header.name.toLowerCase()
                 if (name !in HTTP_2_SKIPPED_REQUEST_HEADERS || name == TE && header.value == "trailers") {
-                    headerList.add(Header(name, header.value))
+                    headers.add(name, header.value)
                 }
             }
         }
 
-        fun createRequestHeaders(request: AsyncHttpRequest): List<Header> {
-            val headerList = mutableListOf<Header>()
-            headerList.add(Header(Header.TARGET_METHOD, request.method))
-            headerList.add(Header(Header.TARGET_PATH, request.requestLinePathAndQuery))
-            val host = request.headers.get("Host")
-            if (host != null) {
-                headerList.add(Header(Header.TARGET_AUTHORITY, host)) // Optional.
-            }
-            if (request.uri.scheme != null)
-                headerList.add(Header(Header.TARGET_SCHEME, request.uri.scheme!!))
-
-            createHeaders(request, headerList)
-
-            return headerList
-        }
-
-        fun createResponseHeaders(response: AsyncHttpResponse): List<Header> {
-            val headerList = mutableListOf<Header>()
-            headerList.add(Header(Header.RESPONSE_STATUS, "${response.code} ${response.message}"))
-            createHeaders(response, headerList)
-            return headerList
-        }
-
-        fun createRequest(headerList: List<Header>, body: AsyncRead?): AsyncHttpRequest {
+        fun createRequestHeaders(request: AsyncHttpRequest): Headers {
             val headers = Headers()
-            for (header in headerList) {
-                headers.add(header.name.string, header.value.string)
-            }
+            headers.add(Header.TARGET_METHOD.string, request.method)
+            headers.add(Header.TARGET_PATH.string, request.requestLinePathAndQuery)
+            val host = request.headers["Host"]
+            if (host != null)
+                headers.add(Header.TARGET_AUTHORITY.string, host)
+            val scheme = request.uri.scheme
+            if (scheme != null)
+                headers.add(Header.TARGET_SCHEME.string, scheme)
 
-            val method = headers.get(Header.TARGET_METHOD_UTF8)
-            val path = headers.get(Header.TARGET_PATH_UTF8)!!
-            val host = headers.get(Header.TARGET_AUTHORITY_UTF8)
-            val scheme = headers.get(Header.TARGET_SCHEME_UTF8)
+            createHeaders(request, headers)
 
-            headers.set("Host", host)
+            return headers
+        }
+
+        fun createResponseHeaders(response: AsyncHttpResponse): Headers {
+            val headers = Headers()
+            headers.add(Header.RESPONSE_STATUS.string, "${response.code} ${response.message}")
+            createHeaders(response, headers)
+            return headers
+        }
+
+        fun createRequest(headers: Headers, body: AsyncRead?): AsyncHttpRequest {
+            val method = headers[Header.TARGET_METHOD_UTF8]
+            val path = headers[Header.TARGET_PATH_UTF8]!!
+            val host = headers[Header.TARGET_AUTHORITY_UTF8]
+            val scheme = headers[Header.TARGET_SCHEME_UTF8]
+
+            headers["Host"] = host
 
             headers.remove(Header.TARGET_METHOD_UTF8)
             headers.remove(Header.TARGET_PATH_UTF8)

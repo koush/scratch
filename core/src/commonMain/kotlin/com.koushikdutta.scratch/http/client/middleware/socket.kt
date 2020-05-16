@@ -17,6 +17,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2Socket
+import com.koushikdutta.scratch.http.http2.connect
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
 private typealias IOException = Exception

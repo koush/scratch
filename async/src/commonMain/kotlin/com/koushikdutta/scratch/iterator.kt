@@ -125,6 +125,10 @@ open class AsyncQueue<T> : AsyncIterable<T> {
     private val queue = FreezableQueue<T>()
     private val baton = Baton<Unit>()
 
+    fun poll(): T? {
+        return queue.remove()?.value
+    }
+
     protected open fun removed(value: T) {
     }
 

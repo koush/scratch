@@ -1,36 +1,19 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.Methods
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
-import com.koushikdutta.scratch.http.http2.arraycopy
-import com.koushikdutta.scratch.http.http2.bitCount
+import com.koushikdutta.scratch.http.http2.connect
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class Http2Tests {
-    @Test
-    fun testBitcount() {
-        assertEquals(0xFF.bitCount(), 8)
-        assertEquals(0xFF00.bitCount(), 8)
-        assertEquals(0xFF0000.bitCount(), 8)
-        assertEquals((0xFF000000).toInt().bitCount(), 8)
-        assertEquals((0xFF000001).toInt().bitCount(), 9)
-    }
-
-    @Test
-    fun testArrayCopy() {
-        val array = arrayOf(1,2,3,4)
-        val array2 = Array<Int>(2, {0})
-        array.arraycopy(2, array2, 1, 1)
-        assertEquals(array2[1], 3)
-    }
-
     @Test
     fun testConnection() {
         val pair = createAsyncPipeSocketPair()
