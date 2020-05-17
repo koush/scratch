@@ -9,9 +9,11 @@ import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
 import com.koushikdutta.scratch.crypto.sha256
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSessionProperties
 import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
@@ -240,7 +242,7 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
 
         val responseLine: ResponseLine
         val headers: Headers
-        val headerData = client.eventLoop.openFile(headerFile, false)
+        val headerData = eventLoop.openFile(headerFile, false)
         try {
             val reader = AsyncReader(headerData::read)
             responseLine = ResponseLine(reader.readScanUtf8String("\r\n").trim())
@@ -271,7 +273,7 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
                 session.request.headers["If-None-Match"] = cacheControl.etag!!
             if (cacheControl.lastModified != null)
                 session.request.headers["If-Modified-Since"] = cacheControl.lastModified!!
-            val cacheData = client.eventLoop.openFile(dataFile, false)
+            val cacheData = eventLoop.openFile(dataFile, false)
             val conditionalResponse = createCachedResponse(headerFile, dataFile, responseLine, headers, cacheData)
             session.properties.conditionalResponse = true
             return conditionalResponse
@@ -292,7 +294,7 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
             }
         }
 
-        val cacheData = client.eventLoop.openFile(dataFile, false)
+        val cacheData = eventLoop.openFile(dataFile, false)
         val socket = object : AsyncSocket, AsyncInput by cacheData  {
             override suspend fun write(buffer: ReadableBuffers) {
                 buffer.free()
@@ -362,13 +364,13 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
                 session.response!!.headers[XScratchCacheExpiration] = expiration.toString()
             }
 
-            val headers = client.eventLoop.openFile(headerFile, true)
+            val headers = eventLoop.openFile(headerFile, true)
             val buffer = ByteBufferList()
             buffer.putUtf8String(session.response!!.toMessageString())
             headers::write.drain(buffer)
             headers.close()
 
-            client.eventLoop.openFile(dataTmpFile, true)
+            eventLoop.openFile(dataTmpFile, true)
         }
         catch (throwable: Throwable) {
             return response

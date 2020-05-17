@@ -5,6 +5,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.*
+import com.koushikdutta.scratch.http.server.AsyncHttpResponseScope
 
 interface AsyncHttpExecutor {
     suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse
@@ -13,7 +14,7 @@ interface AsyncHttpExecutor {
         get() = client.eventLoop
 }
 
-suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSocket? = null, socketReader: AsyncReader? = null): AsyncHttpResponse {
+suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSocket?, socketReader: AsyncReader? = null): AsyncHttpResponse {
     if (socketReader != null && socket == null)
         throw IllegalArgumentException("socket must not be null if socketReader is non null")
 
@@ -24,6 +25,9 @@ suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSo
     }
     return execute(session)
 }
+
+suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest) = execute(request, null)
+suspend fun AsyncHttpExecutor.execute(responseScope: AsyncHttpResponseScope) = execute(responseScope.request, null)
 
 suspend fun <R> AsyncHttpExecutor.execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
     val session = AsyncHttpClientSession(this, request)
@@ -82,7 +86,7 @@ suspend fun AsyncHttpExecutor.randomAccess(uri: String): AsyncRandomAccessInput 
     var currentRemaining: Long = 0
     val temp = ByteBufferList()
 
-    return object : AsyncRandomAccessInput, AsyncAffinity by client.eventLoop {
+    return object : AsyncRandomAccessInput, AsyncAffinity by eventLoop {
         override suspend fun size(): Long {
             return contentLength
         }

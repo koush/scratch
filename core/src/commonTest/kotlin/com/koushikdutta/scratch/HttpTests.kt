@@ -359,16 +359,13 @@ class HttpTests {
     fun testResponseTermination() {
         var gotClose = false
         val pipeServer = createAsyncPipeServerSocket()
-        async {
-            val httpServer = AsyncHttpServer {
-                StatusCode.OK(body = BinaryBody(createUnboundRandomRead()::read)) {
-                    gotClose = it != null
-                }
+        val httpServer = AsyncHttpServer {
+            StatusCode.OK(body = BinaryBody(createUnboundRandomRead()::read)) {
+                gotClose = it != null
             }
-
-            httpServer.listen(pipeServer)
         }
 
+        httpServer.listen(pipeServer)
         async {
             val httpClient = AsyncHttpClient().buildUpon().followRedirects().build()
             httpClient.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
@@ -387,72 +384,74 @@ class HttpTests {
     }
 
     @Test
-    fun testConnectionUpgrade() {
-        var protocolSwitched = false
+    fun testConnectionUpgrade() = asyncTest(true) {
         val pipeServer = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
             AsyncHttpResponse.SWITCHING_PROTOCOLS {
-                protocolSwitched = true
             }
         }
         httpServer.listen(pipeServer)
 
-        async {
-            val httpClient = AsyncHttpClient()
-            val clientSocket = pipeServer.connect()
-            val headers = Headers()
-            headers["Connection"] = "Upgrade"
-            headers["Upgrade"] = "TestProtocol"
-            val request = Methods.GET("http://example.org", headers)
-            try {
-                httpClient.execute(request, clientSocket)
-            }
-            catch (switching: AsyncHttpClientSwitchingProtocols) {
-                return@async
-            }
-            throw Exception("Expected client to switch protocols")
+        val httpClient = AsyncHttpClient()
+        val clientSocket = pipeServer.connect()
+        val headers = Headers()
+        headers["Connection"] = "Upgrade"
+        headers["Upgrade"] = "TestProtocol"
+        val request = Methods.GET("http://example.org", headers)
+        try {
+            httpClient.execute(request, clientSocket)
         }
-        assertTrue(protocolSwitched)
+        catch (switching: AsyncHttpClientSwitchingProtocols) {
+            return@asyncTest true
+        }
+        throw Exception("Expected client to switch protocols")    }
+
+    @Test
+    fun testNoHostFailure() = asyncTest(true) {
+        try {
+            val client = AsyncHttpClient()
+            client.execute(Methods.GET("/pathOnly"))
+            false
+        }
+        catch (throwable: Throwable) {
+            true
+        }
+    }
+
+    private fun AsyncHttpServer.createFallbackClient(): AsyncHttpClient {
+        val pipeServer = AsyncPipeServerSocket()
+        listen(pipeServer)
+        val client = AsyncHttpClient()
+        client.middlewares.add(object : AsyncHttpClientMiddleware() {
+            override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
+                session.transport = AsyncHttpClientTransport(pipeServer.connect())
+                return true
+            }
+        })
+        return client
     }
 
     @Test
-    fun testNoHostFailure() {
-        var failed = false
-        async {
-            try {
-                val client = AsyncHttpClient()
-                client.execute(Methods.GET("/pathOnly"))
-            }
-            catch (throwable: Throwable) {
-                failed = true
-            }
-        }
-
-        assertTrue(failed)
-    }
-
-
-    @Test
-    fun testNoHostFallback() {
+    fun testNoHostFallback() = asyncTest("hello world") {
         val httpServer = AsyncHttpServer {
             StatusCode.OK(body = Utf8StringBody("hello world"))
         }
-        val pipeServer = AsyncPipeServerSocket()
-        httpServer.listen(pipeServer)
 
-        var data = ""
-        async {
-            val client = AsyncHttpClient()
-            client.middlewares.add(object : AsyncHttpClientMiddleware() {
-                override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                    session.transport = AsyncHttpClientTransport(pipeServer.connect())
-                    return true
-                }
-            })
+        val client = httpServer.createFallbackClient()
+        readAllString(client.execute(Methods.GET("/pathOnly")).body!!)
+    }
 
-            data = readAllString(client.execute(Methods.GET("/pathOnly")).body!!)
+    @Test
+    fun testProxyServer() = asyncTest("hello world") {
+        val httpServer = AsyncHttpServer {
+            StatusCode.OK(body = Utf8StringBody("hello world"))
         }
+        val proxyClient = httpServer.createFallbackClient()
 
-        assertEquals("hello world", data)
+        val proxyServer = AsyncHttpServer(proxyClient::execute)
+
+        val client = proxyServer.createFallbackClient()
+
+        readAllString(client.execute(Methods.GET("/pathOnly")).body!!)
     }
 }
