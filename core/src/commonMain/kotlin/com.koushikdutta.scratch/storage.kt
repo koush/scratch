@@ -12,7 +12,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 interface AsyncRandomAccessInput : AsyncInput {
     suspend fun size(): Long
     suspend fun getPosition(): Long
-    suspend fun setPosition(position: Long)
+    suspend fun seekPosition(position: Long)
     /**
      * Reads up to length, but not necessarily in entirety, length bytes.
      */
@@ -23,7 +23,10 @@ interface AsyncRandomAccessInput : AsyncInput {
  * Create an AsyncRead that only reads a specific position and length
  * of an AsyncRandomAccessInput.
  */
-fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
+suspend fun AsyncRandomAccessInput.seekRead(position: Long, length: Long): AsyncRead {
+    if (position + length > size())
+        throw IllegalArgumentException("out of range")
+
     var total = 0L
     val buffer = ByteBufferList()
     return read@{
@@ -38,6 +41,13 @@ fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
     }
 }
 
+suspend fun AsyncRandomAccessInput.seekInput(position: Long, length: Long): AsyncInput {
+    val read = seekRead(position, length)
+    return object : AsyncInput, AsyncResource by this {
+        override suspend fun read(buffer: WritableBuffers) = read(buffer)
+    }
+}
+
 /**
  * AsyncRandomAccessStorage provides random access read and write to
  * resources. The resource may be locally stored, like a file, or remotely
@@ -45,7 +55,7 @@ fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
  */
 interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
     suspend fun writePosition(position: Long, buffer: ReadableBuffers) {
-        setPosition(position)
+        seekPosition(position)
         this::write.drain(buffer)
     }
     suspend fun truncate(size: Long)

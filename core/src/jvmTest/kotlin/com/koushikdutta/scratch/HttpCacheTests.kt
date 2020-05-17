@@ -8,7 +8,7 @@ import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
-import com.koushikdutta.scratch.http.client.middleware.useCache
+import com.koushikdutta.scratch.http.client.middleware.useFileCache
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import org.junit.Test
@@ -19,7 +19,7 @@ class HttpCacheTests {
     fun testHandlerExpecting(expecting: AsyncHttpResponse.() -> Unit, callback: AsyncHttpExecutor) {
         val client = AsyncHttpClient()
                 .buildUpon()
-                .useCache()
+                .useFileCache()
                 .build()
 
         client.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
@@ -86,7 +86,7 @@ class HttpCacheTests {
 
     @Test
     fun testConditionalCache() = testHandlerExpecting({
-        assertEquals(headers["X-Scratch-Cache"], "Cache")
+        assertEquals(headers["X-Scratch-Cache"], "ConditionalCache")
     }) {
         if (it.headers["If-None-Match"] == "hello") {
             StatusCode.NOT_MODIFIED()

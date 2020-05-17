@@ -105,7 +105,7 @@ class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: In
         return position
     }
 
-    override suspend fun setPosition(position: Long) {
+    override suspend fun seekPosition(position: Long) {
         this.position = position
     }
 
@@ -179,7 +179,7 @@ class NIOFile6(val server: AsyncEventLoop, file: File, var defaultReadLength: In
         return position
     }
 
-    override suspend fun setPosition(position: Long) {
+    override suspend fun seekPosition(position: Long) {
         this.position = position
     }
 

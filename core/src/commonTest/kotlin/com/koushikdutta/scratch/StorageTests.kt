@@ -32,7 +32,7 @@ class BufferStorage(buffer: ByteBufferList) : AsyncRandomAccessInput, AsyncAffin
         return byteBuffer.position().toLong()
     }
 
-    override suspend fun setPosition(position: Long) {
+    override suspend fun seekPosition(position: Long) {
         byteBuffer.position(position.toInt())
     }
 
@@ -75,7 +75,7 @@ class StorageTests {
             assertEquals("hello world", readAllString(storage::read))
             assertEquals("", readAllString(storage::read))
 
-            storage.setPosition(1)
+            storage.seekPosition(1)
             assertEquals("ello world", readAllString(storage::read))
             assertEquals("", readAllString(storage::read))
 
@@ -116,7 +116,7 @@ class StorageTests {
             assertEquals("hello world", readAllString(storage::read))
             assertEquals("", readAllString(storage::read))
 
-            storage.setPosition(1)
+            storage.seekPosition(1)
             assertEquals("ello world", readAllString(storage::read))
             assertEquals("", readAllString(storage::read))
 

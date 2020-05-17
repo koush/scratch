@@ -439,4 +439,15 @@ class HttpTests {
 
         readAllString(client.execute(Methods.GET("/pathOnly")).body!!)
     }
+
+    @Test
+    fun testTerseProxyServer() = asyncTest("hello world") {
+        val client = AsyncHttpServer(AsyncHttpServer {
+            StatusCode.OK(body = Utf8StringBody("hello world"))
+        }
+        .createFallbackClient()::execute)
+        .createFallbackClient()
+
+        readAllString(client.execute(Methods.GET("/pathOnly")).body!!)
+    }
 }

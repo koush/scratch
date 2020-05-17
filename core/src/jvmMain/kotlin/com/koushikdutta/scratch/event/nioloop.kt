@@ -188,7 +188,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
         override suspend fun slice(position: Long, length: Long): AsyncInput {
             val storage = openFile(file)
-            val read = storage.slice(position, length)
+            val read = storage.seekRead(position, length)
             return object : AsyncInput, AsyncResource by storage {
                 override suspend fun read(buffer: WritableBuffers) = read(buffer)
             }

@@ -5,14 +5,11 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
-import com.koushikdutta.scratch.crypto.sha256
+import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.extensions.encode
-import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpClientExecutor
-import com.koushikdutta.scratch.http.client.AsyncHttpExecutorBuilder
-import java.io.File
-import java.util.concurrent.TimeUnit
+import com.koushikdutta.scratch.http.server.createSliceableResponse
 import kotlin.random.Random
 
 /*
@@ -81,8 +78,6 @@ private fun AsyncHttpRequest.getCacheType(): CacheType {
 
     return CacheType.Unspecified
 }
-
-val tmpdir = System.getProperty("java.io.tmpdir")
 
 private val cacheableStatus = mutableSetOf(200, 301, 302, 308, 410)
 
@@ -196,28 +191,28 @@ private fun removeTransportHeaders(headers: Headers) {
     headers.remove("Content-Encoding")
 }
 
-private fun AsyncHttpRequest.uriKey(): String {
-    return uri.toString().encodeToByteArray().hash().sha256().encode().hex()
-}
-
 private class CachedResponse(val conditional: Boolean, responseLine: ResponseLine, headers: Headers, body: AsyncRead, sent: AsyncHttpMessageCompletion) : AsyncHttpResponse(responseLine, headers, body, sent)
 
-private class CacheExecutor(val next: AsyncHttpClientExecutor, val cacheDirectory: File) : AsyncHttpClientExecutor {
+interface CacheStorage: AsyncRandomAccessStorage {
+    suspend fun commit()
+    suspend fun abort()
+}
+
+interface Cache {
+    suspend fun openRead(key: String): AsyncRandomAccessInput?
+    suspend fun openWrite(key: String): CacheStorage
+    suspend fun remove(key: String)
+}
+
+class CacheExecutor(val next: AsyncHttpClientExecutor, val cache: Cache) : AsyncHttpClientExecutor {
     val sessionKey = randomHex()
     override val client = next.client
 
-    init {
-        cacheDirectory.mkdirs()
-    }
-
-    private fun createCachedResponse(conditional: Boolean, headerFile: File, dataFile: File, responseLine: ResponseLine, headers: Headers, cacheData: AsyncRandomAccessStorage): AsyncHttpResponse {
-        return CachedResponse(conditional, responseLine, headers, cacheData::read) {
-            if (it != null) {
-                // any error will purge the cache
-                headerFile.runCatching { delete() }
-                dataFile.runCatching { delete() }
-            }
-            cacheData.close()
+    private suspend fun AsyncHttpRequest.createCachedResponse(conditional: Boolean, key: String, responseLine: ResponseLine, headers: Headers, cacheData: AsyncRandomAccessInput): AsyncHttpResponse {
+        val start = cacheData.getPosition()
+        val size = cacheData.size() - start
+        return createSliceableResponse(size, headers) { position, length ->
+            cacheData.seekInput(start + position, length)
         }
     }
 
@@ -226,24 +221,27 @@ private class CacheExecutor(val next: AsyncHttpClientExecutor, val cacheDirector
         if (requestCacheType == CacheType.None)
             return null
 
-        val key = request.uriKey()
-        val headerFile = File(cacheDirectory, key)
-        val dataFile = File(cacheDirectory, "$key.data")
-        if (!headerFile.exists() || !dataFile.exists())
+        val key = request.uri.toString()
+        val entry = cache.openRead(key)
+        if (entry == null)
             return null
 
+        val reader = AsyncReader(entry::read)
         val responseLine: ResponseLine
         val headers: Headers
-        val headerData = eventLoop.openFile(headerFile, false)
         try {
-            val reader = AsyncReader(headerData::read)
-            responseLine = ResponseLine(reader.readScanUtf8String("\r\n").trim())
+            responseLine = ResponseLine(reader.readHttpMessageLine())
             headers = reader.readHeaderBlock()
         }
         catch (throwable: Throwable) {
-            headerData.close()
+            entry.close()
             throw throwable
         }
+
+        val cacheControl = headers.getResponseCacheControl(request)
+        // todo: vary unhandled, implement this.
+        if (cacheControl.vary != null)
+            return null
 
         // revalidate in case erroneously stored
         if (!responseLine.isCacheable())
@@ -251,41 +249,38 @@ private class CacheExecutor(val next: AsyncHttpClientExecutor, val cacheDirector
 
         // grab the cached headers and prepare to serve them if necessary
         removeTransportHeaders(headers)
-        headers["Content-Length"] = "${dataFile.length()}"
-        headers["X-Scratch-Cache"] = CacheResult.Cache.toString()
-
-        val cacheControl = headers.getResponseCacheControl(request)
-
-        // vary unhandled, implement this.
-        if (cacheControl.vary != null)
-            return null
+        val headerLength = entry.getPosition() - reader.buffered
+        entry.seekPosition(headerLength)
+        val dataLength = entry.size() - headerLength
+        headers["Content-Length"] = "${dataLength}"
 
         if (cacheControl.cacheType == CacheType.ConditionalCache) {
             if (cacheControl.etag != null)
                 request.headers["If-None-Match"] = cacheControl.etag!!
             if (cacheControl.lastModified != null)
                 request.headers["If-Modified-Since"] = cacheControl.lastModified!!
-            val cacheData = eventLoop.openFile(dataFile, false)
-            return createCachedResponse(true, headerFile, dataFile, responseLine, headers, cacheData)
+            headers["X-Scratch-Cache"] = CacheResult.ConditionalCache.toString()
+            return request.createCachedResponse(true, key, responseLine, headers, entry)
         }
+
+        headers["X-Scratch-Cache"] = CacheResult.Cache.toString()
 
         // only responses with explicit cache directives will be served
         if (cacheControl.cacheType != CacheType.ExplicitCache) {
-            headerData.close()
+            entry.close()
             return null
         }
 
         if (!cacheControl.immutable) {
             val cacheSession = headers[XScratchCacheSession]
             val cacheExpiration = headers[XScratchCacheExpiration]?.toLong()
-            if (cacheSession != sessionKey || cacheExpiration == null || cacheExpiration < System.nanoTime()) {
+            if (cacheSession != sessionKey || cacheExpiration == null || cacheExpiration < nanoTime()) {
                 // send expired back somehow?
                 return null
             }
         }
 
-        val cacheData = eventLoop.openFile(dataFile, false)
-        return createCachedResponse(false, headerFile, dataFile, responseLine, headers, cacheData)
+        return request.createCachedResponse(false, key, responseLine, headers, entry)
     }
 
     override suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
@@ -293,7 +288,7 @@ private class CacheExecutor(val next: AsyncHttpClientExecutor, val cacheDirector
             // attempt to retrieve directly from cache, or prepare any conditional cache headers
             val cacheResponse = prepareExecute(request)
             // response is cached for an explicit duration, can be served without sending the request
-            if (cacheResponse is CachedResponse && !cacheResponse.conditional)
+            if (cacheResponse != null && cacheResponse.headers["X-Scratch-Cache"] != CacheType.ConditionalCache.toString())
                 return cacheResponse
             cacheResponse
         }
@@ -306,7 +301,7 @@ private class CacheExecutor(val next: AsyncHttpClientExecutor, val cacheDirector
             val response = next.execute(request)
             // if the conditional response was successful, clean up the validated response and return
             // the cached response
-            if (conditionalResponse != null && response!!.code == StatusCode.NOT_MODIFIED.code) {
+            if (conditionalResponse != null && response.code == StatusCode.NOT_MODIFIED.code) {
                 // drain the body to allow socket reuse.
                 response.body?.drain()
                 return conditionalResponse
@@ -328,57 +323,43 @@ private class CacheExecutor(val next: AsyncHttpClientExecutor, val cacheDirector
             return response
 
         // attempt to cache
-        val key = request.uriKey()
-        val headerFile = File(cacheDirectory, key)
-        val dataFile = File(cacheDirectory, "$key.data")
-        val dataTmpFile = File(cacheDirectory, "$key.data.tmp")
+        val key = request.uri.toString()
+        val entry = cache.openWrite(key)
 
-        val data = try {
+        try {
             if (cacheControl.cacheType == CacheType.ExplicitCache && !cacheControl.immutable) {
                 // the expires header is problematic since it references server time.
                 // so are the max age directives, actually.
                 // time can be incorrect. attach the session key and only use the system clock.
                 val maxAge = (cacheControl.sMaxAge ?: cacheControl.maxAge)!!.toLong()
-                val expiration = System.nanoTime() + TimeUnit.SECONDS.toNanos(maxAge)
+                val expiration = nanoTime() + maxAge * 1000000000L
                 response.headers[XScratchCacheSession] = sessionKey
                 response.headers[XScratchCacheExpiration] = expiration.toString()
             }
 
-            val headers = eventLoop.openFile(headerFile, true)
             val buffer = ByteBufferList()
             buffer.putUtf8String(response.toMessageString())
-            headers::write.drain(buffer)
-            headers.close()
-
-            eventLoop.openFile(dataTmpFile, true)
+            entry::write.drain(buffer)
         }
         catch (throwable: Throwable) {
+            entry.close()
             return response
         }
 
         val body = response.body!!
         var error: Throwable? = null
-        val newBody = body.tee(data::write) {
+        val newBody = body.tee(entry::write) {
             if (it != null) {
                 // ignore any errors, but bail on the caching.
                 error = it
-                data.close()
-                dataTmpFile.delete()
+                entry.abort()
             }
             else if (error == null) {
                 // cached successfully, move the file into place
-                data.close()
-                dataTmpFile.renameTo(dataFile)
+                entry.commit()
             }
         }
 
         return AsyncHttpResponse(response.responseLine, response.headers, newBody, response.sent)
     }
-}
-
-fun AsyncHttpExecutorBuilder.useCache(cacheDirectory: File = File(tmpdir, "scratch-http-cache-" + randomHex())): AsyncHttpExecutorBuilder {
-    wrapExecutor {
-        CacheExecutor(it, cacheDirectory)
-    }
-    return this
 }

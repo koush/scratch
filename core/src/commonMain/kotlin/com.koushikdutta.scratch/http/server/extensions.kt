@@ -1,16 +1,15 @@
 package com.koushikdutta.scratch.http.server
 
+import com.koushikdutta.scratch.AsyncInput
 import com.koushikdutta.scratch.AsyncSliceable
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
 
-suspend fun AsyncHttpRequest.createSliceableResponse(input: AsyncSliceable, headers: Headers = Headers()): AsyncHttpResponse {
+suspend fun AsyncHttpRequest.createSliceableResponse(totalLength: Long, headers: Headers = Headers(), slice: suspend (position: Long, length: Long) -> AsyncInput): AsyncHttpResponse {
     val normalizedMethod = method.toUpperCase()
     val method = Methods.values().firstOrNull { it.name == normalizedMethod }
     if (method != Methods.GET && method != Methods.HEAD)
         return StatusCode.BAD_REQUEST()
-
-    val totalLength = input.size()
 
     headers["Accept-Ranges"] = "bytes"
 
@@ -44,7 +43,7 @@ suspend fun AsyncHttpRequest.createSliceableResponse(input: AsyncSliceable, head
         StatusCode.PARTIAL_CONTENT
 
     return if (method == Methods.GET) {
-        val asyncInput = input.slice(start, end - start + 1)
+        val asyncInput = slice(start, end - start + 1)
         val body = BinaryBody(asyncInput::read, contentLength = totalLength)
 
         status(headers, body) {

@@ -74,7 +74,7 @@ fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend AsyncH
         val input = handler(headers)
         if (input == null)
             return@set StatusCode.NOT_FOUND()
-        it.createSliceableResponse(input, headers)
+        it.createSliceableResponse(input.size(), headers, input::slice)
     }
 }
 
@@ -91,7 +91,7 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend AsyncH
 
             override suspend fun slice(position: Long, length: Long): AsyncInput {
                 // will only be called once.
-                val sliced = input.slice(position, length)
+                val sliced = input.seekRead(position, length)
 
                 return object : AsyncInput, AsyncAffinity by input {
                     override suspend fun read(buffer: WritableBuffers) = sliced(buffer)

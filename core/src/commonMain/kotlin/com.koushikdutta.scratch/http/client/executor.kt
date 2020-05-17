@@ -77,7 +77,7 @@ suspend fun AsyncHttpClientExecutor.randomAccess(uri: String): AsyncRandomAccess
             return currentPosition
         }
 
-        override suspend fun setPosition(position: Long) {
+        override suspend fun seekPosition(position: Long) {
             currentReader.swap(null)?.value?.close()
             currentPosition = position
             currentRemaining = 0
