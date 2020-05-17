@@ -8,19 +8,23 @@ import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
-import com.koushikdutta.scratch.http.client.middleware.useFileCache
+import com.koushikdutta.scratch.http.client.middleware.useMemoryCache
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class HttpCacheTests {
-    fun testHandlerExpecting(expecting: AsyncHttpResponse.() -> Unit, callback: AsyncHttpExecutor) {
-        val client = AsyncHttpClient()
+open class HttpCacheTests {
+    open fun createClient(): AsyncHttpClientExecutor {
+        return AsyncHttpClient()
                 .buildUpon()
-                .useFileCache()
+                .useMemoryCache()
                 .build()
+    }
+
+    fun testHandlerExpecting(expecting: AsyncHttpResponse.() -> Unit, callback: AsyncHttpExecutor) {
+        val client = createClient()
 
         client.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
             val server = AsyncHttpServer(callback)
@@ -40,7 +44,7 @@ class HttpCacheTests {
         val result = client.eventLoop.async {
             val get = Methods.GET("http://example.com")
             val data = readAllString(client.execute(get).body!!)
-            
+
             val data2 = client.get("http://example.com") {
                 expecting(it)
                 readAllString(it.body!!)

@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.http.client.middleware
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
@@ -9,6 +10,7 @@ import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpClientExecutor
+import com.koushikdutta.scratch.http.client.AsyncHttpExecutorBuilder
 import com.koushikdutta.scratch.http.server.createSliceableResponse
 import kotlin.random.Random
 
@@ -362,4 +364,39 @@ class CacheExecutor(val next: AsyncHttpClientExecutor, val cache: Cache) : Async
 
         return AsyncHttpResponse(response.responseLine, response.headers, newBody, response.sent)
     }
+}
+
+fun AsyncHttpExecutorBuilder.useMemoryCache(): AsyncHttpExecutorBuilder {
+    wrapExecutor {
+        CacheExecutor(it, cache = BufferCache())
+    }
+    return this
+}
+
+class BufferCache : Cache {
+    private val buffers = mutableMapOf<String, ByteBuffer>()
+
+    override suspend fun openRead(key: String): AsyncRandomAccessInput? {
+        val buffer = buffers[key]?.duplicate()
+        if (buffer == null)
+            return null
+        return BufferStorage(ByteBufferList(ByteBufferList.deepCopyExactSize(buffer)))
+    }
+
+    override suspend fun openWrite(key: String): CacheStorage {
+        val storage = BufferStorage(ByteBufferList())
+        return object : CacheStorage, AsyncRandomAccessStorage by storage {
+            override suspend fun commit() {
+                buffers[key] = storage.deepCopyByteBuffer()
+            }
+
+            override suspend fun abort() {
+            }
+        }
+    }
+
+    override suspend fun remove(key: String) {
+        buffers.remove(key)
+    }
+
 }

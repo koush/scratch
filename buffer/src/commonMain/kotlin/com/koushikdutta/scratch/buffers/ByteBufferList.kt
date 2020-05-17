@@ -568,6 +568,10 @@ class ByteBufferList : Buffers {
         fun deepCopy(copyOf: ByteBuffer): ByteBuffer {
             return obtain(copyOf.remaining()).put(copyOf.duplicate()).flip() as ByteBuffer
         }
+
+        fun deepCopyExactSize(copyOf: ByteBuffer): ByteBuffer {
+            return allocateByteBuffer(copyOf.remaining()).put(copyOf.duplicate()).flip() as ByteBuffer
+        }
     }
 }
 
