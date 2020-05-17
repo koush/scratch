@@ -6,6 +6,7 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
+import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.middleware.getHttpBody
@@ -13,22 +14,18 @@ import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.acceptHttpAsync
 import com.koushikdutta.scratch.parser.Parser
 
-open class AsyncHttpResponseScope(val request: AsyncHttpRequest)
-
-typealias AsyncHttpRequestHandler = suspend AsyncHttpResponseScope.() -> AsyncHttpResponse
-
 enum class HttpServerSocketStatus {
     KeepAlive,
     Close,
     Upgrade,
 }
 
-class AsyncHttpServer(private val handler: AsyncHttpRequestHandler): AsyncServer {
+class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
     private suspend fun acceptHttp2Connection(socket: AsyncSocket, reader: AsyncReader) {
         Http2Connection(socket, false, reader, false)
         .acceptHttpAsync {
             val response = try {
-                handler(AsyncHttpResponseScope(request))
+                executor(it)
             }
             catch (exception: Exception) {
                 println("internal server error")
@@ -71,7 +68,7 @@ class AsyncHttpServer(private val handler: AsyncHttpRequestHandler): AsyncServer
         val requestBody = getHttpBody(requestHeaders, reader, true)
         val request = AsyncHttpRequest(RequestLine(requestLine), requestHeaders, requestBody)
         val response = try {
-            handler(AsyncHttpResponseScope(request))
+            executor(request)
         }
         catch (throwable: Throwable) {
             println("internal server error")

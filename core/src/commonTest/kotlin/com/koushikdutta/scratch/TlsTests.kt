@@ -11,7 +11,6 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
-import execute
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -276,7 +275,7 @@ class TlsTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(request.body!!)
+            val data = readAllString(it.body!!)
             assertEquals(data, "hello world")
             StatusCode.OK(body = Utf8StringBody(data))
         }

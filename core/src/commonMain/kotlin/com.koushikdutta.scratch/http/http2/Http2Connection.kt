@@ -2,9 +2,6 @@ package com.koushikdutta.scratch.http.http2
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.AsyncHandler
-import com.koushikdutta.scratch.async.startSafeCoroutine
-import com.koushikdutta.scratch.atomic.AtomicBoolean
-import com.koushikdutta.scratch.atomic.AtomicThrowingLock
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -12,10 +9,9 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.StatusCode
+import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.http.http2.okhttp.*
 import com.koushikdutta.scratch.http.http2.okhttp.Settings.Companion.DEFAULT_INITIAL_WINDOW_SIZE
-import com.koushikdutta.scratch.http.server.AsyncHttpRequestHandler
-import com.koushikdutta.scratch.http.server.AsyncHttpResponseScope
 
 internal fun List<Header>.toHeaders(): Headers {
     val headers = Headers()
@@ -505,10 +501,10 @@ fun AsyncHttpResponse.createHttp2ConnectionHeader(): Headers {
     return Http2ExchangeCodec.createResponseHeaders(this)
 }
 
-fun Http2Connection.acceptHttpAsync(handler: AsyncHttpRequestHandler) = acceptAsync {
+fun Http2Connection.acceptHttpAsync(executor: AsyncHttpExecutor) = acceptAsync {
     val request = createHttp2Request()
     val response = try {
-        handler(AsyncHttpResponseScope(request))
+        executor(request)
     }
     catch (exception: Exception) {
         println("internal server error")

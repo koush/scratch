@@ -1,25 +1,22 @@
 package com.koushikdutta.scratch
 
-import buildUpon
 import com.koushikdutta.scratch.async.async
-import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.AsyncHttpResponse
+import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.Methods
+import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
+import com.koushikdutta.scratch.http.client.*
 import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.useCache
-import com.koushikdutta.scratch.http.server.AsyncHttpRequestHandler
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
-import get
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import execute
 
 class HttpCacheTests {
-    fun testHandlerExpecting(expecting: AsyncHttpResponse.() -> Unit, callback: AsyncHttpRequestHandler) {
+    fun testHandlerExpecting(expecting: AsyncHttpResponse.() -> Unit, callback: AsyncHttpExecutor) {
         val client = AsyncHttpClient()
                 .buildUpon()
                 .useCache()
@@ -91,7 +88,7 @@ class HttpCacheTests {
     fun testConditionalCache() = testHandlerExpecting({
         assertEquals(headers["X-Scratch-Cache"], "Cache")
     }) {
-        if (request.headers["If-None-Match"] == "hello") {
+        if (it.headers["If-None-Match"] == "hello") {
             StatusCode.NOT_MODIFIED()
         }
         else {
@@ -105,7 +102,7 @@ class HttpCacheTests {
     fun testConditionalCacheMismatch() = testHandlerExpecting({
         assertNull(headers["X-Scratch-Cache"])
     }) {
-        if (request.headers["If-None-Match"] == "world") {
+        if (it.headers["If-None-Match"] == "world") {
             StatusCode.NOT_MODIFIED()
         }
         else {

@@ -4,8 +4,8 @@ import com.koushikdutta.scratch.AsyncSliceable
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.body.BinaryBody
 
-suspend fun AsyncHttpResponseScope.createResponse(input: AsyncSliceable, headers: Headers = Headers()): AsyncHttpResponse {
-    val normalizedMethod = request.method.toUpperCase()
+suspend fun AsyncHttpRequest.createSliceableResponse(input: AsyncSliceable, headers: Headers = Headers()): AsyncHttpResponse {
+    val normalizedMethod = method.toUpperCase()
     val method = Methods.values().firstOrNull { it.name == normalizedMethod }
     if (method != Methods.GET && method != Methods.HEAD)
         return StatusCode.BAD_REQUEST()
@@ -14,7 +14,7 @@ suspend fun AsyncHttpResponseScope.createResponse(input: AsyncSliceable, headers
 
     headers["Accept-Ranges"] = "bytes"
 
-    val range = request.headers["Range"]
+    val range = this.headers["Range"]
     var start = 0L
     var end: Long = totalLength - 1L
     var partial = false
@@ -31,7 +31,7 @@ suspend fun AsyncHttpResponseScope.createResponse(input: AsyncSliceable, headers
             if (!parts[0].isEmpty()) start = parts[0].toLong()
             end = if (parts.size == 2 && !parts[1].isEmpty()) parts[1].toLong() else totalLength - 1
             partial = true
-            headers.set("Content-Range", "bytes $start-$end/$totalLength")
+            headers["Content-Range"] = "bytes $start-$end/$totalLength"
         }
         catch (e: Throwable) {
             return AsyncHttpResponse(ResponseLine(StatusCode.NOT_SATISFIABLE))

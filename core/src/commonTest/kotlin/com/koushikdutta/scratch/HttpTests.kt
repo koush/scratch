@@ -1,6 +1,5 @@
 package com.koushikdutta.scratch
 
-import buildUpon
 import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
 import com.koushikdutta.scratch.TestUtils.Companion.createUnboundRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
@@ -13,7 +12,6 @@ import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
-import execute
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -60,7 +58,7 @@ class HttpTests {
                 // would be cool to pipe hte request right back to the response
                 // without buffering, but the http spec does not work that way.
                 // entire request must be received before sending a response.
-                val data = readAllString(request.body!!)
+                val data = readAllString(it.body!!)
                 assertEquals(data, "hello world")
                 StatusCode.OK(body = Utf8StringBody(data))
             }
@@ -92,7 +90,7 @@ class HttpTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(request.body!!)
+            val data = readAllString(it.body!!)
             assertEquals(data, "hello world")
             StatusCode.OK(body = Utf8StringBody(data))
         }
@@ -188,7 +186,7 @@ class HttpTests {
         val httpServer = AsyncHttpServer {
             val buffer = ByteBufferList()
             // stream the data and digest it
-            while (request.body!!(buffer)) {
+            while (it.body!!(buffer)) {
                 val byteArray = buffer.readBytes()
                 received += byteArray.size
                 clientDigest.update(byteArray)
@@ -229,7 +227,7 @@ class HttpTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(request.body!!)
+            val data = readAllString(it.body!!)
             assertEquals(data, "hello world")
             StatusCode.OK(body = Utf8StringBody(data))
         }
@@ -262,7 +260,7 @@ class HttpTests {
             // entire request must be received before sending a response.
             var len = 0
             val buf = ByteBufferList()
-            while (request.body!!(buf)) {
+            while (it.body!!(buf)) {
                 len += buf.remaining()
                 buf.free()
             }
@@ -331,7 +329,7 @@ class HttpTests {
         val pipeServer = createAsyncPipeServerSocket()
         async {
             val httpServer = AsyncHttpServer {
-                if (request.uri.path == "/redirect")
+                if (it.uri.path == "/redirect")
                     StatusCode.movedPermanently("/")
                 else
                     StatusCode.OK(body = Utf8StringBody("hello world"))

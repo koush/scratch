@@ -7,12 +7,12 @@ import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.execute
 import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
-import execute
 import org.conscrypt.Conscrypt
 import org.junit.Test
 import javax.net.ssl.SSLContext
@@ -135,7 +135,7 @@ class TLSTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(request.body!!)
+            val data = readAllString(it.body!!)
             assert(data == "hello world")
             StatusCode.OK(body = Utf8StringBody(data))
         }

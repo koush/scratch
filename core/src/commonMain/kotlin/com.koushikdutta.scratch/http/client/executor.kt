@@ -1,22 +1,22 @@
+package com.koushikdutta.scratch.http.client
+
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.atomic.FreezableReference
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.client.*
-import com.koushikdutta.scratch.http.server.AsyncHttpResponseScope
 
-interface AsyncHttpExecutor {
+typealias AsyncHttpExecutor = suspend (request: AsyncHttpRequest) -> AsyncHttpResponse
+
+interface AsyncHttpClientExecutor {
     suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse
     val client: AsyncHttpClient
     val eventLoop: AsyncEventLoop
         get() = client.eventLoop
 }
 
-suspend fun AsyncHttpExecutor.execute(responseScope: AsyncHttpResponseScope) = execute(responseScope.request)
-
-suspend fun <R> AsyncHttpExecutor.execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
+suspend fun <R> AsyncHttpClientExecutor.execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
     return execute(request).handle(handler)
 }
 
@@ -29,34 +29,34 @@ internal suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHand
     }
 }
 
-class AsyncHttpExecutorBuilder(private var executor: AsyncHttpExecutor) {
-    fun build(): AsyncHttpExecutor {
+class AsyncHttpExecutorBuilder(private var executor: AsyncHttpClientExecutor) {
+    fun build(): AsyncHttpClientExecutor {
         return executor
     }
 
-    fun wrapExecutor(previous: (executor: AsyncHttpExecutor) -> AsyncHttpExecutor): AsyncHttpExecutorBuilder {
+    fun wrapExecutor(previous: (executor: AsyncHttpClientExecutor) -> AsyncHttpClientExecutor): AsyncHttpExecutorBuilder {
         executor = previous(executor)
         return this
     }
 }
 
-fun AsyncHttpExecutor.buildUpon(): AsyncHttpExecutorBuilder {
+fun AsyncHttpClientExecutor.buildUpon(): AsyncHttpExecutorBuilder {
     return AsyncHttpExecutorBuilder(this)
 }
 
-suspend fun <R> AsyncHttpExecutor.get(uri: String, handler: AsyncHttpResponseHandler<R>): R {
+suspend fun <R> AsyncHttpClientExecutor.get(uri: String, handler: AsyncHttpResponseHandler<R>): R {
     return execute(Methods.GET(uri), handler)
 }
 
-suspend fun <R> AsyncHttpExecutor.head(uri: String, handler: AsyncHttpResponseHandler<R>): R {
+suspend fun <R> AsyncHttpClientExecutor.head(uri: String, handler: AsyncHttpResponseHandler<R>): R {
     return execute(Methods.HEAD(uri), handler)
 }
 
-suspend fun <R> AsyncHttpExecutor.post(uri: String, handler: AsyncHttpResponseHandler<R>): R {
+suspend fun <R> AsyncHttpClientExecutor.post(uri: String, handler: AsyncHttpResponseHandler<R>): R {
     return execute(Methods.POST(uri), handler)
 }
 
-suspend fun AsyncHttpExecutor.randomAccess(uri: String): AsyncRandomAccessInput {
+suspend fun AsyncHttpClientExecutor.randomAccess(uri: String): AsyncRandomAccessInput {
     val contentLength = head(uri) {
         if (it.headers["Accept-Ranges"] != "bytes")
             throw IOException("$uri can not fulfill range requests")

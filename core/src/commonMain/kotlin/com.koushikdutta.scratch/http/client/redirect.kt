@@ -1,12 +1,9 @@
 package com.koushikdutta.scratch.http.client
 
-import AsyncHttpExecutor
-import AsyncHttpExecutorBuilder
 import com.koushikdutta.scratch.drain
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.uri.URI
-import execute
 
 private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: String) {
     val value = from.headers.get(header)
@@ -16,7 +13,7 @@ private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: Str
 
 private val defaultMaxRedirects = 5
 
-private class RedirectExecutor(val next: AsyncHttpExecutor, val maxRedirects: Int = defaultMaxRedirects) : AsyncHttpExecutor {
+private class RedirectExecutor(val next: AsyncHttpClientExecutor, val maxRedirects: Int = defaultMaxRedirects) : AsyncHttpClientExecutor {
     override val client = next.client
 
     private suspend fun handleRedirects(redirects: Int, request: AsyncHttpRequest, response: AsyncHttpResponse): AsyncHttpResponse {

@@ -1,6 +1,5 @@
 package com.koushikdutta.scratch.http.client
 
-import AsyncHttpExecutor
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.IOException
@@ -8,7 +7,6 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.*
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
-import handle
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
 
@@ -36,7 +34,7 @@ class AsyncHttpClientTransport(val socket: AsyncSocket, reader: AsyncReader? = n
     val reader = reader ?: AsyncReader(socket::read)
 }
 
-class AsyncHttpClientSession constructor(val executor: AsyncHttpExecutor, val request: AsyncHttpRequest) {
+class AsyncHttpClientSession constructor(val executor: AsyncHttpClientExecutor, val request: AsyncHttpRequest) {
     var transport: AsyncHttpClientTransport? = null
     var response: AsyncHttpResponse? = null
     var responseCompleted = false
@@ -56,7 +54,7 @@ interface AsyncHttpDetachedSocket {
 
 class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, override val socket: AsyncSocket, override val socketReader: AsyncReader): Exception(), AsyncHttpDetachedSocket
 
-class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop()): AsyncHttpExecutor {
+class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop()): AsyncHttpClientExecutor {
     val middlewares = mutableListOf<AsyncHttpClientMiddleware>()
     override val client = this
 

@@ -10,17 +10,16 @@ import com.koushikdutta.scratch.event.InetSocketAddress
 import com.koushikdutta.scratch.event.connect
 import com.koushikdutta.scratch.event.run
 import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.client.execute
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
-import execute
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.Test
@@ -305,7 +304,7 @@ class LoopTests {
             // entire request must be received before sending a response.
             var len = 0
             val buf = ByteBufferList()
-            while (request.body!!(buf)) {
+            while (it.body!!(buf)) {
                 len += buf.remaining()
                 buf.free()
             }

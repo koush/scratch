@@ -115,7 +115,7 @@ class Http2Tests {
         .acceptHttpAsync {
             val buffer = ByteBufferList()
             // stream the data and digest it
-            while (request.body!!(buffer)) {
+            while (it.body!!(buffer)) {
                 val byteArray = buffer.readBytes()
                 received += byteArray.size
                 clientDigest.update(byteArray)

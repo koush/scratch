@@ -6,7 +6,7 @@ import com.koushikdutta.scratch.http.http2.Http2Socket
 import com.koushikdutta.scratch.uri.URI
 
 internal class Http2ExchangeCodec {
-    companion object {
+    internal companion object {
         private const val CONNECTION = "connection"
         private const val HOST = "host"
         private const val KEEP_ALIVE = "keep-alive"

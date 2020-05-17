@@ -1,22 +1,16 @@
 package com.koushikdutta.scratch.http.client.middleware
 
-import AsyncHttpExecutor
-import AsyncHttpExecutorBuilder
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
 import com.koushikdutta.scratch.crypto.sha256
-import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSessionProperties
-import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
+import com.koushikdutta.scratch.http.client.AsyncHttpClientExecutor
+import com.koushikdutta.scratch.http.client.AsyncHttpExecutorBuilder
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -208,7 +202,7 @@ private fun AsyncHttpRequest.uriKey(): String {
 
 private class CachedResponse(val conditional: Boolean, responseLine: ResponseLine, headers: Headers, body: AsyncRead, sent: AsyncHttpMessageCompletion) : AsyncHttpResponse(responseLine, headers, body, sent)
 
-private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: File) : AsyncHttpExecutor {
+private class CacheExecutor(val next: AsyncHttpClientExecutor, val cacheDirectory: File) : AsyncHttpClientExecutor {
     val sessionKey = randomHex()
     override val client = next.client
 
