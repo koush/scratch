@@ -3,6 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.atomic.FreezableReference
 import com.koushikdutta.scratch.atomic.FreezableStack
 import kotlin.coroutines.*
+import kotlin.jvm.JvmStatic
 
 typealias PromiseThen<T, R> = suspend (T) -> R
 typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
@@ -159,5 +160,21 @@ open class PromiseBase<T> {
     fun rethrowIfDone() {
         val value = atomicReference.get()
         value?.value?.getOrThrow();
+    }
+
+    companion object {
+        @JvmStatic
+        fun <T> resolve(value: T): Promise<T> {
+            val ret = Promise<T>()
+            ret.resolve(value)
+            return ret
+        }
+
+        @JvmStatic
+        fun <T> reject(throwable: Throwable): Promise<T> {
+            val ret = Promise<T>()
+            ret.reject(throwable)
+            return ret
+        }
     }
 }

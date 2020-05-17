@@ -2,6 +2,7 @@
 
 package com.koushikdutta.scratch.buffers
 
+import kotlin.jvm.JvmStatic
 import kotlin.math.max
 import kotlin.math.min
 
@@ -546,8 +547,8 @@ class ByteBufferList : Buffers {
 
     companion object {
         val EMPTY_BYTEBUFFER = createByteBuffer(ByteArray(0))
-        var MAX_ITEM_SIZE = 65536
-        var MIN_ITEM_SIZE = 1024
+        const val MAX_ITEM_SIZE = 65536
+        const val MIN_ITEM_SIZE = 1024
         val totalObtained: Long
             get() = totalObtained2
         val totalObtainCount: Int
