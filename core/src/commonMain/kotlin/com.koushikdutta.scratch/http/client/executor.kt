@@ -8,37 +8,19 @@ import com.koushikdutta.scratch.http.client.*
 import com.koushikdutta.scratch.http.server.AsyncHttpResponseScope
 
 interface AsyncHttpExecutor {
-    suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse
+    suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse
     val client: AsyncHttpClient
     val eventLoop: AsyncEventLoop
         get() = client.eventLoop
 }
 
-suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSocket?, socketReader: AsyncReader? = null): AsyncHttpResponse {
-    if (socketReader != null && socket == null)
-        throw IllegalArgumentException("socket must not be null if socketReader is non null")
-
-    val session = AsyncHttpClientSession(this, request)
-    if (socket != null) {
-        session.transport = AsyncHttpClientTransport(socket, socketReader)
-        session.properties.manageSocket = false
-    }
-    return execute(session)
-}
-
-suspend fun AsyncHttpExecutor.execute(request: AsyncHttpRequest) = execute(request, null)
-suspend fun AsyncHttpExecutor.execute(responseScope: AsyncHttpResponseScope) = execute(responseScope.request, null)
+suspend fun AsyncHttpExecutor.execute(responseScope: AsyncHttpResponseScope) = execute(responseScope.request)
 
 suspend fun <R> AsyncHttpExecutor.execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
-    val session = AsyncHttpClientSession(this, request)
-    return execute(session).handle(handler)
+    return execute(request).handle(handler)
 }
 
-suspend fun <R> AsyncHttpExecutor.execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader, handler: AsyncHttpResponseHandler<R>): R {
-    return execute(request, socket, socketReader).handle(handler)
-}
-
-private suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHandler<R>): R {
+internal suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHandler<R>): R {
     try {
         return handler(this)
     }

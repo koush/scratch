@@ -8,6 +8,7 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.middleware.*
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
+import handle
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
 
@@ -69,7 +70,12 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
         middlewares.add(AsyncBodyDecoder())
     }
 
-    override suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
+    override suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
+        val session = AsyncHttpClientSession(this, request)
+        return execute(session)
+    }
+
+    suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
         var sent = false
         try {
             for (middleware in middlewares) {
@@ -126,3 +132,20 @@ class AsyncHttpClient(override val eventLoop: AsyncEventLoop = AsyncEventLoop())
         }
     }
 }
+
+suspend fun AsyncHttpClient.execute(request: AsyncHttpRequest, socket: AsyncSocket?, socketReader: AsyncReader? = null): AsyncHttpResponse {
+    if (socketReader != null && socket == null)
+        throw IllegalArgumentException("socket must not be null if socketReader is non null")
+
+    val session = AsyncHttpClientSession(this, request)
+    if (socket != null) {
+        session.transport = AsyncHttpClientTransport(socket, socketReader)
+        session.properties.manageSocket = false
+    }
+    return execute(session)
+}
+
+suspend fun <R> AsyncHttpClient.execute(request: AsyncHttpRequest, socket: AsyncSocket, socketReader: AsyncReader, handler: AsyncHttpResponseHandler<R>): R {
+    return execute(request, socket, socketReader).handle(handler)
+}
+

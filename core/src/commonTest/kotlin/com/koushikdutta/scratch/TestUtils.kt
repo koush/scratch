@@ -1,7 +1,12 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
+import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
+import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import kotlin.random.Random
 
 internal class ExpectedException: Exception()
@@ -50,3 +55,17 @@ suspend fun Collection<Promise<*>>.awaitAll() {
         promise.await()
     }
 }
+
+internal fun AsyncHttpServer.createFallbackClient(): AsyncHttpClient {
+    val pipeServer = AsyncPipeServerSocket()
+    listen(pipeServer)
+    val client = AsyncHttpClient()
+    client.middlewares.add(object : AsyncHttpClientMiddleware() {
+        override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
+            session.transport = AsyncHttpClientTransport(pipeServer.connect())
+            return true
+        }
+    })
+    return client
+}
+

@@ -197,18 +197,16 @@ fun randomHex(): String {
 private val XScratchCacheSession = "X-Scratch-Cache-Session"
 private val XScratchCacheExpiration = "X-Scratch-Cache-Expiration"
 
-private var AsyncHttpClientSessionProperties.conditionalResponse: Boolean
-    get() = getOrElse("scratchConditionalCache", { false }) as Boolean
-    set(value) = set("scratchConditionalCache", value)
-
 private fun removeTransportHeaders(headers: Headers) {
     headers.remove("Transfer-Encoding")
     headers.remove("Content-Encoding")
 }
 
-private fun AsyncHttpClientSession.uriKey(): String {
-    return request.uri.toString().encodeToByteArray().hash().sha256().encode().hex()
+private fun AsyncHttpRequest.uriKey(): String {
+    return uri.toString().encodeToByteArray().hash().sha256().encode().hex()
 }
+
+private class CachedResponse(val conditional: Boolean, responseLine: ResponseLine, headers: Headers, body: AsyncRead, sent: AsyncHttpMessageCompletion) : AsyncHttpResponse(responseLine, headers, body, sent)
 
 private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: File) : AsyncHttpExecutor {
     val sessionKey = randomHex()
@@ -218,8 +216,8 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         cacheDirectory.mkdirs()
     }
 
-    private fun createCachedResponse(headerFile: File, dataFile: File, responseLine: ResponseLine, headers: Headers, cacheData: AsyncRandomAccessStorage): AsyncHttpResponse {
-        return AsyncHttpResponse(responseLine, headers, cacheData::read) {
+    private fun createCachedResponse(conditional: Boolean, headerFile: File, dataFile: File, responseLine: ResponseLine, headers: Headers, cacheData: AsyncRandomAccessStorage): AsyncHttpResponse {
+        return CachedResponse(conditional, responseLine, headers, cacheData::read) {
             if (it != null) {
                 // any error will purge the cache
                 headerFile.runCatching { delete() }
@@ -229,12 +227,12 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         }
     }
 
-    private suspend fun prepareExecute(session: AsyncHttpClientSession): AsyncHttpResponse? {
-        val requestCacheType = session.request.getCacheType()
+    private suspend fun prepareExecute(request: AsyncHttpRequest): AsyncHttpResponse? {
+        val requestCacheType = request.getCacheType()
         if (requestCacheType == CacheType.None)
             return null
 
-        val key = session.uriKey()
+        val key = request.uriKey()
         val headerFile = File(cacheDirectory, key)
         val dataFile = File(cacheDirectory, "$key.data")
         if (!headerFile.exists() || !dataFile.exists())
@@ -262,7 +260,7 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         headers["Content-Length"] = "${dataFile.length()}"
         headers["X-Scratch-Cache"] = CacheResult.Cache.toString()
 
-        val cacheControl = headers.getResponseCacheControl(session.request)
+        val cacheControl = headers.getResponseCacheControl(request)
 
         // vary unhandled, implement this.
         if (cacheControl.vary != null)
@@ -270,13 +268,11 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
 
         if (cacheControl.cacheType == CacheType.ConditionalCache) {
             if (cacheControl.etag != null)
-                session.request.headers["If-None-Match"] = cacheControl.etag!!
+                request.headers["If-None-Match"] = cacheControl.etag!!
             if (cacheControl.lastModified != null)
-                session.request.headers["If-Modified-Since"] = cacheControl.lastModified!!
+                request.headers["If-Modified-Since"] = cacheControl.lastModified!!
             val cacheData = eventLoop.openFile(dataFile, false)
-            val conditionalResponse = createCachedResponse(headerFile, dataFile, responseLine, headers, cacheData)
-            session.properties.conditionalResponse = true
-            return conditionalResponse
+            return createCachedResponse(true, headerFile, dataFile, responseLine, headers, cacheData)
         }
 
         // only responses with explicit cache directives will be served
@@ -295,25 +291,15 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         }
 
         val cacheData = eventLoop.openFile(dataFile, false)
-        val socket = object : AsyncSocket, AsyncInput by cacheData  {
-            override suspend fun write(buffer: ReadableBuffers) {
-                buffer.free()
-            }
-        }
-
-        val socketReader = AsyncReader(socket::read)
-        val response = createCachedResponse(headerFile, dataFile, responseLine, headers, cacheData)
-        session.transport = AsyncHttpClientTransport(socket, socketReader)
-        session.response = response
-        return response
+        return createCachedResponse(false, headerFile, dataFile, responseLine, headers, cacheData)
     }
 
-    override suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
+    override suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
         val conditionalResponse = try {
             // attempt to retrieve directly from cache, or prepare any conditional cache headers
-            val cacheResponse = prepareExecute(session)
+            val cacheResponse = prepareExecute(request)
             // response is cached for an explicit duration, can be served without sending the request
-            if (cacheResponse != null && !session.properties.conditionalResponse)
+            if (cacheResponse is CachedResponse && !cacheResponse.conditional)
                 return cacheResponse
             cacheResponse
         }
@@ -323,10 +309,10 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         }
 
         val response = try {
-            val response = next.execute(session)
+            val response = next.execute(request)
             // if the conditional response was successful, clean up the validated response and return
             // the cached response
-            if (conditionalResponse != null && session.response!!.code == StatusCode.NOT_MODIFIED.code) {
+            if (conditionalResponse != null && response!!.code == StatusCode.NOT_MODIFIED.code) {
                 // drain the body to allow socket reuse.
                 response.body?.drain()
                 return conditionalResponse
@@ -343,12 +329,12 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
         if (!response.responseLine.isCacheable())
             return response
 
-        val cacheControl = session.response!!.headers.getResponseCacheControl(session.request)
+        val cacheControl = response.headers.getResponseCacheControl(request)
         if (cacheControl.cacheType == CacheType.None)
             return response
 
         // attempt to cache
-        val key = session.uriKey()
+        val key = request.uriKey()
         val headerFile = File(cacheDirectory, key)
         val dataFile = File(cacheDirectory, "$key.data")
         val dataTmpFile = File(cacheDirectory, "$key.data.tmp")
@@ -360,13 +346,13 @@ private class CacheExecutor(val next: AsyncHttpExecutor, val cacheDirectory: Fil
                 // time can be incorrect. attach the session key and only use the system clock.
                 val maxAge = (cacheControl.sMaxAge ?: cacheControl.maxAge)!!.toLong()
                 val expiration = System.nanoTime() + TimeUnit.SECONDS.toNanos(maxAge)
-                session.response!!.headers[XScratchCacheSession] = sessionKey
-                session.response!!.headers[XScratchCacheExpiration] = expiration.toString()
+                response.headers[XScratchCacheSession] = sessionKey
+                response.headers[XScratchCacheExpiration] = expiration.toString()
             }
 
             val headers = eventLoop.openFile(headerFile, true)
             val buffer = ByteBufferList()
-            buffer.putUtf8String(session.response!!.toMessageString())
+            buffer.putUtf8String(response.toMessageString())
             headers::write.drain(buffer)
             headers.close()
 

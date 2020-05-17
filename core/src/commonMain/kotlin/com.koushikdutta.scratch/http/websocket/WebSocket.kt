@@ -211,13 +211,16 @@ private fun addWebsocketHeaders(headers: Headers, vararg protocols: String) {
 class WebSocketException(message: String): IOException(message)
 private const val MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
-suspend fun AsyncHttpExecutor.connectWebSocket(uri: String, socket: AsyncSocket? = null, reader: AsyncReader? = null, headers: Headers = Headers(), vararg protocols: String): WebSocket {
-    val request = Methods.GET(uri, headers)
+suspend fun AsyncHttpExecutor.connectWebSocket(uri: String, vararg protocols: String): WebSocket {
+    return connectWebSocket(Methods.GET(uri), *protocols)
+}
 
+suspend fun AsyncHttpExecutor.connectWebSocket(request: AsyncHttpRequest, vararg protocols: String): WebSocket {
+    val headers = request.headers
     addWebsocketHeaders(headers)
 
     try {
-        val response = execute(request, socket, reader)
+        val response = execute(request)
         response.close()
         throw IOException("WebSocket connection failed.")
     }

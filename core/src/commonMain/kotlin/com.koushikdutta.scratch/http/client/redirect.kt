@@ -19,7 +19,7 @@ private val defaultMaxRedirects = 5
 private class RedirectExecutor(val next: AsyncHttpExecutor, val maxRedirects: Int = defaultMaxRedirects) : AsyncHttpExecutor {
     override val client = next.client
 
-    private suspend fun handleRedirects(redirects: Int, executor: AsyncHttpExecutor, request: AsyncHttpRequest, response: AsyncHttpResponse): AsyncHttpResponse {
+    private suspend fun handleRedirects(redirects: Int, request: AsyncHttpRequest, response: AsyncHttpResponse): AsyncHttpResponse {
         val responseCode = response.code
         // valid redirects
         if (responseCode != 301 && responseCode != 302 && responseCode != 307)
@@ -44,11 +44,11 @@ private class RedirectExecutor(val next: AsyncHttpExecutor, val maxRedirects: In
         copyHeader(request, newRequest, "User-Agent")
         copyHeader(request, newRequest, "Range")
 
-        return handleRedirects(redirects - 1, executor, newRequest, executor.execute(newRequest))
+        return handleRedirects(redirects - 1,  newRequest, next.execute(newRequest))
     }
 
-    override suspend fun execute(session: AsyncHttpClientSession): AsyncHttpResponse {
-        return handleRedirects(maxRedirects, session.executor, session.request, next.execute(session))
+    override suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
+        return handleRedirects(maxRedirects, request, next.execute(request))
     }
 }
 

@@ -145,20 +145,18 @@ class WebsocketTests {
 
     @Test
     fun testWebSocketServer() {
-        val pipeServerSocket = AsyncPipeServerSocket()
         val router = AsyncHttpRouter()
         val httpServer = AsyncHttpServer(router::handle)
-        httpServer.listen(pipeServerSocket)
 
-        val webSocketServer = router.webSocket("/")
+        val webSocketServer = router.webSocket("/websocket")
         var data: String? = null
         webSocketServer.acceptAsync {
             data = readAllString(this::read)
         }
 
-        val httpClient = AsyncHttpClient()
+        val httpClient = httpServer.createFallbackClient()
         async {
-            val clientSocket = httpClient.connectWebSocket("http://example.org", pipeServerSocket.connect())
+            val clientSocket = httpClient.connectWebSocket("/websocket")
             clientSocket::write.drain("hello".createByteBufferList())
             clientSocket::write.drain("world".createByteBufferList())
             clientSocket.close()

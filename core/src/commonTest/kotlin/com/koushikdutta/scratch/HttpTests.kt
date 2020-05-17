@@ -418,19 +418,6 @@ class HttpTests {
         }
     }
 
-    private fun AsyncHttpServer.createFallbackClient(): AsyncHttpClient {
-        val pipeServer = AsyncPipeServerSocket()
-        listen(pipeServer)
-        val client = AsyncHttpClient()
-        client.middlewares.add(object : AsyncHttpClientMiddleware() {
-            override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                session.transport = AsyncHttpClientTransport(pipeServer.connect())
-                return true
-            }
-        })
-        return client
-    }
-
     @Test
     fun testNoHostFallback() = asyncTest("hello world") {
         val httpServer = AsyncHttpServer {
