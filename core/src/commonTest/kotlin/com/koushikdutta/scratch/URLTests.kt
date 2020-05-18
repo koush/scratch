@@ -9,11 +9,6 @@ import com.koushikdutta.scratch.uri.URLEncoder
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-fun URI.parseQuery(): StringMultimap {
-    val ret = parseQuery(query)
-    return ret
-}
-
 class URLTests {
     @Test
     fun testDecodeEncode() {
