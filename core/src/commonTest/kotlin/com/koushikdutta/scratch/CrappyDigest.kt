@@ -1,21 +1,18 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.crypto.SHA1
 
 class CrappyDigest {
-    private var digest: Long = 0
-    private var count = 0
+    val sha1 = SHA1()
     fun update(byteArray: ByteArray, startIndex: Int = 0, endIndex: Int = byteArray.size): CrappyDigest {
-        for (b in byteArray.sliceArray(IntRange(startIndex, endIndex - 1))) {
-            digest = digest xor (b.toLong() shl (count % (64 - 8)))
-            count++
-        }
+        sha1.update(byteArray, startIndex, endIndex - startIndex)
         return this
     }
 
     fun digest(): ByteArray {
         val b = ByteBufferList()
-        b.putLong(digest)
+        b.add(sha1.final())
         return b.readBytes()
     }
 

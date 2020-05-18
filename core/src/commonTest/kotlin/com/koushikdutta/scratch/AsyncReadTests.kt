@@ -24,11 +24,11 @@ class AsyncReadTests {
 
     @Test
     fun testCount() {
-        val random = TestUtils.createRandomRead(100000000)
+        val random = TestUtils.createRandomRead(1000000)
         var count = 0
         async {
             count = random.countBytes()
         }
-        assertEquals(count, 100000000)
+        assertEquals(count, 1000000)
     }
 }

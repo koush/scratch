@@ -3,8 +3,8 @@ package com.koushikdutta.scratch.crypto
 import java.security.MessageDigest
 
 class MessageDigestHash(private val digest: MessageDigest): Hash {
-    override fun update(byteArray: ByteArray) {
-        digest.update(byteArray)
+    override fun update(byteArray: ByteArray, offset: Int, len: Int) {
+        digest.update(byteArray, offset, len)
     }
 
     override fun final(): ByteArray {

@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 
 private val interruptBuffer = ByteBufferList()
 
-internal class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
+class PipeSocket: AsyncSocket, AsyncAffinity by NO_AFFINITY {
     private val baton = Baton<ReadableBuffers?>()
 
     override suspend fun read(buffer: WritableBuffers): Boolean {

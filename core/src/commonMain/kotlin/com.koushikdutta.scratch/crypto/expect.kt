@@ -3,7 +3,7 @@ package com.koushikdutta.scratch.crypto
 import com.koushikdutta.scratch.extensions.HashExtensions
 
 interface Hash {
-    fun update(byteArray: ByteArray)
+    fun update(byteArray: ByteArray, offset: Int = 0, len: Int = byteArray.size)
     fun final(): ByteArray
 }
 

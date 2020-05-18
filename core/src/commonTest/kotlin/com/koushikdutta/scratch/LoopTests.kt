@@ -33,6 +33,7 @@ class LoopTests {
 
         val result = networkContext.async {
             runner(networkContext)
+            println("runner done")
         }
         result.finally {
             networkContext.stop()
@@ -180,8 +181,8 @@ class LoopTests {
                 reader.readUtf8String(1)
         }
         catch (exception: IOException) {
-            server.close()
         }
+        server.close()
         observer.awaitClose()
     }
 
@@ -219,7 +220,7 @@ class LoopTests {
         val server = listen(0)
 
         server.acceptAsync {
-            TestUtils.createRandomRead(100000000).copy(::write)
+            TestUtils.createRandomRead(10000000).copy(::write)
             close()
         }
 
@@ -228,7 +229,7 @@ class LoopTests {
         }
         .await()
 
-        assertEquals(count, 100000000)
+        assertEquals(count, 10000000)
         // socket should quickly hit a 64k read buffer max as the underlying allocator grows
         // to handle the data rate.
         // 10000 for write
@@ -296,7 +297,7 @@ class LoopTests {
 
     @Test
     fun testHttpALot() = networkContextTest {
-        val postLength = 1000000
+        val postLength = 100000
         val server = listen(0, null, 10000)
         val httpServer = AsyncHttpServer {
             // would be cool to pipe hte request right back to the response

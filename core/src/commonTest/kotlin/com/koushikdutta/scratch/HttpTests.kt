@@ -252,7 +252,7 @@ class HttpTests {
 
     @Test
     fun testHttpPipeServerALot() {
-        val postLength = 1000000
+        val postLength = 1000
         val server = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
             // would be cool to pipe hte request right back to the response
@@ -274,10 +274,10 @@ class HttpTests {
         val httpClient = AsyncHttpClient()
         val random = Random.Default
 
-        for (i in 1..10000) {
+        for (i in 1..1000) {
             async {
                 val socket = server.connect()
-                val reader = AsyncReader({ socket.read(it) })
+                val reader = AsyncReader(socket::read)
 
                 val request =
                     AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = createRandomRead(postLength))
@@ -287,7 +287,7 @@ class HttpTests {
             }
         }
 
-        assertEquals(requestsCompleted, 10000)
+        assertEquals(requestsCompleted, 1000)
     }
 
     @Test

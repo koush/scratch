@@ -31,14 +31,14 @@ class ByteBufferListTests {
         var done = false
         val start = ByteBufferList.totalObtained
         async {
-            val chunked = TestUtils.createRandomRead(100000000)
+            val chunked = TestUtils.createRandomRead(1000000)
                 .pipe(ChunkedOutputPipe)
             val length = AsyncReader(chunked)
                 .pipe(ChunkedInputPipe)
                 .countBytes()
 
             // another read should still indicate eos
-            assertEquals(length, 100000000)
+            assertEquals(length, 1000000)
             done = true
         }
         assertTrue(done)

@@ -50,7 +50,7 @@ class Http2Tests {
         // 100 mb body
         val serverDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
-        val packetSize = 10000
+        val packetSize = 1000000
         val body: AsyncRead = AsyncReader {
             it.putAllocatedBytes(packetSize) { bytes, bytesOffset ->
                 random.nextBytes(bytes, bytesOffset, bytesOffset + packetSize)
@@ -100,7 +100,7 @@ class Http2Tests {
         val serverDigest = CrappyDigest.getInstance()
         val clientDigest = CrappyDigest.getInstance()
         // generate ~100mb of random data and digest it.
-        val packetSize = 10000
+        val packetSize = 1000000
         val body: AsyncRead = AsyncReader {
                 it.putAllocatedBytes(packetSize) { bytes, bytesOffset ->
                     random.nextBytes(bytes, bytesOffset, bytesOffset + packetSize)
