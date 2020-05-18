@@ -215,6 +215,8 @@ suspend fun AsyncHttpClientExecutor.connectWebSocket(uri: String, vararg protoco
 
 suspend fun AsyncHttpClientExecutor.connectWebSocket(request: AsyncHttpRequest, vararg protocols: String): WebSocket {
     val headers = request.headers
+    if (protocols.isNotEmpty())
+        headers["Sec-WebSocket-Protocol"] = protocols.joinToString(",")
     addWebsocketHeaders(headers)
 
     try {
@@ -264,13 +266,14 @@ fun AsyncHttpRequest.upgradeWebsocket(protocol: String? = null, block: suspend (
 
     val requestHeaders = headers
     val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"])["Upgrade"] != null
+    val protocols = parseCommaDelimited(requestHeaders["Sec-WebSocket-Protocol"])
     if (!hasConnectionUpgrade)
         throw WebSocketUpgradeException("Connection Upgrade expected")
     if (!"WebSocket".equals(requestHeaders["Upgrade"], true))
         throw WebSocketUpgradeException("Upgrade to WebSocket expected")
 
-    if (protocol != requestHeaders["Sec-WebSocket-Protocol"])
-        throw WebSocketUpgradeException("WebSocket Protocol Mismatch")
+    if (protocol != null && !protocols.containsKey(protocol))
+        throw WebSocketUpgradeException("WebSocket Protocol Mismatch $protocol ${requestHeaders["Sec-WebSocket-Protocol"]}")
 
     val key = requestHeaders["Sec-WebSocket-Key"]
     if (key == null)
