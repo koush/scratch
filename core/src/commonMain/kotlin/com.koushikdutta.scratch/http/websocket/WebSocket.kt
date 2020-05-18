@@ -38,6 +38,8 @@ interface WebSocketMessage {
         get() = false
     val isPong: Boolean
         get() = false
+    val isClose: Boolean
+        get() = false
 }
 
 class WebSocketCloseMessage(val code: Int, val reason: String)
@@ -80,7 +82,9 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
             if (message.opcode == HybiParser.OP_CLOSE) {
                 val reason = readAllString(message.read)
                 closeMessage = WebSocketCloseMessage(message.closeCode, reason)
-                throw IOException("websocket closed")
+                return object : WebSocketMessage {
+                    override val isClose = true
+                }
             }
             else if (message.opcode == HybiParser.OP_PING) {
                 val ping = readAllString(message.read)
@@ -151,6 +155,9 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
             }
             else if (message.isText) {
                 throw IOException("WebSocket expected binary data, but received text")
+            }
+            else if (message.isClose) {
+                continue
             }
 
             message.binary.read(buffer)

@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.server.webSocket

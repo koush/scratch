@@ -154,8 +154,18 @@ class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localAddress: 
         closeInternal()
     }
 
+    override suspend fun close(throwable: Throwable) {
+        await()
+        socket.free()
+        closeInternal(throwable)
+    }
+
     private fun closeInternal() {
         queue.end()
+    }
+
+    private fun closeInternal(throwable: Throwable) {
+        queue.end(throwable)
     }
 }
 
