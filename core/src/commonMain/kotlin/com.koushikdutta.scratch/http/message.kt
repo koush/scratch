@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.http
 
 import com.koushikdutta.scratch.AsyncRandomAccessInput
 import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.uri.URI
 
@@ -81,9 +82,6 @@ class RequestLine {
     }
 }
 
-typealias AsyncHttpRequestProperties = MutableMap<String, Any>
-typealias AsyncHttpResponseProperties = MutableMap<String, Any>
-
 open class AsyncHttpRequest : AsyncHttpMessage {
     val requestLine: RequestLine
     constructor(requestLine: RequestLine, headers: Headers, body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
@@ -131,6 +129,12 @@ open class AsyncHttpRequest : AsyncHttpMessage {
 
     // need this for extension methods
     companion object
+}
+
+fun AsyncHttpRequest.parseQuery(): Multimap<String, String> {
+    val ret = Multimap<String, String>()
+
+    return ret
 }
 
 class ResponseLine {

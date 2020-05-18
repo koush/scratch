@@ -6,7 +6,8 @@ import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.websocket.WebSocketServerSocket
 import com.koushikdutta.scratch.http.websocket.upgradeWebsocket
 
-class AsyncHttpRouteHandlerScope(val match: MatchResult)
+open class AsyncHttpRouteHandlerScope(val match: MatchResult)
+class AsyncHttpRouterResultHandlerScope(val headers: Headers, match: MatchResult): AsyncHttpRouteHandlerScope(match)
 
 typealias AsyncRouterResponseHandler = suspend AsyncHttpRouteHandlerScope.(request: AsyncHttpRequest) -> AsyncHttpResponse
 
@@ -68,19 +69,19 @@ fun AsyncHttpRouter.get(pathRegex: String, handler: AsyncRouterResponseHandler) 
 fun AsyncHttpRouter.post(pathRegex: String, handler: AsyncRouterResponseHandler) = set("POST", pathRegex, handler)
 fun AsyncHttpRouter.put(pathRegex: String, handler: AsyncRouterResponseHandler) = set("PUT", pathRegex, handler)
 
-fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend AsyncHttpRouteHandlerScope.(headers: Headers) -> AsyncSliceable?) {
+fun AsyncHttpRouter.randomAccessSlice(pathRegex: String, handler: suspend AsyncHttpRouterResultHandlerScope.(request: AsyncHttpRequest) -> AsyncSliceable?) {
     set(null, pathRegex) {
         val headers = Headers()
-        val input = handler(headers)
+        val input = handler(AsyncHttpRouterResultHandlerScope(headers, match), it)
         if (input == null)
             return@set StatusCode.NOT_FOUND()
         it.createSliceableResponse(input.size(), headers, input::slice)
     }
 }
 
-fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend AsyncHttpRouteHandlerScope.(headers: Headers) -> AsyncRandomAccessInput?) {
-    return randomAccessSlice(pathRegex) { headers ->
-        val input = handler(headers)
+fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend AsyncHttpRouterResultHandlerScope.(request: AsyncHttpRequest) -> AsyncRandomAccessInput?) {
+    return randomAccessSlice(pathRegex) {
+        val input = handler(this, it)
         if (input == null)
             return@randomAccessSlice null
 

@@ -378,4 +378,19 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 private class AsyncSelectorException(e: Exception) : IOException(e)
 private class NIOLoopShutdownException: Exception()
 
+fun AsyncEventLoop.startThread(name: String = "NIOLoop"): Promise<Unit> {
+    val deferred = Deferred<Unit>()
+    Thread({
+        try {
+            run()
+        }
+        catch (throwable: Throwable) {
+            deferred.reject(throwable)
+        }
+    }, name).start()
 
+    post {
+        deferred.resolve(Unit)
+    }
+    return deferred.promise
+}
