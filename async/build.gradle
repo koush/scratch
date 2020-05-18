@@ -40,7 +40,7 @@ kotlin {
         commonMain {
             dependencies {
                 implementation kotlin('stdlib-common')
-                api project(':scratch:atomic')
+                implementation project(':scratch:atomic')
             }
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name

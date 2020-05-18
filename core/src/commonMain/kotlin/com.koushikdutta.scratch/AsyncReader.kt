@@ -227,4 +227,8 @@ class AsyncReader(val input: AsyncRead) {
     }
 }
 
+suspend fun AsyncReader.readLine(): String {
+    return readScanUtf8String("\n").trimEnd('\n')
+}
+
 typealias AsyncReaderPipe = suspend AsyncPipeIteratorScope.(reader: AsyncReader) -> Unit

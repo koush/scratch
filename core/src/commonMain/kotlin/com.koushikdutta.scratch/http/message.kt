@@ -3,6 +3,8 @@ package com.koushikdutta.scratch.http
 import com.koushikdutta.scratch.AsyncRandomAccessInput
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.collections.Multimap
+import com.koushikdutta.scratch.collections.StringMultimap
+import com.koushikdutta.scratch.collections.parseQuery
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.uri.URI
 
@@ -131,10 +133,8 @@ open class AsyncHttpRequest : AsyncHttpMessage {
     companion object
 }
 
-fun AsyncHttpRequest.parseQuery(): Multimap<String, String> {
-    val ret = Multimap<String, String>()
-
-    return ret
+fun AsyncHttpRequest.parseQuery(): StringMultimap {
+    return uri.parseQuery()
 }
 
 class ResponseLine {

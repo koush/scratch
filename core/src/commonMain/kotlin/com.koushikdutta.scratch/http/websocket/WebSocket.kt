@@ -54,10 +54,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
     val isEnded
         get() = parser.isEnded
 
-    suspend fun readMessage(): WebSocketMessage? {
-        if (isEnded)
-            return null
-
+    suspend fun readMessage(): WebSocketMessage {
         val payload = ByteBufferList()
         var opcode: Int? = null
         while (true) {
@@ -83,7 +80,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
             if (message.opcode == HybiParser.OP_CLOSE) {
                 val reason = readAllString(message.read)
                 closeMessage = WebSocketCloseMessage(message.closeCode, reason)
-                return null
+                throw IOException("websocket closed")
             }
             else if (message.opcode == HybiParser.OP_PING) {
                 val ping = readAllString(message.read)

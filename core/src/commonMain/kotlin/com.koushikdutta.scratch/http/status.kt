@@ -18,6 +18,7 @@ enum class StatusCode(val code: Int, val message: String, val hasBody: Boolean =
     PARTIAL_CONTENT(206, "Partial Content"),
     FOUND(302, "Found"),
     BAD_REQUEST(400, "Bad Request"),
+    UNAUTHORIZED(401, "Unauthorized"),
     NOT_FOUND(404, "Not Found"),
     NOT_SATISFIABLE(416, "Not Satisfiable"),
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),

@@ -166,7 +166,7 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
             }
             catch (throwable: Throwable) {
                 close(throwable)
-                throw throwable
+                throw Exception("write error", throwable)
             }
         }
     }

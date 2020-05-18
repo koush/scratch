@@ -52,9 +52,9 @@ kotlin {
         commonMain {
             dependencies {
                 implementation kotlin('stdlib-common')
-                api project(':scratch:buffer')
-                api project(':scratch:atomic')
-                api project(':scratch:async')
+                implementation project(':scratch:buffer')
+                implementation project(':scratch:atomic')
+                implementation project(':scratch:async')
             }
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
