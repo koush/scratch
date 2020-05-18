@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch.collections
 
+import com.koushikdutta.scratch.uri.URI
 import com.koushikdutta.scratch.uri.URLDecoder
 
 typealias Multimap<K, V> = MutableMap<K, MutableList<V>>
@@ -84,4 +85,9 @@ val URL_DECODER: StringDecoder = {
 
 fun parseUrlEncoded(query: String?): StringMultimap {
     return parseStringMultimap(query, "&", false, URL_DECODER)
+}
+
+fun URI.parseQuery(): StringMultimap {
+    val ret = parseQuery(query)
+    return ret
 }
