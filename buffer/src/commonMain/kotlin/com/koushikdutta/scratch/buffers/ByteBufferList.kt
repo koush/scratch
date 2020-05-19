@@ -518,8 +518,10 @@ class ByteBufferList : Buffers {
 
     private val maxReclaimed = 500
     override fun reclaim(vararg buffers: ByteBuffer?) {
-//        if (freeBuffers.size > maxReclaimed)
-//            throw AssertionError("ByteBufferList has reclaimed over $maxReclaimed buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+        if (freeBuffers.size > maxReclaimed)
+            println("ByteBufferList has reclaimed over $maxReclaimed (${freeBuffers.size}) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+        if (freeBuffers.size > maxReclaimed * 2)
+            freeBuffers.clear()
         reclaimInternal(*buffers)
     }
 
@@ -535,8 +537,10 @@ class ByteBufferList : Buffers {
     }
 
     override fun giveReclaimedBuffers(into: ArrayList<ByteBuffer>) {
-//        if (into.size > maxReclaimed)
-//            throw AssertionError("ByteBufferList has obtained over $maxReclaimed buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+        if (into.size > maxReclaimed)
+            println("ByteBufferList has obtained over $maxReclaimed ($into.size) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+        if (into.size > maxReclaimed * 2)
+            into.clear()
         into.addAll(freeBuffers)
         freeBuffers.clear()
     }

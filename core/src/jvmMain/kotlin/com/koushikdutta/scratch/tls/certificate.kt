@@ -83,6 +83,9 @@ actual fun SSLContext.init(pk: RSAPrivateKey, certificate: X509Certificate): SSL
     val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
     kmf.init(ks, "".toCharArray())
 
+    // this is failing on android when a provider is given. unsure why. PKIX not found or whatever.
+    // inverse of a related issue?
+    // https://github.com/google/conscrypt/issues/733
     val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), provider)
     tmf.init(ks)
 

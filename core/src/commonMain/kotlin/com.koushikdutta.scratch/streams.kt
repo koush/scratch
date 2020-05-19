@@ -125,6 +125,14 @@ fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
     return genericPipe(this, pipe)
 }
 
+suspend fun AsyncSocket.stream(peer: AsyncSocket) {
+    val other = Promise {
+        peer::read.copy(::write)
+    }
+    ::read.copy(peer::write)
+    other.await()
+}
+
 fun AsyncRead.tee(asyncWrite: AsyncWrite, callback: suspend (throwable: Throwable?) -> Unit = { if (it != null) throw it }): AsyncRead {
     val self = this
     val tee = pipe {

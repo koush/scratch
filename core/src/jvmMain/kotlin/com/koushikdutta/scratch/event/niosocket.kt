@@ -81,6 +81,7 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
             val buffers = it.readAll()
             channel.write(buffers)
             it.addAll(*buffers)
+            it.takeReclaimedBuffers(pending)
             val after = it.remaining()
             if (before == after) {
                 key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
