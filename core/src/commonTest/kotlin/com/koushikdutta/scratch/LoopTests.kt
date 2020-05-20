@@ -5,16 +5,15 @@ import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.event.InetSocketAddress
-import com.koushikdutta.scratch.event.connect
-import com.koushikdutta.scratch.event.run
+import com.koushikdutta.scratch.event.*
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.execute
+import com.koushikdutta.scratch.http.client.get
+import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
@@ -22,10 +21,7 @@ import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
 import kotlin.math.abs
 import kotlin.random.Random
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.fail
+import kotlin.test.*
 
 class LoopTests {
     @Test
@@ -379,5 +375,38 @@ class LoopTests {
     @Test
     fun testRunSleep() = AsyncEventLoop().run {
         sleep(10)
+    }
+
+    @Test
+    fun testMultipleIPFailureFallback() = AsyncEventLoop().run() {
+        val cwm = getAllByName("clockworkmod.com")
+
+        val loop = this
+        val httpClient = AsyncHttpClient(loop)
+        httpClient.middlewares.add(0, object : AsyncSocketMiddleware(loop) {
+            override suspend fun resolve(host: String): Array<InetAddress> {
+                return arrayOf(AsyncEventLoop.parseInet4Address("0.0.0.0"))
+            }
+        })
+
+        try {
+            httpClient.get("http://clockworkmod.com") {
+                readAllString(it.body!!)
+            }
+            fail("expected failure")
+        }
+        catch (throwable: Throwable) {
+        }
+
+        httpClient.middlewares.add(0, object : AsyncSocketMiddleware(loop) {
+            override suspend fun resolve(host: String): Array<InetAddress> {
+                return arrayOf(AsyncEventLoop.parseInet4Address("0.0.0.0"), *cwm)
+            }
+        })
+
+        assertNotNull(httpClient.get("http://clockworkmod.com") {
+            readAllString(it.body!!)
+        })
+        Unit
     }
 }

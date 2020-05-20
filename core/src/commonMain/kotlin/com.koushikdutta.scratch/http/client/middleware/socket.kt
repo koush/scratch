@@ -9,8 +9,7 @@ import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.add
 import com.koushikdutta.scratch.collections.pop
 import com.koushikdutta.scratch.collections.removeValue
-import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.event.connect
+import com.koushikdutta.scratch.event.*
 import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
@@ -85,8 +84,34 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
         return socket
     }
 
+    protected open suspend fun resolve(host: String): Array<InetAddress> {
+        return eventLoop.getAllByName(host)
+    }
+
     protected open suspend fun connectInternal(session: AsyncHttpClientSession, host: String, port: Int): AsyncSocket {
-        return eventLoop.connect(host, port)
+        val addresses = resolve(host)
+        if (addresses.isEmpty())
+            throw IOException("host not found (no results)")
+
+        // prefer ipv4
+        addresses.sortBy {
+            if (it is Inet4Address)
+                4
+            else
+                6
+        }
+
+        var throwable: Throwable? = null
+        for (address in addresses) {
+            try {
+                return eventLoop.connect(InetSocketAddress(address, port))
+            }
+            catch (t: Throwable) {
+                if (throwable == null)
+                    throwable = t
+            }
+        }
+        throw throwable!!
     }
 
     override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {

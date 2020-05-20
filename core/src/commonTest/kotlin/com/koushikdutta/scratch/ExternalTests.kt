@@ -28,7 +28,6 @@ class ExternalTests {
         val regex = Regex("<link.*?href=\"(.*?)\"")
         for (match in regex.findAll(html)) {
             val href = match.groupValues[1]
-            println(href)
 
             val get = "https://http2.golang.org$href"
             val gotPushPromise = client.get(get) {
