@@ -104,6 +104,8 @@ kotlin {
                 implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
 
                 implementation group: 'io.netty', name: 'netty-all', version: '4.1.42.Final'
+                implementation group: 'org.eclipse.jetty', name: 'jetty-server', version: '9.4.28.v20200408'
+                implementation group: 'org.eclipse.jetty', name: 'jetty-servlet', version: '9.4.28.v20200408'
             }
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name

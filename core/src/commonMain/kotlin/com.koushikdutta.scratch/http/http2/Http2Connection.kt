@@ -31,7 +31,7 @@ internal fun Headers.toHeaders(): List<Header> {
 
 class Http2ResetException(val errorCode: ErrorCode, message: String): Exception(message)
 
-class Http2Socket internal constructor(val connection: Http2Connection, val streamId: Int) : AsyncSocket, AsyncAffinity by connection.socket {
+class Http2Socket internal constructor(val connection: Http2Connection, val streamId: Int, val pushPromise: Boolean = false) : AsyncSocket, AsyncAffinity by connection.socket {
     internal val incomingHeaders = AsyncQueue<Headers>()
     suspend fun readHeaders() = incomingHeaders.iterator().next()
     private var writeBytesAvailable: Long = connection.peerSettings.initialWindowSize.toLong()
@@ -150,7 +150,8 @@ class Http2Socket internal constructor(val connection: Http2Connection, val stre
     }
 }
 
-class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read), readConnectionPreface: Boolean = true): AsyncResource by socket, AsyncServerSocket<Http2Socket> {
+class Http2Connection private constructor(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read)): AsyncResource by socket, AsyncServerSocket<Http2Socket> {
+    private val pushPromises = mutableMapOf<String, Http2Socket>()
     private val incomingSockets = AsyncQueue<Http2Socket>()
     internal val handler = AsyncHandler(socket)
     internal var lastGoodStreamId: Int = 0
@@ -184,7 +185,7 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
             return@BlockingWritePipe
         socket::write.drain(it)
     }
-    internal val reader = Http2Reader(socket, client, socketReader)
+    internal val reader = Http2Reader(socket, socketReader)
     private val readerHandler = object : Http2Reader.Handler {
         override fun data(inFinished: Boolean, streamId: Int, source: BufferedSource, length: Int) {
             val stream = streams[streamId]
@@ -296,11 +297,20 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
         override fun priority(streamId: Int, streamDependency: Int, weight: Int, exclusive: Boolean) {
         }
 
-        override fun pushPromise(streamId: Int, promisedStreamId: Int, requestHeaders: List<Header>) {
-            handler.post {
-                writer.rstStream(streamId, ErrorCode.CANCEL)
-                flush()
-            }
+        override fun pushPromise(inFinished: Boolean, streamId: Int, promisedStreamId: Int, headerBlock: List<Header>) {
+            lastGoodStreamId = promisedStreamId
+            val stream = Http2Socket(this@Http2Connection, promisedStreamId, true)
+            streams[promisedStreamId] = stream
+            if (inFinished)
+                stream.input.end()
+
+            val headers = headerBlock.toHeaders()
+
+            val pushPromiseKey = headers.getPushPromiseKey()
+            if (pushPromiseKey == null)
+                println("push promise key could not be computed?")
+            else
+                pushPromises[pushPromiseKey] = stream
         }
 
         override fun alternateService(streamId: Int, origin: String, protocol: ByteString, host: String, port: Int, maxAge: Long) {
@@ -364,6 +374,52 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
     }
 
     companion object {
+        private val pushPromiseHeaders = listOf(Header.TARGET_METHOD_UTF8, Header.TARGET_AUTHORITY_UTF8, Header.TARGET_PATH_UTF8, Header.TARGET_SCHEME_UTF8)
+        private fun Headers.getPushPromiseKey(): String? {
+            var key = ""
+            for (header in pushPromiseHeaders) {
+                val headerValue = this[header]
+                if (headerValue == null)
+                    return null
+                key += headerValue
+            }
+            return key
+        }
+
+        suspend fun upgradeHttp2Connection(socket: AsyncSocket, mode: Http2ConnectionMode, socketReader: AsyncReader = AsyncReader {socket.read(it)}): Http2Connection {
+            val client = mode == Http2ConnectionMode.Client
+            val readConnectionPreface = mode == Http2ConnectionMode.Server
+            val connection = Http2Connection(socket, client, socketReader)
+            connection.run {
+                handler.post {
+                    writer.connectionPreface()
+                    writer.settings(localSettings)
+                    val windowSize = localSettings.initialWindowSize
+                    if (windowSize != DEFAULT_INITIAL_WINDOW_SIZE) {
+                        writer.windowUpdate(0, (windowSize - DEFAULT_INITIAL_WINDOW_SIZE).toLong())
+                    }
+                    flush()
+                }
+            }
+
+            if (readConnectionPreface && !client)
+                connection.reader.readConnectionPreface()
+
+            if (connection.reader.nextFrame(connection.readerHandler) != Http2.TYPE_SETTINGS)
+                throw IOException("Expected http2 settings frame")
+
+            while (true) {
+                val type = connection.reader.nextFrame(connection.readerHandler)
+                if (type == Http2.TYPE_WINDOW_UPDATE)
+                    continue
+                else if (type == Http2.TYPE_SETTINGS)
+                    break
+                throw IOException("Expected http2 window update or http2 settings ack")
+            }
+            connection.processMessages()
+            return connection
+        }
+
         const val DEFAULT_CLIENT_WINDOW_SIZE = 16 * 1024 * 1024
         val DEFAULT_SETTINGS = Settings().apply {
             set(Settings.INITIAL_WINDOW_SIZE, DEFAULT_INITIAL_WINDOW_SIZE)
@@ -371,26 +427,10 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
         }
     }
 
-    init {
-        handler.post {
-            writer.connectionPreface()
-            writer.settings(localSettings)
-            val windowSize = localSettings.initialWindowSize
-            if (windowSize != DEFAULT_INITIAL_WINDOW_SIZE) {
-                writer.windowUpdate(0, (windowSize - DEFAULT_INITIAL_WINDOW_SIZE).toLong())
-            }
-            flush()
-        }
-
-        processMessages(readConnectionPreface)
-    }
-
-    private fun processMessages(readConnectionPreface: Boolean) = Promise {
+    private fun processMessages() = Promise {
         try {
-            if (readConnectionPreface)
-                reader.readConnectionPreface(readerHandler)
             while (true) {
-                reader.nextFrame(false, readerHandler)
+                reader.nextFrame(readerHandler)
             }
         }
         catch (e: Exception) {
@@ -448,6 +488,14 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
 
     suspend fun connect(headers: Headers, outFinished: Boolean): Http2Socket {
         await()
+
+        val pushPromiseKey = headers.getPushPromiseKey()
+        if (pushPromiseKey != null) {
+            val found = pushPromises.remove(pushPromiseKey)
+            if (found != null)
+                return found
+        }
+
         val streamId = nextStreamId
         nextStreamId += 2
 
@@ -470,6 +518,12 @@ class Http2Connection(val socket: AsyncSocket, val client: Boolean, socketReader
     override suspend fun close(throwable: Throwable) {
         close(ErrorCode.PROTOCOL_ERROR, ErrorCode.PROTOCOL_ERROR, throwable)
     }
+}
+
+enum class Http2ConnectionMode {
+    Client,
+    Server,
+    ServerSkipConnectionPreface,
 }
 
 suspend fun Http2Connection.connect(request: AsyncHttpRequest): Http2Socket {
@@ -507,8 +561,6 @@ fun Http2Connection.acceptHttpAsync(executor: AsyncHttpExecutor) = acceptAsync {
         executor(request)
     }
     catch (exception: Exception) {
-        println("internal server error")
-        println(exception)
         StatusCode.INTERNAL_SERVER_ERROR()
     }
 

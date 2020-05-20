@@ -9,34 +9,6 @@ typealias PromiseThen<T, R> = suspend (T) -> R
 typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
 typealias PromiseRecover<T> = suspend (throwable: Throwable) -> T
 
-internal interface PromiseResult<T> {
-    fun resume(resume: Continuation<T>)
-    fun getOrThrow(): T
-    companion object {
-        fun <T> failure(throwable: Throwable): PromiseResult<T> {
-            return object : PromiseResult<T> {
-                override fun getOrThrow(): T {
-                    throw throwable
-                }
-                override fun resume(resume: Continuation<T>) {
-                    resume.resumeWithException(throwable)
-                }
-            }
-        }
-
-        fun <T> success(value: T): PromiseResult<T> {
-            return object : PromiseResult<T> {
-                override fun getOrThrow(): T {
-                    return value
-                }
-                override fun resume(resume: Continuation<T>) {
-                    resume.resume(value)
-                }
-            }
-        }
-    }
-}
-
 class Deferred<T> {
     val promise = Promise<T>()
     fun resolve(result: T) = promise.resolve(result)
@@ -58,7 +30,7 @@ expect class Promise<T> : PromiseBase<T> {
 
 open class PromiseBase<T> {
     private val atomicReference =
-        FreezableReference<PromiseResult<T>>()
+        FreezableReference<Result<T>>()
     private val callbacks =
         FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
             Unit
@@ -67,7 +39,7 @@ open class PromiseBase<T> {
     internal constructor()
 
     internal fun reject(throwable: Throwable): Boolean {
-        if (atomicReference.freeze(PromiseResult.failure(throwable))?.frozen == true)
+        if (atomicReference.freeze(Result.failure(throwable))?.frozen == true)
             return false
         callbacks.freeze()
         callbacks.clear(Unit) { _, continuation ->
@@ -77,7 +49,7 @@ open class PromiseBase<T> {
     }
 
     internal fun resolve(result: T): Boolean {
-        if (atomicReference.freeze(PromiseResult.success(result))?.frozen == true)
+        if (atomicReference.freeze(Result.success(result))?.frozen == true)
             return false
         callbacks.freeze()
         callbacks.clear(Unit) { _, continuation ->

@@ -11,7 +11,10 @@ class AsyncHttp2TransportMiddleware: AsyncHttpTransportMiddleware() {
             return false
 
         val socket = session.transport!!.socket as Http2Socket
-        session.response = Http2ExchangeCodec.createResponse(socket.readHeaders(), socket)
+        val headers = socket.readHeaders()
+        if (socket.pushPromise)
+            headers["X-Scratch-PushPromise"] = "true"
+        session.response = Http2ExchangeCodec.createResponse(headers, socket)
         return true
     }
 }

@@ -17,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import com.koushikdutta.scratch.http.http2.Http2Connection
+import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
 import com.koushikdutta.scratch.http.http2.connect
 
 
@@ -236,7 +237,7 @@ class HttpTests {
 
         var data = ""
         async {
-            val connection = Http2Connection(server.connect(), true)
+            val connection = Http2Connection.upgradeHttp2Connection(server.connect(), Http2ConnectionMode.Client)
             val stream =
                 connection.connect(
                     Methods.POST(

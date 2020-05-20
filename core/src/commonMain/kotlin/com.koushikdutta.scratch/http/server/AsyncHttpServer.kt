@@ -11,6 +11,7 @@ import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
 import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.middleware.getHttpBody
 import com.koushikdutta.scratch.http.http2.Http2Connection
+import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
 import com.koushikdutta.scratch.http.http2.acceptHttpAsync
 import com.koushikdutta.scratch.parser.Parser
 
@@ -22,7 +23,8 @@ enum class HttpServerSocketStatus {
 
 class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
     private suspend fun acceptHttp2Connection(socket: AsyncSocket, reader: AsyncReader) {
-        Http2Connection(socket, false, reader, false)
+        // connection preface has been negotiated
+        Http2Connection.upgradeHttp2Connection(socket, Http2ConnectionMode.ServerSkipConnectionPreface, reader)
         .acceptHttpAsync {
             val response = try {
                 executor(it)

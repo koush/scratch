@@ -18,6 +18,7 @@ import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
 import com.koushikdutta.scratch.http.http2.Http2Connection
+import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
 import com.koushikdutta.scratch.http.http2.Http2Socket
 import com.koushikdutta.scratch.http.http2.connect
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
@@ -138,7 +139,7 @@ open class AsyncSocketMiddleware(val eventLoop: AsyncEventLoop) : AsyncHttpClien
     }
 
     internal open suspend fun manageHttp2Connection(session: AsyncHttpClientSession, host: String, port: Int, socket: AsyncSocket): Http2Socket {
-        val http2Connection = Http2Connection(socket, true)
+        val http2Connection = Http2Connection.upgradeHttp2Connection(socket, Http2ConnectionMode.Client)
 
         val socketKey = "$host:$port"
         http2Connections[socketKey] = http2Connection

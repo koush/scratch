@@ -8,10 +8,9 @@ import kotlin.coroutines.startCoroutine
 interface AsyncIterator<out T> {
     suspend operator fun next(): T
     suspend operator fun hasNext(): Boolean
-    fun rethrow()
 }
 
-class AsyncIteratorMessage<T>(val value: T? = null, val done: Boolean = false, val hasNext: Boolean = false, val next: Boolean = false, val resuming: Boolean = false)
+internal class AsyncIteratorMessage<T>(val value: T? = null, val done: Boolean = false, val hasNext: Boolean = false, val next: Boolean = false, val resuming: Boolean = false)
 open class AsyncIteratorScope<T> internal constructor(private val baton: Baton<AsyncIteratorMessage<T>>) {
     private val resumingMessage = AsyncIteratorMessage<T>(resuming = true)
 
@@ -59,10 +58,6 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
     })
 
     return object: AsyncIterator<T> {
-        override fun rethrow() {
-            baton.rethrow()
-        }
-
         private val lock: BatonLock<AsyncIteratorMessage<T>, AsyncIteratorMessage<T>> = {
             val value = it.getOrThrow()!!
             if (value.hasNext || value.next)

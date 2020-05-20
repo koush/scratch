@@ -48,7 +48,6 @@ import com.koushikdutta.scratch.http.http2.okhttp.Http2.TYPE_WINDOW_UPDATE
 internal class Http2Reader(
   /** Creates a frame reader with max header table size of 4096. */
   private val socket: AsyncSocket,
-  private val client: Boolean,
   private val reader: AsyncReader
 ) {
   private val headerSource: Buffer = ByteBufferList()
@@ -59,22 +58,17 @@ internal class Http2Reader(
           headerTableSizeSetting = 4096
   )
 
-  suspend fun readConnectionPreface(handler: Handler) {
-    if (client) {
-      // The client reads the initial SETTINGS frame.
-      nextFrame(true, handler)
-    } else {
-      // The server reads the CONNECTION_PREFACE byte string.
-      if (!reader.readLength(source, Http2.CONNECTION_PREFACE.size))
-        throw IOException("Server expected connection preface.")
-      val connectionPreface = source.readByteString(Http2.CONNECTION_PREFACE.size.toLong())
-      if (CONNECTION_PREFACE != connectionPreface) {
-        throw IOException("Expected a connection header but was ${connectionPreface.utf8()}")
-      }
+  suspend fun readConnectionPreface() {
+    // The server reads the CONNECTION_PREFACE byte string.
+    if (!reader.readLength(source, Http2.CONNECTION_PREFACE.size))
+      throw IOException("Server expected connection preface.")
+    val connectionPreface = source.readByteString(Http2.CONNECTION_PREFACE.size.toLong())
+    if (CONNECTION_PREFACE != connectionPreface) {
+      throw IOException("Expected a connection header but was ${connectionPreface.utf8()}")
     }
   }
 
-  suspend fun nextFrame(requireSettings: Boolean, handler: Handler) {
+  suspend fun nextFrame(handler: Handler): Int {
     if (source.hasRemaining())
       throw AssertionError("source not empty")
 
@@ -97,9 +91,6 @@ internal class Http2Reader(
       throw IOException("FRAME_SIZE_ERROR: $length")
     }
     val type = source.readByte() and 0xff
-    if (requireSettings && type != TYPE_SETTINGS) {
-      throw IOException("Expected a SETTINGS frame but was $type")
-    }
     val flags = source.readByte() and 0xff
     val streamId = source.readInt() and 0x7fffffff // Ignore reserved bit.
 
@@ -117,6 +108,8 @@ internal class Http2Reader(
       TYPE_WINDOW_UPDATE -> readWindowUpdate(handler, length, flags, streamId)
       else -> source.skip(length.toLong()) // Implementations MUST discard frames of unknown types.
     }
+
+    return type
   }
 
   private suspend fun readHeaders(handler: Handler, length: Int, flags: Int, streamId: Int) {
@@ -284,7 +277,8 @@ internal class Http2Reader(
     val promisedStreamId = source.readInt() and 0x7fffffff
     val headerBlockLength = lengthWithoutPadding(length - 4, flags, padding) // - 4 for readInt().
     val headerBlock = readHeaderBlock(headerBlockLength, padding, flags, streamId)
-    handler.pushPromise(streamId, promisedStreamId, headerBlock)
+    val endStream = (flags and FLAG_END_STREAM) != 0
+    handler.pushPromise(endStream, streamId, promisedStreamId, headerBlock)
   }
 
   private fun readPing(handler: Handler, length: Int, flags: Int, streamId: Int) {
@@ -413,6 +407,7 @@ internal class Http2Reader(
      * @param requestHeaders minimally includes `:method`, `:scheme`, `:authority`, and `:path`.
      */
     fun pushPromise(
+      inFinished: Boolean,
       streamId: Int,
       promisedStreamId: Int,
       requestHeaders: List<Header>
