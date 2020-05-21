@@ -232,7 +232,7 @@ class CacheExecutor(val next: AsyncHttpClientExecutor, val cache: Cache) : Async
         val responseLine: ResponseLine
         val headers: Headers
         try {
-            responseLine = ResponseLine(reader.readHttpMessageLine())
+            responseLine = ResponseLine(reader.readHttpHeaderLine())
             headers = reader.readHeaderBlock()
         }
         catch (throwable: Throwable) {

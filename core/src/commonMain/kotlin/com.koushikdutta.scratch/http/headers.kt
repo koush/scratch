@@ -3,14 +3,14 @@ package com.koushikdutta.scratch.http
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.collections.parseCommaDelimited
 
-suspend fun AsyncReader.readHttpMessageLine(): String {
+suspend fun AsyncReader.readHttpHeaderLine(): String {
     return readScanUtf8String("\r\n").trim()
 }
 
 suspend fun AsyncReader.readHeaderBlock(): Headers {
     val headers = Headers()
     while (true) {
-        val headerLine = readHttpMessageLine()
+        val headerLine = readHttpHeaderLine()
         if (headerLine.isEmpty())
             break
         headers.addLine(headerLine)
