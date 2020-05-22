@@ -4,11 +4,8 @@ import com.koushikdutta.scratch.async.UnhandledAsyncExceptionError
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
-import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
-import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpConnectSocketExecutor
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import kotlin.random.Random
 import kotlin.test.assertTrue
@@ -87,16 +84,11 @@ suspend fun Collection<Promise<*>>.awaitAll() {
     }
 }
 
-internal fun AsyncHttpServer.createFallbackClient(): AsyncHttpClient {
+internal fun AsyncHttpServer.createFallbackClient(): AsyncHttpConnectSocketExecutor {
     val pipeServer = AsyncPipeServerSocket()
     listen(pipeServer)
-    val client = AsyncHttpClient()
-    client.middlewares.add(object : AsyncHttpClientMiddleware() {
-        override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-            session.transport = AsyncHttpClientTransport(pipeServer.connect())
-            return true
-        }
-    })
-    return client
+    return AsyncHttpConnectSocketExecutor {
+        pipeServer.connect()
+    }
 }
 

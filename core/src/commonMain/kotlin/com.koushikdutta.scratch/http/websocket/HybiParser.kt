@@ -5,7 +5,7 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ByteOrder
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.and
 import kotlin.experimental.or
 import kotlin.experimental.xor

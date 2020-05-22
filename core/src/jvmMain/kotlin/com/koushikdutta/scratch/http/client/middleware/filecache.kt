@@ -9,6 +9,10 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutorBuilder
+import com.koushikdutta.scratch.http.client.executor.Cache
+import com.koushikdutta.scratch.http.client.executor.CacheExecutor
+import com.koushikdutta.scratch.http.client.executor.CacheStorage
+import com.koushikdutta.scratch.http.client.executor.randomHex
 import java.io.File
 
 private val tmpdir = System.getProperty("java.io.tmpdir")
@@ -52,9 +56,9 @@ class FileCache(val eventLoop: AsyncEventLoop, val cacheDirectory: File): Cache 
     }
 }
 
-fun AsyncHttpExecutorBuilder.useFileCache(cacheDirectory: File = File(tmpdir, "scratch-http-cache-" + randomHex())): AsyncHttpExecutorBuilder {
+fun AsyncHttpExecutorBuilder.useFileCache(eventLoop: AsyncEventLoop = AsyncEventLoop.default, cacheDirectory: File = File(tmpdir, "scratch-http-cache-" + randomHex())): AsyncHttpExecutorBuilder {
     wrapExecutor {
-        CacheExecutor(it, cache = FileCache(it.eventLoop, cacheDirectory))
+        CacheExecutor(eventLoop, it, cache = FileCache(eventLoop, cacheDirectory))
     }
     return this
 }

@@ -12,8 +12,8 @@ import com.koushikdutta.scratch.crypto.sha1
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.client.AsyncHttpClientExecutor
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientSwitchingProtocols
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random
 
@@ -220,7 +220,7 @@ suspend fun AsyncHttpClientExecutor.connectWebSocket(request: AsyncHttpRequest, 
     addWebsocketHeaders(headers)
 
     try {
-        val response = execute(request)
+        val response = invoke(request)
         response.close()
         throw IOException("WebSocket connection failed.")
     }

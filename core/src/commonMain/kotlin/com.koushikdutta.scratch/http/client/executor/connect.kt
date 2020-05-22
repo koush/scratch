@@ -4,18 +4,19 @@ import com.koushikdutta.scratch.AsyncAffinity
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
-import com.koushikdutta.scratch.http.client.middleware.createEndWatcher
+import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
+import com.koushikdutta.scratch.http.client.createEndWatcher
 
 typealias AsyncHttpConnectSocket = suspend () -> AsyncSocket
 
-class AsyncHttpConnectSocketExecutor(private val affinity: AsyncAffinity = AsyncAffinity.NO_AFFINITY, private val connect: AsyncHttpConnectSocket) {
+class AsyncHttpConnectSocketExecutor(override val affinity: AsyncAffinity = AsyncAffinity.NO_AFFINITY, private val connect: AsyncHttpConnectSocket): AsyncHttpClientExecutor {
     private val keepaliveSockets = mutableListOf<AsyncHttpSocketExecutor>()
     val keepaliveSocketSize
         get() = keepaliveSockets.size
     var reusedSocketCount = 0
         internal set
 
-    suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
+    override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
         affinity.await()
 
         val executor = if (keepaliveSockets.isEmpty()) {
@@ -27,8 +28,11 @@ class AsyncHttpConnectSocketExecutor(private val affinity: AsyncAffinity = Async
         }
 
         val response = executor(request)
-        if (!executor.isAlive)
-            return response
+        if (!executor.isAlive) {
+            return AsyncHttpResponse(response.responseLine, response.headers, response.body) {
+                executor.socket.close()
+            }
+        }
 
         // watch the response body to reuse the socket once it is drained.
         val body = response.body
@@ -58,7 +62,7 @@ class AsyncHttpConnectSocketExecutor(private val affinity: AsyncAffinity = Async
             affinity.await()
             if (!reused) {
                 closed = true
-                response.close()
+                executor.socket.close()
             }
         }
     }

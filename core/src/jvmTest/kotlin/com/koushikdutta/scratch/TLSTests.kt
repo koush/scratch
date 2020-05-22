@@ -6,10 +6,12 @@ import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
+import com.koushikdutta.scratch.http.client.buildUpon
 import com.koushikdutta.scratch.http.client.execute
-import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
-import com.koushikdutta.scratch.http.client.middleware.ConscryptMiddleware
+import com.koushikdutta.scratch.http.client.executor.AlpnSocket
+import com.koushikdutta.scratch.http.client.executor.HostSocketProvider
+import com.koushikdutta.scratch.http.client.executor.SchemeExecutor
+import com.koushikdutta.scratch.http.client.executor.useHttpsAlpnExecutor
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
@@ -98,7 +100,6 @@ class TLSTests {
     fun testHttp2Alpn() {
         val conscrypt = Conscrypt.newProvider()
         val keypairCert = createSelfSignedCertificate("TestServer")
-        val client = AsyncHttpClient()
 
         val serverContext = SSLContext.getInstance("TLS", conscrypt)
         serverContext.init(keypairCert.first, keypairCert.second)
@@ -114,20 +115,14 @@ class TLSTests {
         val clientContext = SSLContext.getInstance("TLS", conscrypt)
         clientContext.init(keypairCert.second)
 
-        var protocol = ""
-        val pipeMiddleware = object : ConscryptMiddleware(client.eventLoop, clientContext) {
-            override suspend fun wrapForTlsSocket(session: AsyncHttpClientSession, socket: AsyncSocket, host: String, port: Int): AsyncTlsSocket {
-                val tlsSocket = super.wrapForTlsSocket(session, socket, host, port)
-                protocol = Conscrypt.getApplicationProtocol(tlsSocket.engine)
-                return tlsSocket
-            }
-
-            override suspend fun connectInternal(
-                session: AsyncHttpClientSession,
-                host: String,
-                port: Int
-            ): AsyncSocket {
-                return server.connect()
+        var protocol: String? = null
+        val client = SchemeExecutor(AsyncAffinity.NO_AFFINITY)
+        client.useHttpsAlpnExecutor(AsyncAffinity.NO_AFFINITY, clientContext) { _, _ ->
+            asyncIterator {
+                val connect: HostSocketProvider = {
+                    server.connect()
+                }
+                yield(connect)
             }
         }
 
@@ -144,13 +139,13 @@ class TLSTests {
 
         var data = ""
         async {
-            pipeMiddleware.install(client)
             data = client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
-
-            data += client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
+            data += client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) {
+                protocol = it.headers["X-Scratch-ALPN"]
+                readAllString(it.body!!)
+            }
         }
 
-        assertEquals((client.middlewares.find { it is AsyncSocketMiddleware }!! as AsyncSocketMiddleware).openHttp2Connections, 1)
         assert(data == "hello worldhello world")
         assert(protocol == "h2")
     }

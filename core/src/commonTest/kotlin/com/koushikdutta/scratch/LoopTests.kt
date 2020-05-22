@@ -13,8 +13,8 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.execute
 import com.koushikdutta.scratch.http.client.get
-import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
-import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.executor.*
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
@@ -380,14 +380,23 @@ class LoopTests {
     @Test
     fun testMultipleIPFailureFallback() = AsyncEventLoop().run() {
         val cwm = getAllByName("clockworkmod.com")
-
         val loop = this
         val httpClient = AsyncHttpClient(loop)
-        httpClient.middlewares.add(0, object : AsyncSocketMiddleware(loop) {
-            override suspend fun resolve(host: String): Array<InetAddress> {
-                return arrayOf(AsyncEventLoop.parseInet4Address("0.0.0.0"))
+        httpClient.schemeExecutor.useHttpExecutor(loop, connectFirstAvailableResolver(connectionProvider = { _, port ->
+            asyncIterator {
+                val fail: HostSocketProvider = {
+                    connect("0.0.0.0", port)
+                }
+                yield(fail)
+
+                for (address in cwm) {
+                    val valid: HostSocketProvider = {
+                        connect(InetSocketAddress(address, port))
+                    }
+                    yield(valid)
+                }
             }
-        })
+        }))
 
         try {
             httpClient.get("http://clockworkmod.com") {
@@ -398,11 +407,16 @@ class LoopTests {
         catch (throwable: Throwable) {
         }
 
-        httpClient.middlewares.add(0, object : AsyncSocketMiddleware(loop) {
-            override suspend fun resolve(host: String): Array<InetAddress> {
-                return arrayOf(AsyncEventLoop.parseInet4Address("0.0.0.0"), *cwm)
+        httpClient.schemeExecutor.useHttpExecutor(loop, connectFirstAvailableResolver(connectionProvider = { _, port ->
+            asyncIterator {
+                for (address in cwm) {
+                    val valid: HostSocketProvider = {
+                        connect(InetSocketAddress(address, port))
+                    }
+                    yield(valid)
+                }
             }
-        })
+        }))
 
         assertNotNull(httpClient.get("http://clockworkmod.com") {
             readAllString(it.body!!)

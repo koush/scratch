@@ -2,9 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
-import com.koushikdutta.scratch.http.client.AsyncHttpClientTransport
-import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpConnectSocketExecutor
 import com.koushikdutta.scratch.http.client.randomAccess
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
@@ -82,13 +80,9 @@ class StorageTests {
 
         var done = false
         async {
-            val httpClient = AsyncHttpClient()
-            httpClient.middlewares.add(0, object : AsyncHttpClientMiddleware() {
-                override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                    session.transport = AsyncHttpClientTransport(pipeServer.connect())
-                    return true
-                }
-            })
+            val httpClient = AsyncHttpConnectSocketExecutor {
+                pipeServer.connect()
+            }
 
             val storage = httpClient.randomAccess("http://example")
 

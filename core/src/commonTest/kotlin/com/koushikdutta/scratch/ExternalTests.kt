@@ -5,6 +5,8 @@ import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.client.buildUpon
+import com.koushikdutta.scratch.http.client.executor.useHttpsAlpnExecutor
 import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
@@ -15,6 +17,7 @@ class ExternalTests {
     @Test
     fun testGoLangServerPush() = networkContextTest {
         val client = AsyncHttpClient(this)
+        client.schemeExecutor.useHttpsAlpnExecutor(client.eventLoop)
 
         // this will trigger push promise streams
         val html = client.get("https://http2.golang.org/serverpush") {

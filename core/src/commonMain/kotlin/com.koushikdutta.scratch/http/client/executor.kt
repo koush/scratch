@@ -6,18 +6,12 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.*
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
 
 typealias AsyncHttpExecutor = suspend (request: AsyncHttpRequest) -> AsyncHttpResponse
 
-interface AsyncHttpClientExecutor {
-    suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse
-    val client: AsyncHttpClient
-    val eventLoop: AsyncEventLoop
-        get() = client.eventLoop
-}
-
 suspend fun <R> AsyncHttpClientExecutor.execute(request: AsyncHttpRequest, handler: AsyncHttpResponseHandler<R>): R {
-    return execute(request).handle(handler)
+    return invoke(request).handle(handler)
 }
 
 internal suspend fun <R> AsyncHttpResponse.handle(handler: AsyncHttpResponseHandler<R>): R {
@@ -68,7 +62,7 @@ suspend fun AsyncHttpClientExecutor.randomAccess(uri: String): AsyncRandomAccess
     var currentRemaining: Long = 0
     val temp = ByteBufferList()
 
-    return object : AsyncRandomAccessInput, AsyncAffinity by eventLoop {
+    return object : AsyncRandomAccessInput, AsyncAffinity by affinity {
         override suspend fun size(): Long {
             return contentLength
         }
@@ -99,7 +93,7 @@ suspend fun AsyncHttpClientExecutor.randomAccess(uri: String): AsyncRandomAccess
                 val headers = Headers()
                 headers["Range"] = "bytes=$position-${position + length - 1}"
                 val newRequest = Methods.GET(uri, headers)
-                val newResponse = execute(newRequest)
+                val newResponse = invoke(newRequest)
                 val existing = currentReader.swap(newResponse)
                 if (existing?.frozen == true)
                     newResponse.close()

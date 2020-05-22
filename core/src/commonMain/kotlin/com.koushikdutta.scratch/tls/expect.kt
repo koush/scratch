@@ -24,7 +24,6 @@ expect class SSLContext {
     fun createSSLEngine(): SSLEngine
     fun createSSLEngine(host: String?, port: Int): SSLEngine
 }
-typealias SSLEngineTask = () -> Unit
 expect abstract class SSLEngine {
     abstract fun getUseClientMode(): Boolean
     abstract fun setUseClientMode(value: Boolean)
@@ -33,6 +32,8 @@ expect fun SSLEngine.runHandshakeTask()
 expect fun SSLEngine.checkHandshakeStatus(): SSLEngineHandshakeStatus
 expect fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult
 expect fun SSLEngine.wrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult
+expect fun SSLEngine.setNegotiatedProtocols(vararg protocols: String)
+expect fun SSLEngine.getNegotiatedProtocol(): String?
 
 expect open class SSLException(message: String): IOException
 expect class SSLHandshakeException : SSLException
@@ -45,4 +46,6 @@ expect fun createSelfSignedCertificate(subjectName: String): Pair<RSAPrivateKey,
 expect fun SSLContext.init(pk: RSAPrivateKey, certificate: X509Certificate): SSLContext
 expect fun SSLContext.init(certificate: X509Certificate): SSLContext
 expect fun createTLSContext(): SSLContext
+expect fun createALPNTLSContext(): SSLContext
 expect fun getDefaultSSLContext(): SSLContext
+expect fun getDefaultALPNSSLContext(): SSLContext

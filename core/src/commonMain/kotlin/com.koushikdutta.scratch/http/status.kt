@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch.http
 
 import com.koushikdutta.scratch.AsyncRead
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSwitchingProtocols
 import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
 
 private const val HTTP_1_1 = "HTTP/1.1"

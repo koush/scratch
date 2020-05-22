@@ -7,9 +7,8 @@ import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
-import com.koushikdutta.scratch.http.client.middleware.AsyncSocketMiddleware
-import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
-import com.koushikdutta.scratch.http.client.middleware.getHttpBody
+import com.koushikdutta.scratch.http.client.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.getHttpBody
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
 import com.koushikdutta.scratch.http.http2.acceptHttpAsync
@@ -129,7 +128,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
 
             response.sent?.invoke(null)
 
-            if (AsyncSocketMiddleware.isKeepAlive(request, response))
+            if (KeepAlive.isKeepAlive(request, response))
                 return HttpServerSocketStatus.KeepAlive
             return HttpServerSocketStatus.Close
         }

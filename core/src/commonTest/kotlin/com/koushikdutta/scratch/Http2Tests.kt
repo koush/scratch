@@ -6,7 +6,7 @@ import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
-import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
 import com.koushikdutta.scratch.http.http2.acceptHttpAsync

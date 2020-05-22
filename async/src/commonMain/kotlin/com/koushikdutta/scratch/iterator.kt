@@ -34,6 +34,24 @@ open class AsyncIteratorScope<T> internal constructor(private val baton: Baton<A
     }
 }
 
+suspend fun <T> AsyncIteratorScope<T>.yield(values: Iterable<T>) {
+    for (value in values) {
+        yield(value)
+    }
+}
+
+suspend fun <T> AsyncIteratorScope<T>.yield(values: Array<T>) {
+    for (value in values) {
+        yield(value)
+    }
+}
+
+suspend fun <T> AsyncIteratorScope<T>.yield(values: AsyncIterable<T>) {
+    for (value in values) {
+        yield(value)
+    }
+}
+
 class AsyncIteratorConcurrentException(val resumed: Boolean): Exception("iterator hasNext/next called before completion of prior invocation")
 
 fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterator<T> {

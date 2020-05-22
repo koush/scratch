@@ -5,8 +5,8 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.execute
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpConnectSocketExecutor
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
@@ -287,14 +287,14 @@ class TlsTests {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
 
-            val httpClient = AsyncHttpClient()
-            val socket = server.connect().connectTls("TestServer", 80, clientContext)
-            val reader = AsyncReader({socket.read(it)})
+            val httpClient = AsyncHttpConnectSocketExecutor {
+                server.connect().connectTls("TestServer", 80, clientContext)
+            }
 
             for (i in 1..3) {
                 val request =
                     AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
-                val data = httpClient.execute(request, socket, reader) { readAllString(it.body!!) }
+                val data = httpClient.execute(request) { readAllString(it.body!!) }
                 assertEquals(data, "hello world")
                 requestsCompleted++
             }

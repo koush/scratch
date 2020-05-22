@@ -14,8 +14,7 @@ suspend fun AsyncEventLoop.connectTls(host: String, port: Int, context: SSLConte
     return connect(host, port).connectTls(host, port, context, options)
 }
 
-suspend fun AsyncSocket.connectTls(host: String, port: Int, context: SSLContext = getDefaultSSLContext(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
-    val engine = context.createSSLEngine(host, port)
+suspend fun AsyncSocket.connectTls(engine: SSLEngine, options: AsyncTlsOptions? = null): AsyncTlsSocket {
     engine.useClientMode = true
     try {
         return tlsHandshake(this, engine, options)
@@ -24,6 +23,11 @@ suspend fun AsyncSocket.connectTls(host: String, port: Int, context: SSLContext 
         close()
         throw exception
     }
+}
+
+suspend fun AsyncSocket.connectTls(host: String, port: Int, context: SSLContext = getDefaultSSLContext(), options: AsyncTlsOptions? = null): AsyncTlsSocket {
+    val engine = context.createSSLEngine(host, port)
+    return connectTls(engine, options)
 }
 
 typealias CreateSSLEngine = () -> SSLEngine

@@ -1,12 +1,10 @@
-package com.koushikdutta.scratch.http.client.middleware
+package com.koushikdutta.scratch.http.client
 
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncReaderPipe
 import com.koushikdutta.scratch.filters.ChunkedInputPipe
 import com.koushikdutta.scratch.http.Headers
-import com.koushikdutta.scratch.http.StatusCode
-import com.koushikdutta.scratch.http.client.AsyncHttpClientSession
 import com.koushikdutta.scratch.http.contentLength
 import com.koushikdutta.scratch.http.transferEncoding
 import kotlin.math.min
@@ -66,28 +64,4 @@ fun getHttpBodyOrNull(headers: Headers, reader: AsyncReader, server: Boolean): A
 
 fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRead {
     return getHttpBodyOrNull(headers, reader, server) ?: { false }
-}
-
-class AsyncBodyDecoder : AsyncHttpClientMiddleware() {
-    override suspend fun onResponseStarted(session: AsyncHttpClientSession) {
-        val statusCode = StatusCode.values().find { it.code == session.response!!.code }
-        val body = if (statusCode?.hasBody == false)
-            null
-        else
-            getHttpBodyOrNull(session.response!!.headers, session.transport!!.reader, false)
-
-        session.response!!.body = if (body == null) {
-            session.responseCompleted = true
-            session.transport?.completion?.invoke(null);
-            { false }
-        }
-        else {
-            session.response!!.body = createEndWatcher(session.response!!.body!!) {
-                session.responseCompleted = true
-                session.transport?.completion?.invoke(null)
-            }
-
-            body
-        }
-    }
 }

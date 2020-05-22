@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseSemicolonDelimited
 import com.koushikdutta.scratch.http.AsyncHttpMessageBody
 import com.koushikdutta.scratch.http.Headers
-import com.koushikdutta.scratch.http.client.middleware.getHttpBody
+import com.koushikdutta.scratch.http.client.getHttpBody
 import com.koushikdutta.scratch.http.contentLength
 import com.koushikdutta.scratch.http.readHeaderBlock
 import com.koushikdutta.scratch.parser.Parser.Companion.ensureReadString

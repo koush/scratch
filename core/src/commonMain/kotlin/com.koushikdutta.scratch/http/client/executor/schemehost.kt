@@ -1,17 +1,23 @@
 package com.koushikdutta.scratch.http.client.executor
 
-import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.IOException
-import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.event.Inet4Address
-import com.koushikdutta.scratch.event.InetSocketAddress
+import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.event.*
 import com.koushikdutta.scratch.http.AsyncHttpRequest
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
-import com.koushikdutta.scratch.tls.connectTls
+import com.koushikdutta.scratch.http.http2.okhttp.Protocol
+import com.koushikdutta.scratch.tls.*
+import com.koushikdutta.scratch.uri.URI
 
-class SchemeExecutor(val scheme: String, override val client: AsyncHttpClient) : RegisterKeyPoolExecutor() {
+class SchemeUnhandledException(uri: URI) : IOException("unable to find scheme handler for ${uri}")
+
+class SchemeExecutor(override val affinity: AsyncAffinity) : RegisterKeyPoolExecutor() {
+    override var unhandled: AsyncHttpExecutor = {
+        throw SchemeUnhandledException(it.uri)
+    }
+
     override fun getKey(request: AsyncHttpRequest): String {
+        if (request.uri.scheme == null)
+            return ""
         return request.uri.scheme!!
     }
 
@@ -21,68 +27,137 @@ class SchemeExecutor(val scheme: String, override val client: AsyncHttpClient) :
     }
 }
 
-class HostExecutor(override val client: AsyncHttpClient, create: KeyPoolExecutorFactory): CreateKeyPoolExecutor(create) {
+class HostExecutor(override val affinity: AsyncAffinity = AsyncAffinity.NO_AFFINITY, create: KeyPoolExecutorFactory): CreateKeyPoolExecutor(create) {
     override fun getKey(request: AsyncHttpRequest): String {
         return request.uri.host!! + ":" + request.uri.port
     }
 }
 
-typealias ConnectAuthority = suspend (host: String, port: Int) -> AsyncSocket
 
-fun createHostExecutor(client: AsyncHttpClient, defaultPort: Int, connect: ConnectAuthority) = HostExecutor(client) {
+fun createHostExecutor(affinity: AsyncAffinity, defaultPort: Int, connect: HostPortResolver<AsyncSocket>) = HostExecutor(affinity) {
     val port = if (it.uri.port == -1)
         defaultPort
     else
         it.uri.port
 
-    val connectExecutor = AsyncHttpConnectSocketExecutor(client.eventLoop) {
+    val connectExecutor = AsyncHttpConnectSocketExecutor(affinity) {
         connect(it.uri.host!!, port)
     }
     connectExecutor::invoke
 }
 
-private typealias WrapConnect = suspend (host: String, port: Int, socket: AsyncSocket) -> AsyncSocket
+fun createHostAlpnExecutor(affinity: AsyncAffinity, defaultPort: Int, connect: HostPortResolver<AlpnSocket>) = HostExecutor(affinity) {
+    val port = if (it.uri.port == -1)
+        defaultPort
+    else
+        it.uri.port
 
-private fun AsyncEventLoop.connectAny(wrapConnect: WrapConnect = { _, _, socket -> socket }): ConnectAuthority {
-    return ret@{ host: String, port: Int ->
-        val resolved = getAllByName(host)
-        if (resolved.isEmpty())
-            throw IOException("$host resolution failed, no results")
-        resolved.sortBy {
-            if (it is Inet4Address)
-                4
-            else
-                6
-        }
-        var throwable: Throwable? = null
+    val connectExecutor = AsyncHttpAlpnExecutor(affinity) {
+        connect(it.uri.host!!, port)
+    }
+    connectExecutor::invoke
+}
+
+private typealias WrapConnect<F, T> = suspend F.(host: String, port: Int) -> T
+typealias HostPortResolver<T> = suspend (host: String, port: Int) -> T
+
+typealias HostSocketProvider = suspend () -> AsyncSocket
+typealias HostCandidatesProvider = suspend (host: String, port: Int) -> AsyncIterator<HostSocketProvider>
+
+fun createDefaultResolver(eventLoop: AsyncEventLoop): HostCandidatesProvider = {
+    host, port ->
+    asyncIterator {
+        val resolved = eventLoop.getAllByName(host)
         for (address in resolved) {
-            try {
-                val socket = connect(InetSocketAddress(address, port))
-                return@ret wrapConnect(host, port, socket)
+            val connect: HostSocketProvider = {
+                eventLoop.connect(InetSocketAddress(address, port))
             }
-            catch (t: Throwable) {
-                if (throwable == null)
-                    throwable = t
-            }
+            yield(connect)
         }
-
-        throw throwable!!
     }
 }
 
-fun SchemeExecutor.useHttpScheme(): SchemeExecutor {
-    val http = createHostExecutor(client, 80, eventLoop.connectAny())
-    register("http", http::execute)
-    register("ws", http::execute)
+fun <T: AsyncSocket> connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider, wrapConnect: WrapConnect<AsyncSocket, T>):
+        HostPortResolver<T> = first@{ host: String, port: Int ->
+    val candidates = connectionProvider(host, port)
+    var throwable: Throwable? = null
+    while (candidates.hasNext()) {
+        val candidate = candidates.next()
+        try {
+            val socket = candidate()
+            return@first wrapConnect(socket, host, port)
+        }
+        catch (t: Throwable) {
+            if (throwable == null)
+                throwable = t
+        }
+    }
+    throw throwable!!
+}
+
+fun connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider) = connectFirstAvailableResolver(connectionProvider) { _, _ ->
+    this
+}
+
+fun SchemeExecutor.useHttpExecutor(affinity: AsyncAffinity = AsyncAffinity.NO_AFFINITY,
+                                    resolver: HostPortResolver<AsyncSocket>): SchemeExecutor {
+    val http = createHostExecutor(affinity, 80, resolver)
+    register("http", http::invoke)
+    register("ws", http::invoke)
     return this
 }
 
-fun SchemeExecutor.useHttpsScheme(): SchemeExecutor {
-    val https = createHostExecutor(client, 443, eventLoop.connectAny {  host, port, socket ->
-        socket.connectTls(host, port)
-    })
+fun SchemeExecutor.useHttpsExecutor(affinity: AsyncAffinity = AsyncAffinity.NO_AFFINITY,
+                                    resolver: HostPortResolver<AsyncSocket>): SchemeExecutor {
+    val https = createHostExecutor(affinity, 443, resolver)
 
-    register("https", https::execute)
-    register("wss", https::execute)
+    register("https", https::invoke)
+    register("wss", https::invoke)
     return this
 }
+
+fun SchemeExecutor.useHttpExecutor(eventLoop: AsyncEventLoop,
+                                   resolver: HostPortResolver<AsyncSocket> =
+                                           connectFirstAvailableResolver(createDefaultResolver(eventLoop))) =
+        useHttpExecutor(eventLoop as AsyncAffinity, resolver)
+
+fun SchemeExecutor.useHttpsExecutor(affinity: AsyncAffinity,
+                                    sslContext: SSLContext = getDefaultSSLContext(),
+                                    candidates: HostCandidatesProvider) =
+        useHttpsExecutor(affinity, connectFirstAvailableResolver(candidates) { host, port ->
+            connectTls(host, port, sslContext)
+        })
+
+fun SchemeExecutor.useHttpsExecutor(eventLoop: AsyncEventLoop,
+                                    sslContext: SSLContext = getDefaultSSLContext(),
+                                    candidates: HostCandidatesProvider = createDefaultResolver(eventLoop)) =
+        useHttpsExecutor(eventLoop as AsyncAffinity, sslContext, candidates)
+
+
+
+fun SchemeExecutor.useHttpsAlpnExecutor(affinity: AsyncAffinity = AsyncAffinity.NO_AFFINITY,
+                                    resolver: HostPortResolver<AlpnSocket>): SchemeExecutor {
+    val https = createHostAlpnExecutor(affinity, 443, resolver)
+
+    register("https", https::invoke)
+    register("wss", https::invoke)
+    return this
+}
+
+
+fun SchemeExecutor.useHttpsAlpnExecutor(affinity: AsyncAffinity,
+                                    sslContext: SSLContext = getDefaultALPNSSLContext(),
+                                    candidates: HostCandidatesProvider) =
+        useHttpsAlpnExecutor(affinity, connectFirstAvailableResolver(candidates) { host, port ->
+            val engine = sslContext.createSSLEngine(host, port)
+            engine.setNegotiatedProtocols(Protocol.HTTP_2.protocol, Protocol.HTTP_1_1.protocol)
+            val socket = connectTls(engine)
+            object : AlpnSocket, AsyncSocket by socket {
+                override val negotiatedProtocol = engine.getNegotiatedProtocol()
+            }
+        })
+
+fun SchemeExecutor.useHttpsAlpnExecutor(eventLoop: AsyncEventLoop,
+                                    sslContext: SSLContext = getDefaultALPNSSLContext(),
+                                    candidates: HostCandidatesProvider = createDefaultResolver(eventLoop)) =
+        useHttpsAlpnExecutor(eventLoop as AsyncAffinity, sslContext, candidates)

@@ -1,51 +1,42 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.async
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
-import com.koushikdutta.scratch.http.client.*
-import com.koushikdutta.scratch.http.client.middleware.AsyncHttpClientMiddleware
-import com.koushikdutta.scratch.http.client.middleware.useMemoryCache
-import com.koushikdutta.scratch.http.server.AsyncHttpServer
+import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
+import com.koushikdutta.scratch.http.client.buildUpon
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
+import com.koushikdutta.scratch.http.client.executor.useMemoryCache
+import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 open class HttpCacheTests {
-    open fun createClient(): AsyncHttpClientExecutor {
-        return AsyncHttpClient()
-                .buildUpon()
-                .useMemoryCache()
-                .build()
+    open fun createClient(loop: AsyncEventLoop, callback: AsyncHttpExecutor): AsyncHttpClientExecutor {
+        val client = AsyncHttpClient(loop)
+        client.schemeExecutor.unhandled = callback
+        return client
+            .buildUpon()
+            .useMemoryCache()
+            .build()
     }
 
     fun testHandlerExpecting(expecting: AsyncHttpResponse.() -> Unit, callback: AsyncHttpExecutor) {
-        val client = createClient()
+        val loop = AsyncEventLoop()
+        val client = createClient(loop, callback)
 
-        client.client.middlewares.add(0, object : AsyncHttpClientMiddleware() {
-            val server = AsyncHttpServer(callback)
+        val result = loop.async {
+            val get = Methods.GET("/")
+            val data = readAllString(client(get).body!!)
 
-            val serverSocket = AsyncPipeServerSocket()
-
-            init {
-                server.listen(serverSocket)
-            }
-
-            override suspend fun connectSocket(session: AsyncHttpClientSession): Boolean {
-                session.transport = AsyncHttpClientTransport(serverSocket.connect())
-                return true
-            }
-        })
-
-        val result = client.eventLoop.async {
-            val get = Methods.GET("http://example.com")
-            val data = readAllString(client.execute(get).body!!)
-
-            val data2 = client.get("http://example.com") {
+            val data2 = client.get("/") {
                 expecting(it)
                 readAllString(it.body!!)
             }
@@ -53,9 +44,9 @@ open class HttpCacheTests {
             assertEquals(data, data2)
         }
 
-        result.finally { client.eventLoop.stop() }
+        result.finally { loop.stop() }
 
-        client.eventLoop.run()
+        loop.run()
         result.getOrThrow()
     }
 

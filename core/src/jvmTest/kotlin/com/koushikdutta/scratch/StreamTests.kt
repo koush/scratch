@@ -1,6 +1,6 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.http.client.middleware.createContentLengthPipe
+import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.stream.createAsyncRead
 import org.junit.Test
 import java.io.FileInputStream

@@ -1,4 +1,4 @@
-package com.koushikdutta.scratch.http.client.middleware
+package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBuffer
@@ -6,10 +6,10 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
+import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.client.AsyncHttpClientExecutor
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutorBuilder
 import com.koushikdutta.scratch.http.server.createSliceableResponse
 import kotlin.random.Random
@@ -206,9 +206,8 @@ interface Cache {
     suspend fun remove(key: String)
 }
 
-class CacheExecutor(val next: AsyncHttpClientExecutor, val cache: Cache) : AsyncHttpClientExecutor {
+class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpClientExecutor, val cache: Cache) : AsyncHttpClientExecutor {
     val sessionKey = randomHex()
-    override val client = next.client
 
     private suspend fun AsyncHttpRequest.createCachedResponse(conditional: Boolean, key: String, responseLine: ResponseLine, headers: Headers, cacheData: AsyncRandomAccessInput): AsyncHttpResponse {
         val start = cacheData.getPosition()
@@ -285,7 +284,7 @@ class CacheExecutor(val next: AsyncHttpClientExecutor, val cache: Cache) : Async
         return request.createCachedResponse(false, key, responseLine, headers, entry)
     }
 
-    override suspend fun execute(request: AsyncHttpRequest): AsyncHttpResponse {
+    override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
         val conditionalResponse = try {
             // attempt to retrieve directly from cache, or prepare any conditional cache headers
             val cacheResponse = prepareExecute(request)
@@ -300,7 +299,7 @@ class CacheExecutor(val next: AsyncHttpClientExecutor, val cache: Cache) : Async
         }
 
         val response = try {
-            val response = next.execute(request)
+            val response = next(request)
             // if the conditional response was successful, clean up the validated response and return
             // the cached response
             if (conditionalResponse != null && response.code == StatusCode.NOT_MODIFIED.code) {
@@ -368,7 +367,7 @@ class CacheExecutor(val next: AsyncHttpClientExecutor, val cache: Cache) : Async
 
 fun AsyncHttpExecutorBuilder.useMemoryCache(): AsyncHttpExecutorBuilder {
     wrapExecutor {
-        CacheExecutor(it, cache = BufferCache())
+        CacheExecutor(it.affinity, it, cache = BufferCache())
     }
     return this
 }
