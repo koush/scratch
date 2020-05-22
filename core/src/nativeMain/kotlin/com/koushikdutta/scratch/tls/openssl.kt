@@ -26,8 +26,16 @@ actual fun createTLSContext(): SSLContext {
     return SSLContext()
 }
 
+actual fun createALPNTLSContext(): SSLContext {
+    return SSLContext()
+}
+
 private val defaultContext = SSLContext()
 actual fun getDefaultSSLContext(): SSLContext {
+    return defaultContext
+}
+
+actual fun getDefaultALPNSSLContext(): SSLContext {
     return defaultContext
 }
 
@@ -81,7 +89,7 @@ actual class SSLContext(val ctx: CPointer<SSL_CTX> = SSL_CTX_new(SSLv23_method!!
 
         internal val engineIndex: Int
         init {
-            OPENSSL_init_ssl(0, null)
+            OPENSSL_init_ssl(0.toULong(), null)
             ERR_load_X509_strings()
             ERR_load_X509V3_strings()
             ERR_load_RSA_strings()
@@ -204,24 +212,6 @@ actual abstract class SSLEngine(internal val ctx: CPointer<SSL_CTX>, internal va
     }
 
     val alpnprotos = mutableListOf<String>()
-    fun setAlpnProtocols(protos: Collection<String>) {
-        alpnprotos.clear()
-        alpnprotos.addAll(protos)
-    }
-
-    fun getNegotiatedAlpnProtocol(): String? {
-        val encoded = memScoped {
-            val encoded = alloc<CPointerVar<UByteVar>>()
-            val encodedLen = alloc<UIntVar>()
-            SSL_get0_alpn_selected(engine, encoded.ptr, encodedLen.ptr)
-            if (encodedLen.value.toInt() == 0)
-                return null
-            encoded.value!!.readBytes(encodedLen.value.toInt())
-        }
-
-        return encoded.stringFromUtf8()
-    }
-
 
     internal fun getErrorString(n: ULong): String {
         memScoped {
@@ -307,6 +297,24 @@ actual abstract class SSLEngine(internal val ctx: CPointer<SSL_CTX>, internal va
             }
         }
     }
+}
+
+actual fun SSLEngine.setApplicationProtocols(vararg protocols: String) {
+    alpnprotos.clear()
+    alpnprotos.addAll(protocols)
+}
+
+actual fun SSLEngine.getApplicationProtocol(): String? {
+    val encoded = memScoped {
+        val encoded = alloc<CPointerVar<UByteVar>>()
+        val encodedLen = alloc<UIntVar>()
+        SSL_get0_alpn_selected(engine, encoded.ptr, encodedLen.ptr)
+        if (encodedLen.value.toInt() == 0)
+            return null
+        encoded.value!!.readBytes(encodedLen.value.toInt())
+    }
+
+    return encoded.stringFromUtf8()
 }
 
 class SSLEngineImpl(ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) : SSLEngine(ctx, engine) {

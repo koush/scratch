@@ -60,7 +60,7 @@ private class ConscryptHelper {
     }
 }
 
-actual fun SSLEngine.setNegotiatedProtocols(vararg protocols: String) {
+actual fun SSLEngine.setApplicationProtocols(vararg protocols: String) {
     if (!ConscryptHelper.hasConscrypt)
         return
 
@@ -71,7 +71,7 @@ actual fun SSLEngine.setNegotiatedProtocols(vararg protocols: String) {
     Conscrypt.setApplicationProtocols(this, protocols)
 }
 
-actual fun SSLEngine.getNegotiatedProtocol(): String? {
+actual fun SSLEngine.getApplicationProtocol(): String? {
     if (!ConscryptHelper.hasConscrypt)
         return null
 

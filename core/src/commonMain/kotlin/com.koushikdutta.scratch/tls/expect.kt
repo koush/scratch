@@ -32,8 +32,8 @@ expect fun SSLEngine.runHandshakeTask()
 expect fun SSLEngine.checkHandshakeStatus(): SSLEngineHandshakeStatus
 expect fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult
 expect fun SSLEngine.wrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker = AllocationTracker()): SSLEngineResult
-expect fun SSLEngine.setNegotiatedProtocols(vararg protocols: String)
-expect fun SSLEngine.getNegotiatedProtocol(): String?
+expect fun SSLEngine.setApplicationProtocols(vararg protocols: String)
+expect fun SSLEngine.getApplicationProtocol(): String?
 
 expect open class SSLException(message: String): IOException
 expect class SSLHandshakeException : SSLException

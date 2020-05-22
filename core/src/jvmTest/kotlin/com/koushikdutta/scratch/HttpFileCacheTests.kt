@@ -5,7 +5,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.http.client.buildUpon
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
-import com.koushikdutta.scratch.http.client.middleware.useFileCache
+import com.koushikdutta.scratch.http.client.executor.useFileCache
 
 class HttpFileCacheTests: HttpCacheTests() {
     override fun createClient(loop: AsyncEventLoop, callback: AsyncHttpExecutor): AsyncHttpClientExecutor {

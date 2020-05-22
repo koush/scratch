@@ -1,4 +1,4 @@
-package com.koushikdutta.scratch.http.client.middleware
+package com.koushikdutta.scratch.http.client.executor
 
 
 import com.koushikdutta.scratch.AsyncRandomAccessInput
@@ -9,10 +9,6 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutorBuilder
-import com.koushikdutta.scratch.http.client.executor.Cache
-import com.koushikdutta.scratch.http.client.executor.CacheExecutor
-import com.koushikdutta.scratch.http.client.executor.CacheStorage
-import com.koushikdutta.scratch.http.client.executor.randomHex
 import java.io.File
 
 private val tmpdir = System.getProperty("java.io.tmpdir")

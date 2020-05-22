@@ -150,10 +150,10 @@ fun SchemeExecutor.useHttpsAlpnExecutor(affinity: AsyncAffinity,
                                     candidates: HostCandidatesProvider) =
         useHttpsAlpnExecutor(affinity, connectFirstAvailableResolver(candidates) { host, port ->
             val engine = sslContext.createSSLEngine(host, port)
-            engine.setNegotiatedProtocols(Protocol.HTTP_2.protocol, Protocol.HTTP_1_1.protocol)
+            engine.setApplicationProtocols(Protocol.HTTP_2.protocol, Protocol.HTTP_1_1.protocol)
             val socket = connectTls(engine)
             object : AlpnSocket, AsyncSocket by socket {
-                override val negotiatedProtocol = engine.getNegotiatedProtocol()
+                override val negotiatedProtocol = engine.getApplicationProtocol()
             }
         })
 
