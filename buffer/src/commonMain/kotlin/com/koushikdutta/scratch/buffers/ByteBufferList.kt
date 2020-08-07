@@ -282,10 +282,14 @@ class ByteBufferList : Buffers {
     private fun read(count: Int): ByteBuffer {
         require(remaining >= count) { "count : $remaining/$count" }
 
-        var first: ByteBuffer = buffers.peekFirst()
-        while (!first.hasRemaining()) {
-            reclaim(buffers.removeFirst())
+        var first: ByteBuffer
+        while (true) {
+            if (buffers.isEmpty() && count == 0)
+                return EMPTY_BYTEBUFFER
             first = buffers.peekFirst()
+            if (first.hasRemaining())
+                break
+            reclaim(buffers.removeFirst())
         }
 
         if (first.remaining() >= count) {

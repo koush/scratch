@@ -64,7 +64,7 @@ typealias HostPortResolver<T> = suspend (host: String, port: Int) -> T
 typealias HostSocketProvider = suspend () -> AsyncSocket
 typealias HostCandidatesProvider = suspend (host: String, port: Int) -> AsyncIterator<HostSocketProvider>
 
-fun createDefaultResolver(eventLoop: AsyncEventLoop): HostCandidatesProvider = {
+internal fun createDefaultResolver(eventLoop: AsyncEventLoop): HostCandidatesProvider = {
     host, port ->
     asyncIterator {
         val resolved = eventLoop.getAllByName(host)
@@ -77,7 +77,7 @@ fun createDefaultResolver(eventLoop: AsyncEventLoop): HostCandidatesProvider = {
     }
 }
 
-fun <T: AsyncSocket> connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider, wrapConnect: WrapConnect<AsyncSocket, T>):
+internal fun <T: AsyncSocket> connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider, wrapConnect: WrapConnect<AsyncSocket, T>):
         HostPortResolver<T> = first@{ host: String, port: Int ->
     val candidates = connectionProvider(host, port)
     var throwable: Throwable? = null
@@ -95,7 +95,7 @@ fun <T: AsyncSocket> connectFirstAvailableResolver(connectionProvider: HostCandi
     throw throwable!!
 }
 
-fun connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider) = connectFirstAvailableResolver(connectionProvider) { _, _ ->
+internal fun connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider) = connectFirstAvailableResolver(connectionProvider) { _, _ ->
     this
 }
 
