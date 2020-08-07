@@ -234,3 +234,5 @@ actual fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuf
 actual fun allocateByteBuffer(length: Int): ByteBuffer {
     return ByteBufferCommon(ByteArray(length), 0, length)
 }
+
+actual fun allocateDirectByteBuffer(length: Int) = allocateByteBuffer(length)

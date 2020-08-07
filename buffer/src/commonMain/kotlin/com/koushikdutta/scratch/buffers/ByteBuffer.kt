@@ -7,6 +7,7 @@ fun createByteBuffer(array: ByteArray): ByteBuffer {
 }
 expect fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuffer
 expect fun allocateByteBuffer(length: Int): ByteBuffer
+expect fun allocateDirectByteBuffer(length: Int): ByteBuffer
 
 enum class ByteOrder {
     LITTLE_ENDIAN {

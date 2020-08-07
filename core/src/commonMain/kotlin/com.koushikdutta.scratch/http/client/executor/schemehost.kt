@@ -77,7 +77,7 @@ fun createDefaultResolver(eventLoop: AsyncEventLoop): HostCandidatesProvider = {
     }
 }
 
-fun <T: AsyncSocket> connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider, wrapConnect: WrapConnect<AsyncSocket, T>):
+fun <T: AsyncSocket> wrapConnectFirstAvailableResolver(connectionProvider: HostCandidatesProvider, wrapConnect: WrapConnect<AsyncSocket, T>):
         HostPortResolver<T> = first@{ host: String, port: Int ->
     val candidates = connectionProvider(host, port)
     var throwable: Throwable? = null
@@ -95,7 +95,7 @@ fun <T: AsyncSocket> connectFirstAvailableResolver(connectionProvider: HostCandi
     throw throwable!!
 }
 
-fun connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider) = connectFirstAvailableResolver(connectionProvider) { _, _ ->
+fun connectFirstAvailableResolver(connectionProvider: HostCandidatesProvider) = wrapConnectFirstAvailableResolver(connectionProvider) { _, _ ->
     this
 }
 
@@ -124,7 +124,7 @@ fun SchemeExecutor.useHttpExecutor(eventLoop: AsyncEventLoop,
 fun SchemeExecutor.useHttpsExecutor(affinity: AsyncAffinity,
                                     sslContext: SSLContext = getDefaultSSLContext(),
                                     candidates: HostCandidatesProvider) =
-        useHttpsExecutor(affinity, connectFirstAvailableResolver(candidates) { host, port ->
+        useHttpsExecutor(affinity, wrapConnectFirstAvailableResolver(candidates) { host, port ->
             connectTls(host, port, sslContext)
         })
 
@@ -148,7 +148,7 @@ fun SchemeExecutor.useHttpsAlpnExecutor(affinity: AsyncAffinity = AsyncAffinity.
 fun SchemeExecutor.useHttpsAlpnExecutor(affinity: AsyncAffinity,
                                     sslContext: SSLContext = getDefaultALPNSSLContext(),
                                     candidates: HostCandidatesProvider) =
-        useHttpsAlpnExecutor(affinity, connectFirstAvailableResolver(candidates) { host, port ->
+        useHttpsAlpnExecutor(affinity, wrapConnectFirstAvailableResolver(candidates) { host, port ->
             val engine = sslContext.createSSLEngine(host, port)
             engine.setApplicationProtocols(Protocol.HTTP_2.protocol, Protocol.HTTP_1_1.protocol)
             val socket = connectTls(engine)

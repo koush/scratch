@@ -21,3 +21,4 @@ actual fun ByteBuffer.order(order: ByteOrder): ByteBuffer {
 
 actual fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuffer = ByteBuffer.wrap(array, offset, length)
 actual fun allocateByteBuffer(length: Int) = ByteBuffer.allocate(length)
+actual fun allocateDirectByteBuffer(length: Int) = ByteBuffer.allocate(length)

@@ -2,6 +2,10 @@ package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.collections.Multimap
+import com.koushikdutta.scratch.collections.getFirst
+import com.koushikdutta.scratch.collections.parseCommaDelimited
+import com.koushikdutta.scratch.event.milliTime
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
@@ -15,7 +19,22 @@ class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, override v
 class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader = AsyncReader(socket::read)): AsyncHttpClientExecutor {
     override val affinity = socket
     private val buffer = ByteBufferList()
-    var isAlive = true
+    private var timeout = Long.MAX_VALUE
+    var isAlive: Boolean = true
+        get() {
+            // check if dead
+            if (!field)
+                return field
+
+            // validate timeout
+            field = timeout > milliTime()
+            if (!field) {
+                Promise {
+                    socket.close()
+                }
+            }
+            return field
+        }
         internal set
     var isResponseEnded = true
         internal set
@@ -76,6 +95,10 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
 
         val response = AsyncHttpResponse(ResponseLine(statusLine), headers, responseBody)
         isAlive = isKeepAlive(request, response)
+        val keepAlive = parseCommaDelimited(headers["Connection"] ?: "")
+        // use a default keepalive timeout of 5 seconds.
+        val timeout = keepAlive.getFirst("timeout")?.toInt() ?: 5
+        this.timeout = milliTime() + timeout * 1000
         return response
     }
 

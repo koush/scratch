@@ -19,12 +19,22 @@ class AsyncHttpConnectSocketExecutor(override val affinity: AsyncAffinity = Asyn
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
         affinity.await()
 
-        val executor = if (keepaliveSockets.isEmpty()) {
-            AsyncHttpSocketExecutor(connect())
+        val executor: AsyncHttpSocketExecutor
+        if (keepaliveSockets.isEmpty()) {
+            executor = AsyncHttpSocketExecutor(connect())
         }
         else {
-            reusedSocketCount++
-            keepaliveSockets.removeFirst()
+            var found: AsyncHttpSocketExecutor? = null
+            while (keepaliveSockets.isNotEmpty()) {
+                val check = keepaliveSockets.removeFirst()
+                if (check.isAlive) {
+                    found = check
+                    reusedSocketCount++
+                    break
+                }
+            }
+
+            executor = found ?: AsyncHttpSocketExecutor(connect())
         }
 
         val response = executor(request)

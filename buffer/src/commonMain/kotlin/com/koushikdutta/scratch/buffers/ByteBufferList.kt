@@ -2,7 +2,6 @@
 
 package com.koushikdutta.scratch.buffers
 
-import kotlin.jvm.JvmStatic
 import kotlin.math.max
 import kotlin.math.min
 
@@ -269,6 +268,13 @@ class ByteBufferList : Buffers {
             return EMPTY_BYTEBUFFER
         read(remaining)
         return readFirst()
+    }
+
+    override fun readDirectByteBuffer(): ByteBuffer {
+        val ret = allocateDirectByteBuffer(remaining)
+        read(ret)
+        ret.flip()
+        return ret
     }
 
     override fun readByteBuffer(length: Int): ByteBuffer {
@@ -538,7 +544,7 @@ class ByteBufferList : Buffers {
 
     override fun giveReclaimedBuffers(into: ArrayList<ByteBuffer>) {
         if (into.size > maxReclaimed)
-            println("ByteBufferList has obtained over $maxReclaimed ($into.size) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+            println("ByteBufferList has obtained over $maxReclaimed (${into.size}) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
         if (into.size > maxReclaimed * 2)
             into.clear()
         into.addAll(freeBuffers)

@@ -57,6 +57,12 @@ interface ReadableBuffers : AllocatingBuffers {
     fun readByteBuffer(): ByteBuffer
 
     /**
+     * Return all available data as a single direct buffer.
+     * @return
+     */
+    fun readDirectByteBuffer(): ByteBuffer
+
+    /**
      * Read the first ByteBuffer
      */
     fun readFirst(): ByteBuffer
