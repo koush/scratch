@@ -47,6 +47,19 @@ suspend fun AsyncRandomAccessInput.seekInput(position: Long, length: Long): Asyn
     }
 }
 
+fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
+    var read = 0L
+    return {
+        val start = it.remaining()
+        val eos = readPosition(position + read, length - read, it)
+        read += it.remaining() - start
+        if (read == length)
+            false
+        else
+            eos
+    }
+}
+
 /**
  * AsyncRandomAccessStorage provides random access read and write to
  * resources. The resource may be locally stored, like a file, or remotely
