@@ -44,12 +44,10 @@ actual fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: 
     while (true) {
         val unfiltered = if (src.hasRemaining()) src.readFirst() else ByteBufferList.EMPTY_BYTEBUFFER
         val hasMultipleBuffers = src.hasRemaining()
-        val result = dst.putAllocatedBuffer(tracker.requestNextAllocation()) {
-            val before = it.remaining()
+        val result = dst.putAllocatedBuffers(tracker.requestNextAllocation()) {
             val ret = unwrap(unfiltered, it)
-            val bytesProduced = before - it.remaining()
             // track the allocation to estimate future allocation needs
-            tracker.trackDataUsed(bytesProduced)
+            tracker.trackDataUsed(ret.bytesProduced())
             ret
         }
         src.addFirst(unfiltered)

@@ -468,7 +468,7 @@ class ByteBufferList : Buffers {
         val buffer = grow(allocate, requireArray)
         // the amount written may not be the same as the amount allocated.
         // this will happen in the case of
-        // resolve that discrepency when tracking remaining.
+        // resolve that discrepancy when tracking remaining.
         try {
             return writer(buffer)
         }
@@ -487,6 +487,36 @@ class ByteBufferList : Buffers {
     override fun <T> putAllocatedBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T = putAllocatedBufferInternal(allocate, false, writer)
 
     override fun <T> putAllocatedByteBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T = putAllocatedBufferInternal(allocate, true, writer)
+
+    override fun <T> putAllocatedBuffers(allocate: Int, writer: BuffersBuffersWriter<T>): T {
+        var available = 0
+        for (freeBuffer in freeBuffers) {
+            available += freeBuffer.remaining()
+            if (available >= allocate)
+                break
+        }
+
+        val need = allocate - available
+        if (need > 0)
+            freeBuffers.add(allocateByteBuffer(need))
+
+        val buffers = freeBuffers.toTypedArray()
+        freeBuffers.clear()
+
+        try {
+            return writer(buffers)
+        }
+        finally {
+            for (buffer in buffers) {
+                buffer.flip()
+                if (buffer.hasRemaining())
+                    add(buffer)
+                // toss or keep?
+//                else
+//                    reclaim(buffer)
+            }
+        }
+    }
 
     @UseExperimental(ExperimentalStdlibApi::class)
     override fun putUtf8String(s: String): ByteBufferList {
@@ -522,15 +552,15 @@ class ByteBufferList : Buffers {
             // only wholly owned arrays can be reclaimed
             if (b == null || b.isDirect() || b.array().size != b.capacity() || b.arrayOffset() != 0 || b.capacity() > MAX_ITEM_SIZE || b.capacity() < MIN_ITEM_SIZE)
                 return
+            b.clear()
             freeBuffers.add(b)
         }
     }
 
-    private val maxReclaimed = 500
     override fun reclaim(vararg buffers: ByteBuffer?) {
-        if (freeBuffers.size > maxReclaimed)
-            println("ByteBufferList has reclaimed over $maxReclaimed (${freeBuffers.size}) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
-        if (freeBuffers.size > maxReclaimed * 2)
+        if (freeBuffers.size > MAX_RECLAIMED_COUNT)
+            println("ByteBufferList has reclaimed over $MAX_RECLAIMED_COUNT (${freeBuffers.size}) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+        if (freeBuffers.size > MAX_RECLAIMED_COUNT * 2)
             freeBuffers.clear()
         reclaimInternal(*buffers)
     }
@@ -539,17 +569,19 @@ class ByteBufferList : Buffers {
         for ((index, b) in freeBuffers.withIndex()) {
             if (size <= b.capacity()) {
                 freeBuffers.removeAt(index)
-                b.clear()
                 return b
             }
         }
+        // on a failure to reuse a buffer, clear the buffer list, as the stream
+        // may not need buffers in the sizes that are available.
+        freeBuffers.clear()
         return Companion.obtain(size)
     }
 
     override fun giveReclaimedBuffers(into: ArrayList<ByteBuffer>) {
-        if (into.size > maxReclaimed)
-            println("ByteBufferList has obtained over $maxReclaimed (${into.size}) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
-        if (into.size > maxReclaimed * 2)
+        if (into.size > MAX_RECLAIMED_COUNT)
+            println("ByteBufferList has obtained over $MAX_RECLAIMED_COUNT (${into.size}) buffers. There is a leak somewhere. Typically reads and puts between buffers will automatically swap empty ByteBuffers in the appropriate direction. Use obtainAll/takeAll to pass buffers upstream.")
+        if (into.size > MAX_RECLAIMED_COUNT * 2)
             into.clear()
         into.addAll(freeBuffers)
         freeBuffers.clear()
@@ -563,6 +595,7 @@ class ByteBufferList : Buffers {
         val EMPTY_BYTEBUFFER = createByteBuffer(ByteArray(0))
         const val MAX_ITEM_SIZE = 65536
         const val MIN_ITEM_SIZE = 1024
+        private const val MAX_RECLAIMED_COUNT = 500
         val totalObtained: Long
             get() = totalObtained2
         val totalObtainCount: Int

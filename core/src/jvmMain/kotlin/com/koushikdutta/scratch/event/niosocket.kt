@@ -264,8 +264,8 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
         closeInternal(null)
     }
 
-    private val trackingSocketReader: BuffersBufferWriter<Int> = {
-        val ret = channel.read(it)
+    private val trackingSocketReader: BuffersBuffersWriter<Int> = {
+        val ret = channel.read(it).toInt()
         if (ret > 0)
             allocator.trackDataUsed(ret)
         ret
@@ -282,7 +282,7 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
         try {
             var read: Int
             do {
-                read = inputBuffer.putAllocatedBuffer(allocator.requestNextAllocation(), trackingSocketReader)
+                read = inputBuffer.putAllocatedBuffers(allocator.requestNextAllocation(), trackingSocketReader)
                 // flushing within the loop to get the buffer allocations recycling quicker
                 flushInputBuffer()
             }
