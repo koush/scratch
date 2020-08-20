@@ -196,12 +196,12 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
 
     suspend fun connect(socketAddress: InetSocketAddress) {
         await()
-        channel.socket().connect(socketAddress)
+        channel.connect(socketAddress)
     }
 
     suspend fun disconnect() {
         await()
-        channel.socket().disconnect()
+        channel.disconnect()
     }
 }
 

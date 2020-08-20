@@ -81,7 +81,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
 
             if (message.opcode == HybiParser.OP_CLOSE) {
                 val reason = readAllString(message.read)
-                closeMessage = WebSocketCloseMessage(message.closeCode, reason)
+                closeMessage = WebSocketCloseMessage(message.closeCode!!, reason)
                 return object : WebSocketMessage {
                     override val isClose = true
                 }
