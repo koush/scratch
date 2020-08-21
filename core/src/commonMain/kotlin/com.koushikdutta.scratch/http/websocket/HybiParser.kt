@@ -11,13 +11,11 @@ import kotlin.experimental.or
 import kotlin.experimental.xor
 import kotlin.random.Random
 
-class HybiFrame(val opcode: Int, val final: Boolean, val read: AsyncRead, private val code: Int? = null) {
-    val closeCode: Int
-        get() {
-            if (code == null)
-                throw IllegalStateException("opcode is not OP_CLOSE")
-            return code
-        }
+
+// closeCode was in an optional arg, but this was causing VerifyError on Android?
+class HybiFrame(val opcode: Int, val final: Boolean, val read: AsyncRead) {
+    var closeCode: Int? = null
+        internal set
 }
 
 class HybiProtocolError(detailMessage: String) : IOException(detailMessage)
@@ -106,7 +104,10 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
 
         isEnded = true
         val reader = AsyncReader(read)
-        return HybiFrame(opcode, final, reader::read, reader.readShort().toInt())
+        return HybiFrame(opcode, final, reader::read, ).run {
+            closeCode = reader.readShort().toInt()
+            this
+        }
     }
 
     fun frame(data: String): ReadableBuffers {
