@@ -5,7 +5,6 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 
-
 /**
  * Read into a buffer.
  * Returns true if more data can be read.
@@ -17,7 +16,8 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 typealias AsyncRead = suspend (buffer: WritableBuffers) -> Boolean
 
 /**
- * Write a buffer.
+ * Write from a buffer.
+ * This function may return without fully writing the entire buffer.
  */
 typealias AsyncWrite = suspend (buffer: ReadableBuffers) -> Unit
 
@@ -64,10 +64,22 @@ interface AsyncResource : AsyncAffinity {
 }
 
 interface AsyncInput : AsyncResource {
+    /**
+     * Read into a buffer.
+     * Returns true if more data can be read.
+     * Returns false if nothing was read, and no further data can be read.
+     * Writing data into the buffer, and returning false to indicate end of stream is an
+     * invalid implementation:
+     * This makes read looping clunky, as false while returning data results in truthy behavior.
+     */
     suspend fun read(buffer: WritableBuffers): Boolean
 }
 
 interface AsyncOutput : AsyncResource {
+    /**
+     * Write from a buffer.
+     * This function may return without fully writing the entire buffer.
+     */
     suspend fun write(buffer: ReadableBuffers)
 }
 
