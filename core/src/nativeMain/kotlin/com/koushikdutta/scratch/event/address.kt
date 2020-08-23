@@ -19,7 +19,7 @@ actual open class InetAddress internal constructor(internal val sockaddr: CValue
             }
         }
 
-        return addressString.stringFromUtf8()
+        return addressString.decodeToString()
     }
 }
 actual class Inet4Address internal constructor(sockaddr: CValue<sockaddr>) : InetAddress(sockaddr) {

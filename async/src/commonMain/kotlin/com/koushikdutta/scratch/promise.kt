@@ -23,27 +23,28 @@ class Deferred<T> {
     }
 }
 
-expect class Promise<T> : PromiseBase<T> {
+expect open class Promise<T> : PromiseBase<T> {
     constructor(block: suspend () -> T)
     internal constructor()
 }
 
 open class PromiseBase<T> {
-    private val atomicReference =
+    internal val atomicReference =
         FreezableReference<Result<T>>()
-    private val callbacks =
+    internal val callbacks =
         FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
             Unit
         }
 
     internal constructor()
 
-    internal fun reject(throwable: Throwable): Boolean {
+    internal fun reject(throwable: Throwable, resume: Boolean = true): Boolean {
         if (atomicReference.freeze(Result.failure(throwable))?.frozen == true)
             return false
         callbacks.freeze()
         callbacks.clear(Unit) { _, continuation ->
-            continuation.resumeWithException(throwable)
+            if (resume)
+                continuation.resumeWithException(throwable)
         }
         return true
     }
@@ -58,7 +59,7 @@ open class PromiseBase<T> {
         return true
     }
 
-    constructor(block: suspend () -> T) {
+    internal fun start(block: suspend () -> T) {
         block.startCoroutine(Continuation(EmptyCoroutineContext) {
             try {
                 if (it.isFailure)
@@ -72,6 +73,10 @@ open class PromiseBase<T> {
                 reject(throwable)
             }
         })
+    }
+
+    constructor(block: suspend () -> T) {
+        start(block)
     }
 
     fun <R> then(callback: PromiseThen<T, R>): Promise<R> {

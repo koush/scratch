@@ -1,3 +1,5 @@
+@file:Suppress("BlockingMethodInNonBlockingContext")
+
 package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.*
@@ -7,6 +9,8 @@ import java.nio.channels.DatagramChannel
 import java.nio.channels.SelectionKey
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 
 actual typealias AsyncNetworkServerSocket = NIOServerSocket
@@ -46,19 +50,20 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
     }
 
     internal fun accepted() {
-//        server.post {
         var sc: SocketChannel? = null
         try {
             sc = channel.accept()
             if (sc == null)
                 return
             sc.configureBlocking(false)
-            queue.add(NIOSocket(server, sc, sc.register(server.mSelector.selector, SelectionKey.OP_READ)))
+            val key = sc.register(server.mSelector.selector, SelectionKey.OP_READ)
+            val socket = NIOSocket(server, sc, key)
+            key.attach(socket)
+            queue.add(socket)
         }
         catch (e: IOException) {
             closeQuietly(sc)
         }
-//        }
     }
 }
 
@@ -208,14 +213,10 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
 actual typealias AsyncNetworkSocket = NIOSocket
 
 class NIOSocket internal constructor(val server: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by server {
-    init {
-        key.attach(this)
-    }
-
     val socket = channel.socket()
     val localPort = channel.socket().localPort
     val localAddress = channel.socket().localAddress
-    val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress
+    val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress?
     private val inputBuffer = ByteBufferList()
     private var closed = false
     private val allocator = AllocationTracker()
@@ -317,5 +318,29 @@ class NIOSocket internal constructor(val server: AsyncEventLoop, private val cha
     override suspend fun write(buffer: ReadableBuffers) {
         await()
         output.write(buffer)
+    }
+
+    suspend fun connect(socketAddress: InetSocketAddress) {
+        await()
+
+        if (key.attachment() != null)
+            throw IllegalStateException("connection in progress")
+
+        key.interestOps(SelectionKey.OP_CONNECT)
+
+        val finishConnect = suspendCoroutine<Boolean> {
+            key.attach(it)
+            val finished = channel.connect(socketAddress)
+            if (finished)
+                it.resume(false)
+        }
+
+        if (finishConnect && !channel.finishConnect()) {
+            key.cancel()
+            throw IOException("socket failed to connect")
+        }
+
+        key.attach(this)
+        key.interestOps(SelectionKey.OP_READ)
     }
 }

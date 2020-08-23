@@ -141,7 +141,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    suspend fun connect(socketAddress: InetSocketAddress): AsyncNetworkSocket {
+    suspend fun createSocket(): AsyncNetworkSocket {
         await()
 
         var ckey: SelectionKey? = null
@@ -149,29 +149,8 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         try {
             socket = SocketChannel.open()
             socket!!.configureBlocking(false)
-
-            ckey = socket.register(mSelector.selector, SelectionKey.OP_CONNECT)
-            suspendCoroutine<Unit> {
-                ckey.attach(it)
-                socket.connect(socketAddress)
-            }
-
-            // for some reason this seems necessary? (see testSocketsALot)
-            // must post, or it seems to just... hang? no more incoming connections.
-            // attempting to log stuff to diagnose issue in itself solves the problem.
-            // ie, slowing down how quickly the sockets are connected addresses some underlying race condition.
-            // but, given that the test itself is entirely single threaded and non-concurrent,
-            // it leads me to believe the underlying problem is in the SUN NIO implementation.
-//            post()
-
-            if (!socket.finishConnect()) {
-                ckey.cancel()
-                throw IOException("socket failed to connect")
-            }
-
-            val ret = AsyncNetworkSocket(this, socket, ckey)
-            ckey.interestOps(SelectionKey.OP_READ)
-            return ret;
+            ckey = socket.register(mSelector.selector, 0)
+            return AsyncNetworkSocket(this, socket, ckey)
         }
         catch (e: Exception) {
             ckey?.cancel()
@@ -262,11 +241,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                     socket.writable()
                 }
                 else if (key.isConnectable) {
-                    val continuation = key.attachment() as Continuation<Unit>?
+                    val continuation = key.attachment() as Continuation<Boolean>?
                     key.interestOps(0)
                     key.attach(null)
                     // continuation may not fire synchronously.
-                    continuation?.resume(Unit)
+                    continuation?.resume(true)
                 }
                 else {
                     throw AssertionError("Unknown key state")

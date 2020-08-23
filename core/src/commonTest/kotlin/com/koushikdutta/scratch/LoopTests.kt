@@ -232,6 +232,8 @@ class LoopTests {
     @Test
     fun testSocketsALotConcurrent() = networkContextTest{
         val server = listen(0, null, 10000)
+        server.acceptAsync {
+        }
         var connected = 0
         // there seems to be a weird issue with opening a ton of file descriptors too quickly.
         // the file limit is not hit, but connects will fail with "Connection reset by peer"
@@ -250,6 +252,7 @@ class LoopTests {
                         sleep(10)
                         socket.close()
                         connected++
+                        println(connected)
                         break
                     }
                     catch (throwable: Throwable) {

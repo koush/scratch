@@ -27,3 +27,15 @@ fun <T> AsyncEventLoop.run(block: suspend AsyncEventLoop.() -> T): T {
 fun AsyncEventLoop.runUnit(block: suspend AsyncEventLoop.() -> Unit) {
     run(block)
 }
+
+suspend fun AsyncEventLoop.connect(socketAddress: InetSocketAddress): AsyncNetworkSocket {
+    val ret = createSocket()
+    try {
+        ret.connect(socketAddress)
+        return ret
+    }
+    catch (throwable: Throwable) {
+        ret.close()
+        throw throwable
+    }
+}

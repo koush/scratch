@@ -15,10 +15,10 @@ private class OpenSSLHash<HashCtx: CVariable>(private val hash_update: hash_upda
             throw IllegalStateException("Hash.final has already been called")
     }
 
-    override fun update(byteArray: ByteArray) {
+    override fun update(byteArray: ByteArray, offset: Int, len: Int) {
         ensureNotFinal()
         byteArray.usePinned {
-            hash_update(ctx.ptr, it.addressOf(0), byteArray.size.toULong())
+            hash_update(ctx.ptr, it.addressOf(offset), len.toULong())
         }
     }
 

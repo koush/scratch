@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.AsyncAffinity
+import com.koushikdutta.scratch.Cancellable
 import com.koushikdutta.scratch.synchronized
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -199,7 +200,7 @@ internal class Scheduler private constructor() : Comparator<Scheduled> {
 }
 
 internal class Scheduled(val server: AsyncScheduler<*>, val runnable: AsyncServerRunnable, val time: Long) :
-    Cancellable {
+        Cancellable {
     private var cancelled: Boolean = false
 
     override val isDone: Boolean
