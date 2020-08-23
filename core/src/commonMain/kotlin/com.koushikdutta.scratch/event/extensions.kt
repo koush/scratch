@@ -6,6 +6,10 @@ suspend fun AsyncEventLoop.getByName(host: String): InetAddress {
     return getAllByName(host)[0]
 }
 
+suspend fun AsyncNetworkSocket.connect(host: String, port: Int) {
+    connect(InetSocketAddress(loop.getByName(host), port))
+}
+
 suspend fun AsyncEventLoop.connect(host: String, port: Int): AsyncNetworkSocket {
     return connect(InetSocketAddress(getByName(host), port))
 }

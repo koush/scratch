@@ -37,6 +37,7 @@ expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
 }
 
 expect class AsyncNetworkSocket: AsyncSocket {
+    val loop: AsyncEventLoop
     val localPort: Int
     suspend fun connect(socketAddress: InetSocketAddress)
 }

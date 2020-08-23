@@ -233,6 +233,7 @@ class LoopTests {
     fun testSocketsALotConcurrent() = networkContextTest{
         val server = listen(0, null, 10000)
         server.acceptAsync {
+            // need to accept/close so handles are freed.
         }
         var connected = 0
         // there seems to be a weird issue with opening a ton of file descriptors too quickly.
@@ -252,7 +253,6 @@ class LoopTests {
                         sleep(10)
                         socket.close()
                         connected++
-                        println(connected)
                         break
                     }
                     catch (throwable: Throwable) {
@@ -425,5 +425,35 @@ class LoopTests {
             readAllString(it.body!!)
         })
         Unit
+    }
+
+    @Test
+    fun testCreateConnect() = networkContextTest {
+        val server = listen()
+        val client = createSocket()
+
+        val promise = Promise {
+            client.connect("127.0.0.1", server.localPort)
+        }
+
+        promise.await()
+    }
+
+    @Test
+    fun testCreateConnectClose() = networkContextTest {
+        val server = listen()
+        val client = createSocket()
+
+        val promise = Promise {
+            client.connect("127.0.0.1", server.localPort)
+        }
+
+        client.close()
+        try {
+            promise.await()
+            fail("connection failure expected")
+        }
+        catch (throwable: Throwable) {
+        }
     }
 }
