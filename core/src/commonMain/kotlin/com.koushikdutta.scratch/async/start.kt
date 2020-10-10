@@ -1,8 +1,12 @@
 package com.koushikdutta.scratch.async
 
 import com.koushikdutta.scratch.AsyncAffinity
+import com.koushikdutta.scratch.Deferred
 import com.koushikdutta.scratch.Promise
 import com.koushikdutta.scratch.exitProcess
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine

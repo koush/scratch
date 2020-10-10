@@ -1,8 +1,10 @@
 package com.koushikdutta.scratch.event
 
-import com.koushikdutta.scratch.AsyncAffinity
-import com.koushikdutta.scratch.Cancellable
-import com.koushikdutta.scratch.synchronized
+import com.koushikdutta.scratch.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
@@ -144,10 +146,16 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
 
     suspend fun sleep(milliseconds: Long) {
         require(milliseconds >= 0) { "negative sleep not allowed" }
-        suspendCoroutine<Unit> {
-            postDelayed(milliseconds) {
-                it.resume(Unit)
-            }
+        val deferred = CompletableDeferred<Unit>()
+        val cancel = postDelayed(milliseconds) {
+            deferred.complete(Unit)
+        }
+        try {
+            deferred.await()
+        }
+        catch (throwable: CancellationException) {
+            cancel.cancel()
+            throw throwable
         }
     }
 
@@ -163,6 +171,8 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         if (isAffinityThread)
             return
         post()
+        if (!isAffinityThread)
+            throw IllegalStateException("Failed to switch to affinity thread. Please use a Promise or Future to create your coroutine. Alternatively, use an unconfined CoroutineDispatcher if using kotlinx.coroutines.")
     }
 
     abstract fun wakeup()

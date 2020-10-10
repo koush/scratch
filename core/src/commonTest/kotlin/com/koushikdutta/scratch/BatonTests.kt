@@ -207,15 +207,17 @@ class BatonTests {
     fun testBatonToss() {
         val baton = Baton<Int>()
         var done = 0
+        // suspension resume order implementation is not guaranteed,
+        // so alternate pass and toss to make it deterministic.
         async {
             assertEquals(baton.pass(4), 1)
-            assertEquals(baton.pass(5), 2)
+            assertEquals(baton.toss(2), 5)
             assertEquals(baton.pass(6), 3)
             done++
         }
         async {
             assertEquals(baton.toss(1), 4)
-            assertEquals(baton.toss(2), 5)
+            assertEquals(baton.pass(5), 2)
             assertEquals(baton.toss(3), 6)
 
             done++

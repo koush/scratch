@@ -1,10 +1,15 @@
 package com.koushikdutta.scratch.crypto
 
+import com.koushikdutta.scratch.buffers.ByteBuffer
 import java.security.MessageDigest
 
 class MessageDigestHash(private val digest: MessageDigest): Hash {
     override fun update(byteArray: ByteArray, offset: Int, len: Int) {
         digest.update(byteArray, offset, len)
+    }
+
+    override fun update(buffer: ByteBuffer) {
+        digest.update(buffer)
     }
 
     override fun final(): ByteArray {

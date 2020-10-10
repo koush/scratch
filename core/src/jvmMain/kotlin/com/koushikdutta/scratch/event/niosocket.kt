@@ -5,11 +5,11 @@ package com.koushikdutta.scratch.event
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.*
 import java.io.IOException
-import java.nio.channels.DatagramChannel
-import java.nio.channels.SelectionKey
-import java.nio.channels.ServerSocketChannel
-import java.nio.channels.SocketChannel
+import java.nio.channels.*
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 
@@ -245,6 +245,12 @@ class NIOSocket internal constructor(val loop: AsyncEventLoop, private val chann
             key.cancel()
         }
         catch (e: Exception) {
+        }
+
+        val attachment = key.attachment()
+        key.attach(null)
+        if (attachment is Continuation<*>) {
+            attachment.resumeWithException(t ?: CancellationException())
         }
 
         if (!closed) {

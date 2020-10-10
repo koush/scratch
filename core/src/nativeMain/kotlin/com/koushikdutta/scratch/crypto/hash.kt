@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch.crypto
 
+import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.extensions.HashExtensions
 import kotlinx.cinterop.*
 
@@ -20,6 +21,10 @@ private class OpenSSLHash<HashCtx: CVariable>(private val hash_update: hash_upda
         byteArray.usePinned {
             hash_update(ctx.ptr, it.addressOf(offset), len.toULong())
         }
+    }
+
+    override fun update(buffer: ByteBuffer) {
+        update(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining())
     }
 
     private var finished = false

@@ -72,7 +72,6 @@ interface ReadableBuffers : AllocatingBuffers {
     fun readShort(): Short
     fun readByte(): Byte
     fun readLong(): Long
-    @UseExperimental(ExperimentalStdlibApi::class)
     fun readUtf8String(length: Int): String {
         return this.readBytes(length).decodeToString()
     }

@@ -5,20 +5,29 @@ import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.event.*
+import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.event.InetSocketAddress
+import com.koushikdutta.scratch.event.connect
+import com.koushikdutta.scratch.event.run
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.execute
-import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.client.createContentLengthPipe
-import com.koushikdutta.scratch.http.client.executor.*
+import com.koushikdutta.scratch.http.client.execute
+import com.koushikdutta.scratch.http.client.executor.HostSocketProvider
+import com.koushikdutta.scratch.http.client.executor.connectFirstAvailableResolver
+import com.koushikdutta.scratch.http.client.executor.useHttpExecutor
+import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.*
@@ -455,5 +464,110 @@ class LoopTests {
         }
         catch (throwable: Throwable) {
         }
+    }
+
+    @Test
+    fun testConnectCancel() = networkContextTest {
+        val server = listen()
+
+        var failed = false
+        val promise = Promise {
+            try {
+                connect("127.0.0.1", server.localPort)
+                fail("cancellation expected")
+            }
+            catch (throwable: CancellationException) {
+                failed = true
+            }
+        }
+
+        // post to trigger the connect
+        post()
+        // cancel will end the coroutine
+        promise.cancel()
+        try {
+            // will throw due to cancel
+            promise.await()
+            fail("connection failure expected")
+        }
+        catch (throwable: Throwable) {
+            // post to trigger close/cancellation
+            post()
+        }
+
+        assertTrue(failed)
+    }
+
+    @Test
+    fun testSleepCancel() = networkContextTest {
+        var failed = false
+        val promise = Promise {
+            try {
+                sleep(1000000)
+                Promise.ensureActive()
+                fail("cancellation expected")
+            }
+            catch (throwable: CancellationException) {
+                failed = true
+            }
+        }
+
+        post()
+        promise.cancel()
+
+        try {
+            promise.await()
+            fail("sleep failure expected")
+        }
+        catch (throwable: Throwable) {
+        }
+
+        post()
+        assertTrue(failed)
+    }
+
+    @Test
+    fun testDispatcher() = networkContextTest {
+        val job = GlobalScope.async(Dispatchers.Unconfined) {
+            assertTrue(isAffinityThread)
+            await()
+            assertTrue(isAffinityThread)
+        }
+
+        job.await()
+
+        // requires unconfined dispatcher.
+        val job2 = GlobalScope.async {
+            assertFalse(isAffinityThread)
+            try {
+                await()
+                fail("await failure expected")
+            }
+            catch (throwable: IllegalStateException) {
+
+            }
+        }
+
+        job2.await()
+    }
+
+    @Test
+    fun testPromiseMultipleCallbacks() = networkContextTest{
+        val promise = Promise {
+            post()
+            Unit
+        }
+
+        var count = 0
+        promise.then {
+            count++
+        }
+
+        promise.then {
+            count++
+        }
+
+        promise.await()
+        assertEquals(count, 2)
     }
 }

@@ -1,9 +1,6 @@
 package com.koushikdutta.scratch.http.client.executor
 
-import com.koushikdutta.scratch.AsyncAffinity
-import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.Promise
-import com.koushikdutta.scratch.acceptAsync
+import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.http2.Http2Connection

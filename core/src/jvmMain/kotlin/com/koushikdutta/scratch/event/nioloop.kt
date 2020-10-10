@@ -13,12 +13,10 @@ import java.net.NetworkInterface
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
 import java.util.*
-import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 actual typealias InetAddress = java.net.InetAddress
 actual typealias Inet4Address = java.net.Inet4Address
@@ -27,14 +25,6 @@ actual typealias InetSocketAddress = java.net.InetSocketAddress
 
 internal actual fun milliTime(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
 internal actual fun nanoTime(): Long = System.nanoTime()
-
-private suspend fun Executor.await() {
-    suspendCoroutine<Unit> {
-        this.execute {
-            it.resume(Unit)
-        }
-    }
-}
 
 internal fun closeQuietly(vararg closeables: Closeable?) {
     for (closeable in closeables) {
@@ -307,7 +297,6 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
     }
 
     companion object {
-        val LOGTAG = "NIO"
         val default = AsyncEventLoop()
 
         init {

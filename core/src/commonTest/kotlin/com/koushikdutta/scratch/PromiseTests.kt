@@ -1,13 +1,7 @@
 package com.koushikdutta.scratch
 
-import kotlin.coroutines.Continuation
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.fail
+import kotlin.coroutines.*
+import kotlin.test.*
 
 class PromiseTests {
     @Test
@@ -103,7 +97,7 @@ class PromiseTests {
             threw = true
             throw Throwable()
         }
-        .recover {
+        .catchThen {
             34
         }
 
@@ -126,7 +120,7 @@ class PromiseTests {
             threw = true
             throw Throwable()
         }
-        .recover {
+        .catchThen {
             34
         }
 
@@ -159,5 +153,26 @@ class PromiseTests {
 
         assertTrue(threw)
         assertTrue(finalized)
+    }
+
+    @Test
+    fun testPromiseCancelHook() {
+        var cancelled = false
+        suspend {
+            val d = Deferred<Unit>()
+
+            val promise = d.promise.cancelled {
+                cancelled = true
+            }
+
+            assertSame(d.promise, promise)
+
+            promise.cancel()
+            promise.await()
+        }.startCoroutine(Continuation<Unit>(EmptyCoroutineContext) {
+            Unit
+        })
+
+        assertTrue(cancelled)
     }
 }
