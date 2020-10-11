@@ -115,9 +115,6 @@ open class Promise<T> internal constructor(val wrappedDeferred: kotlinx.coroutin
         }
 
         suspend fun ensureActive() {
-            val job = getJob()
-            if (job != null)
-                println(job)
             getJob()?.ensureActive()
         }
     }
