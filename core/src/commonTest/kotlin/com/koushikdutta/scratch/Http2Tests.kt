@@ -69,9 +69,8 @@ class Http2Tests {
             val buffer = ByteBufferList()
             // stream the data and digest it
             while (connected.read(buffer)) {
-                val byteArray = buffer.readBytes()
-                received += byteArray.size
-                clientDigest.update(byteArray)
+                received += buffer.remaining()
+                clientDigest.update(buffer)
             }
         }
 

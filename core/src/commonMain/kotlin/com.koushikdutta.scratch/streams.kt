@@ -205,10 +205,9 @@ suspend fun AsyncRead.drain(buffer: WritableBuffers) {
     }
 }
 
-suspend fun AsyncRead.copy(asyncWrite: AsyncWrite) {
-    val bytes = ByteBufferList()
-    while (this(bytes)) {
-        asyncWrite.drain(bytes)
+suspend fun AsyncRead.copy(asyncWrite: AsyncWrite, buffer: ByteBufferList = ByteBufferList()) {
+    while (this(buffer)) {
+        asyncWrite.drain(buffer)
     }
 }
 

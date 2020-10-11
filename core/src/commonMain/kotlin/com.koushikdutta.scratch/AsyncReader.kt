@@ -91,7 +91,9 @@ class AsyncReader(val input: AsyncRead) {
     suspend fun readScanUtf8String(scanString: String): String {
         val buffer = ByteBufferList()
         readScanUtf8String(buffer, scanString)
-        return buffer.readUtf8String()
+        val scanned = buffer.readUtf8String()
+        pending.takeReclaimedBuffers(buffer)
+        return scanned
     }
 
     /**

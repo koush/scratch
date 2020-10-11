@@ -66,7 +66,7 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
 
         buffer.putUtf8String(request.toMessageString())
         socket::write.drain(buffer)
-        requestBody.copy(socket::write)
+        requestBody.copy(socket::write, buffer)
         request.close()
 
         val statusLine = reader.readHttpHeaderLine().trim()
