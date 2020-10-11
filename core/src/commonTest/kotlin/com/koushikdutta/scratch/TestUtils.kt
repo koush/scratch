@@ -21,6 +21,7 @@ class TestUtils {
             val result = networkContext.async {
                 runner(networkContext)
             }
+            .asPromise()
             result.finally {
                 networkContext.stop()
             }

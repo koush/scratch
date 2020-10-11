@@ -1,13 +1,7 @@
 package com.koushikdutta.scratch.event
 
-import com.koushikdutta.scratch.AsyncAffinity
-import com.koushikdutta.scratch.Deferred
-import com.koushikdutta.scratch.Promise
 import com.koushikdutta.scratch.async.async
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 suspend fun AsyncEventLoop.getByName(host: String): InetAddress {
     return getAllByName(host)[0]
@@ -32,7 +26,7 @@ fun <T> AsyncEventLoop.run(block: suspend AsyncEventLoop.() -> T): T {
     }
 
     run()
-    return ret.getOrThrow()
+    return ret.getCompleted()
 }
 
 fun AsyncEventLoop.runUnit(block: suspend AsyncEventLoop.() -> Unit) {
@@ -41,7 +35,7 @@ fun AsyncEventLoop.runUnit(block: suspend AsyncEventLoop.() -> Unit) {
 
 suspend fun AsyncEventLoop.connect(socketAddress: InetSocketAddress): AsyncNetworkSocket {
     val ret = createSocket()
-    val deferred = GlobalScope.async(Dispatchers.Unconfined) {
+    val deferred = async {
         ret.connect(socketAddress)
         ret
     }

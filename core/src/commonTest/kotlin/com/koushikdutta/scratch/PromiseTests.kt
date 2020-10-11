@@ -1,5 +1,10 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.async
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlin.coroutines.*
 import kotlin.test.*
 
@@ -174,5 +179,24 @@ class PromiseTests {
         })
 
         assertTrue(cancelled)
+    }
+
+    @Test
+    fun testKotlinDeferredBehavior() {
+        val deferred = CompletableDeferred<Unit>()
+
+        var finished = 0
+        AsyncAffinity.NO_AFFINITY.async {
+            deferred.await()
+            finished++
+        }
+
+        AsyncAffinity.NO_AFFINITY.async {
+            deferred.await()
+            finished++
+        }
+
+        deferred.complete(Unit)
+        assertEquals(finished, 2)
     }
 }

@@ -53,7 +53,7 @@ class LoopTests {
 
         try {
             networkContext.run()
-            result.rethrow()
+            result.getCompleted()
             fail("exception expected")
         }
         catch (exception: Exception) {
@@ -80,7 +80,7 @@ class LoopTests {
 
         try {
             networkContext.run()
-            result.rethrow()
+            result.getCompleted()
             fail("exception expected")
         }
         catch (exception: Exception) {
@@ -106,8 +106,7 @@ class LoopTests {
         }
 
         networkContext.run()
-        result.rethrow()
-        assertEquals(result.getOrThrow(), 42)
+        assertEquals(result.getCompleted(), 42)
     }
 
     @Test
@@ -185,6 +184,7 @@ class LoopTests {
                 val read = connect("127.0.0.1", server.localPort).countBytes()
                 count += read
             }
+            .asPromise()
         }
         .awaitAll()
 
@@ -269,6 +269,7 @@ class LoopTests {
                     }
                 }
             }
+            .asPromise()
             promises.add(promise)
         }
         promises.awaitAll()
@@ -327,6 +328,7 @@ class LoopTests {
                 }
                 Unit
             }
+            .asPromise()
 
             promises.add(promise)
         }
@@ -528,7 +530,7 @@ class LoopTests {
 
     @Test
     fun testDispatcher() = networkContextTest {
-        val job = GlobalScope.async(Dispatchers.Unconfined) {
+        val job = async {
             assertTrue(isAffinityThread)
             await()
             assertTrue(isAffinityThread)

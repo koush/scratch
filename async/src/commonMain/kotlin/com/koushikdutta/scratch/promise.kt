@@ -36,7 +36,9 @@ internal fun <T> suspendJob(block: suspend () -> T) = GlobalScope.async(Dispatch
     block()
 }
 
-open class Promise<T> internal constructor(val wrappedDeferred: kotlinx.coroutines.Deferred<T>) {
+fun <T> kotlinx.coroutines.Deferred<T>.asPromise(): Promise<T> = Promise(this)
+
+open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.coroutines.Deferred<T>) {
     internal val result = FreezableReference<Result<T>>()
     internal val callbacks =
             FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->

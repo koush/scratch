@@ -17,6 +17,7 @@ class KotlinBugs {
         val result = networkContext.async {
             runner(networkContext)
         }
+        .asPromise()
         result.finally {
             networkContext.stop()
         }
@@ -64,6 +65,7 @@ class KotlinBugs {
                     count += read
                 }
             }
+            .asPromise()
         }
         .awaitAll()
 

@@ -1,9 +1,13 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 
 /**
  * Read into a buffer.
@@ -138,7 +142,7 @@ fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
 }
 
 suspend fun AsyncSocket.stream(peer: AsyncSocket) {
-    val other = Promise {
+    val other = async {
         peer::read.copy(::write)
     }
     ::read.copy(peer::write)
