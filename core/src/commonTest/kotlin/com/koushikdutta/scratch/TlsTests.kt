@@ -83,8 +83,8 @@ class TlsTests {
                 data = readAllString({client.read(it)})
             }
 
-            result1.rethrow()
-            result2.rethrow()
+            result1.getCompleted()
+            result2.getCompleted()
         } catch (exception: SSLException) {
             assertTrue(exception.message!!.toLowerCase().contains("hostname"))
             return
@@ -122,8 +122,8 @@ class TlsTests {
                 data = readAllString({client.read(it)})
             }
 
-            result1.rethrow()
-            result2.rethrow()
+            result2.getCompleted()
+            result1.getCompleted()
         } catch (exception: SSLException) {
             return
         }

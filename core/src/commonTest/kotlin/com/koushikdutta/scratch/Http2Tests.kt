@@ -63,7 +63,7 @@ class Http2Tests {
 
         val clientDigest = CrappyDigest.getInstance()
         var received = 0
-        async {
+        launch {
             val client = Http2Connection.upgradeHttp2Connection(pair.first, Http2ConnectionMode.Client)
             val connected = client.connect(Methods.GET("https://example.com/"))
             val buffer = ByteBufferList()
@@ -74,7 +74,7 @@ class Http2Tests {
             }
         }
 
-        async {
+        launch {
             Http2Connection.upgradeHttp2Connection(pair.second, Http2ConnectionMode.Server)
                     .acceptHttpAsync {
                         StatusCode.OK(body = BinaryBody(read = body))

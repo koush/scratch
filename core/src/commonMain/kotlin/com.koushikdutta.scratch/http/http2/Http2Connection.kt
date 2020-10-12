@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.http.http2
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.AsyncHandler
+import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -427,15 +428,15 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
         }
     }
 
-    private fun processMessages() = Promise {
+    private fun processMessages() = socket.launch {
         try {
             while (true) {
                 reader.nextFrame(readerHandler)
             }
         }
-        catch (e: Exception) {
-            close(e)
-            return@Promise
+        catch (t: Throwable) {
+            close(t)
+            return@launch
         }
     }
 

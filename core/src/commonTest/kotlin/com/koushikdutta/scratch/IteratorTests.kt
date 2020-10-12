@@ -101,7 +101,7 @@ class IteratorTests {
                     sum += i
                 }
             }
-            .rethrow()
+            .getCompleted()
         }
         catch (exception: Exception) {
             assertEquals(sum, 12)
@@ -142,7 +142,7 @@ class IteratorTests {
                     sum += i
                 }
             }
-            .rethrow()
+            .getCompleted()
         }
         catch (exception: Exception) {
             assertEquals(sum, 12)
@@ -151,4 +151,11 @@ class IteratorTests {
         fail("exception expected")
     }
 
+    @Test
+    fun testIteratorFinish() {
+        val queue = AsyncQueue<Int>()
+        queue.end(IOException("end should not throw"))
+        queue.end()
+        queue.end(IOException("end(Throwable) should not throw"))
+    }
 }

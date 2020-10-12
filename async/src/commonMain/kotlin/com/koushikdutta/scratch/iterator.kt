@@ -174,12 +174,16 @@ open class AsyncQueue<T> : AsyncIterable<T> {
 
     fun end(): Boolean {
         queue.freeze()
-        return baton.finish(Unit)?.finished != true
+        return baton.finish(Unit) {
+            it?.finished != true
+        }
     }
 
     fun end(throwable: Throwable): Boolean {
         queue.freeze()
-        return baton.raiseFinish(throwable)?.finished != true
+        return baton.raiseFinish(throwable) {
+            it?.finished != true
+        }
     }
 
     open fun add(value: T): Boolean {

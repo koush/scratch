@@ -51,7 +51,7 @@ class BatonTests {
             async {
                 baton.pass(4)
             }
-            .rethrow()
+            .getCompleted()
         }
         catch (expected: BatonTestException) {
             return
