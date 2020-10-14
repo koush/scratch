@@ -69,7 +69,6 @@ class KotlinBugs {
         }
         .awaitAll()
 
-        println("done")
         assertEquals(count, 1000000 * runs)
     }
 

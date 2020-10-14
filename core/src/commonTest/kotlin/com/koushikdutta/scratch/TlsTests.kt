@@ -25,8 +25,7 @@ class TlsTests {
 
         val pair = createAsyncPipeSocketPair()
 
-
-        async {
+        launch {
             val serverContext = createTLSContext()
             serverContext.init(keypairCert.first, keypairCert.second)
 
@@ -39,7 +38,7 @@ class TlsTests {
         }
 
         var data = ""
-        async {
+        launch {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
 
@@ -146,7 +145,7 @@ class TlsTests {
         }
 
         for (i in 1..2) {
-            async {
+            launch {
                 val clientContext = createTLSContext()
                 clientContext.init(keypairCert.second)
 
@@ -220,7 +219,7 @@ class TlsTests {
         }
 
         var count = 0
-        async {
+        launch {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
             count += server.connect().connectTls("TestServer", 80, clientContext).countBytes()
@@ -231,7 +230,6 @@ class TlsTests {
         // these are big due to certs. oof.
         assertTrue(mid - start < 250000)
         // check streaming allocations
-        println(ByteBufferList.totalObtained - mid)
         assertTrue(ByteBufferList.totalObtained - mid < 80000)
     }
 
@@ -250,7 +248,7 @@ class TlsTests {
             data += readAllString({read(it)})
         }
 
-        async {
+        launch {
             for (i in 1..2) {
                 val clientContext = createTLSContext()
                 clientContext.init(keypairCert.second)
@@ -284,7 +282,7 @@ class TlsTests {
         httpServer.listen(tlsServer)
 
         var requestsCompleted = 0
-        async {
+        launch {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
 

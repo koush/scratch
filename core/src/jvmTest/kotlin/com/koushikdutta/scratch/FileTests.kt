@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.async
+import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
@@ -84,7 +85,7 @@ class FileTests {
 
         var hash = ""
         val digest = MessageDigest.getInstance("MD5")
-        loop.async {
+        loop.launch {
             val fwrite = openFile(temp, true)
             fwrite.write("willbeclobbered".createByteBufferList())
             fwrite.writePosition(0, sr.nextBytes(10000000).createByteBufferList())
