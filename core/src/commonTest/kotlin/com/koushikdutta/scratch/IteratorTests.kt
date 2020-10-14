@@ -152,7 +152,7 @@ class IteratorTests {
     }
 
     @Test
-    fun testIteratorFinish() {
+    fun testIteratorEndTwice() {
         val queue = AsyncQueue<Int>()
         queue.end(IOException("end should not throw"))
         queue.end()
