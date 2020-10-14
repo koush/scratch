@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlin.test.*
 
 private class BatonTestException: Exception()
@@ -41,6 +42,7 @@ class BatonTests {
         assertEquals(done, 2)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testBatonFailure() {
         val baton = Baton<Int>()

@@ -6,7 +6,6 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
-import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.http.*
@@ -209,7 +208,7 @@ interface Cache {
 class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpClientExecutor, val cache: Cache) : AsyncHttpClientExecutor {
     val sessionKey = randomHex()
 
-    private suspend fun AsyncHttpRequest.createCachedResponse(conditional: Boolean, key: String, responseLine: ResponseLine, headers: Headers, cacheData: AsyncRandomAccessInput): AsyncHttpResponse {
+    private suspend fun AsyncHttpRequest.createCachedResponse(headers: Headers, cacheData: AsyncRandomAccessInput): AsyncHttpResponse {
         val start = cacheData.getPosition()
         val size = cacheData.size() - start
         return createSliceableResponse(size, headers) { position, length ->
@@ -261,7 +260,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             if (cacheControl.lastModified != null)
                 request.headers["If-Modified-Since"] = cacheControl.lastModified!!
             headers["X-Scratch-Cache"] = CacheResult.ConditionalCache.toString()
-            return request.createCachedResponse(true, key, responseLine, headers, entry)
+            return request.createCachedResponse(headers, entry)
         }
 
         headers["X-Scratch-Cache"] = CacheResult.Cache.toString()
@@ -281,7 +280,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             }
         }
 
-        return request.createCachedResponse(false, key, responseLine, headers, entry)
+        return request.createCachedResponse(headers, entry)
     }
 
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {

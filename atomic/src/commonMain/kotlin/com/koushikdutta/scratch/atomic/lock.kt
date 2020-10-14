@@ -3,7 +3,7 @@ package com.koushikdutta.scratch.atomic
 class AtomicThrowingLock(inline val locked: () -> Throwable) {
     val atomic = AtomicBoolean(false)
 
-    suspend inline operator fun <R> invoke(block: suspend() -> R): R {
+    inline operator fun <R> invoke(block: () -> R): R {
         if (atomic.getAndSet(true))
             throw locked()
         try {

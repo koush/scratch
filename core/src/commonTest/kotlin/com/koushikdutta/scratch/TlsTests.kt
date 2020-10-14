@@ -11,6 +11,7 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -52,6 +53,7 @@ class TlsTests {
         assertEquals(data, "Hello World")
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testCertificateNameMismatch() {
         val keypairCert = createSelfSignedCertificate("TestServer")
@@ -71,7 +73,6 @@ class TlsTests {
                 server.close()
             }
 
-            var data = ""
             val result2 = async {
                 val clientContext = createTLSContext()
                 clientContext.init(keypairCert.second)
@@ -80,7 +81,7 @@ class TlsTests {
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                data = readAllString({client.read(it)})
+                readAllString(client::read)
             }
 
             result1.getCompleted()
@@ -93,6 +94,7 @@ class TlsTests {
     }
 
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testCertificateTrustFailure() {
         val keypairCert = createSelfSignedCertificate("TestServer")
@@ -112,14 +114,13 @@ class TlsTests {
                 server.close()
             }
 
-            var data = ""
             val result2 = async {
 
                 val engine = getDefaultSSLContext().createSSLEngine("BadServerName", 80)
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                data = readAllString({client.read(it)})
+                readAllString(client::read)
             }
 
             result2.getCompleted()

@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlin.test.*
 
 class IteratorTests {
@@ -12,7 +13,7 @@ class IteratorTests {
         }
 
         var sum = 0
-        async {
+        launch {
             for (i in iter) {
                 sum += i
             }
@@ -29,7 +30,7 @@ class IteratorTests {
         }
 
         var sum = 0
-        async {
+        launch {
             sum += iter.next()
             sum += iter.next()
             sum += iter.next()
@@ -51,7 +52,7 @@ class IteratorTests {
         }
 
         var sum = 0
-        async {
+        launch {
             sum += iter.next()
             sum += iter.next()
             sum += iter.next()
@@ -71,7 +72,7 @@ class IteratorTests {
         }
 
         var sum = 0
-        async {
+        launch {
             sum += iter.next()
             sum += iter.next()
             sum += iter.next()
@@ -79,12 +80,14 @@ class IteratorTests {
                 sum += iter.next()
             }
             catch (no: NoSuchElementException) {
-                return@async
+                return@launch
             }
             fail("Exception expected")
         }
         assertEquals(sum, 12)
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testIteratorException() {
         val iter = createAsyncIterable<Int> {
@@ -118,7 +121,7 @@ class IteratorTests {
         queue.add(5)
 
         var sum = 0
-        async {
+        launch {
             for (i in queue) {
                 sum += i
             }
@@ -127,6 +130,7 @@ class IteratorTests {
     }
 
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testArrayDequeueException() {
         val queue = AsyncQueue<Int>()

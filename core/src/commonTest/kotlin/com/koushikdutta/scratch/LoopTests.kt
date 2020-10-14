@@ -24,15 +24,13 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.*
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.*
 
 class LoopTests {
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testPostDelayed() {
         val networkContext = AsyncEventLoop()
@@ -45,6 +43,7 @@ class LoopTests {
             finally {
                 networkContext.stop()
             }
+            0
         }
 
         networkContext.postDelayed(3000) {
@@ -60,7 +59,7 @@ class LoopTests {
         }
     }
 
-
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testAsyncException() {
         val networkContext = AsyncEventLoop()
@@ -72,6 +71,7 @@ class LoopTests {
             finally {
                 networkContext.stop()
             }
+            0
         }
 
         networkContext.postDelayed(1000) {
@@ -88,6 +88,7 @@ class LoopTests {
     }
 
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testAsyncSuccess() {
         val networkContext = AsyncEventLoop()
@@ -377,7 +378,7 @@ class LoopTests {
         val websocket = httpClient.connectWebSocket("wss://echo.websocket.org")
 
         websocket.ping("ping!")
-        assertEquals("ping!", websocket.readMessage()!!.text)
+        assertEquals("ping!", websocket.readMessage().text)
 
         websocket::write.drain("hello".createByteBufferList())
         websocket::write.drain("world".createByteBufferList())

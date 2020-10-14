@@ -53,7 +53,11 @@ class AsyncHttpAlpnExecutor(override val affinity: AsyncAffinity = AsyncAffinity
                     connection.acceptAsync {
                         close()
                     }
+                    .observeIgnoreErrors()
                     .awaitClose()
+                }
+                catch (t: Throwable) {
+                    // ignore dirty transport close, etc.
                 }
                 finally {
                     http2Executor = null

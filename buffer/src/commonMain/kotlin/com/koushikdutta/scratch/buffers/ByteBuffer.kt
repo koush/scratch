@@ -21,11 +21,11 @@ enum class ByteOrder {
         }
 
         override fun setNumber(bytes: ByteArray, offset: Int, length: Int, value: Long) {
-            var value = value
+            var tmp = value
             for (i in offset until offset + length) {
-                val byte = (value and 0xFF).toByte()
+                val byte = (tmp and 0xFF).toByte()
                 bytes[i] = byte
-                value = value shr 8
+                tmp = tmp shr 8
             }
         }
     },
@@ -40,11 +40,11 @@ enum class ByteOrder {
         }
 
         override fun setNumber(bytes: ByteArray, offset: Int, length: Int, value: Long) {
-            var value = value
+            var tmp = value
             for (i in offset + length - 1 downTo offset) {
-                val byte = (value and 0xFF).toByte()
+                val byte = (tmp and 0xFF).toByte()
                 bytes[i] = byte
-                value = value shr 8
+                tmp = tmp shr 8
             }
         }
     };

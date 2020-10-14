@@ -77,7 +77,7 @@ fun <T> asyncIterator(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIte
 
     return object: AsyncIterator<T> {
         private val lock: BatonLock<AsyncIteratorMessage<T>, AsyncIteratorMessage<T>> = {
-            val value = it.getOrThrow()!!
+            val value = it.getOrThrow()
             if (value.hasNext || value.next)
                 throw AsyncIteratorConcurrentException(it.resumed)
             value

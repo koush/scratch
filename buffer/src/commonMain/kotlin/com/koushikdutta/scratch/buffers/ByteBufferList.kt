@@ -518,14 +518,12 @@ class ByteBufferList : Buffers {
         }
     }
 
-    @UseExperimental(ExperimentalStdlibApi::class)
     override fun putUtf8String(s: String): ByteBufferList {
         add(s.encodeToByteArray())
         return this
     }
 
     // not doing toString as this is really nasty in the debugger...
-    @UseExperimental(ExperimentalStdlibApi::class)
     override fun peekUtf8String(): String {
         val builder = StringBuilder()
         for (bb in buffers) {

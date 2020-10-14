@@ -141,7 +141,7 @@ class PromiseTests {
         var threw = false
         var continuation: Continuation<String>? = null
         var finalized = false
-        val promise = Promise<String> {
+        Promise<String> {
             suspendCoroutine {
                 continuation = it
             }

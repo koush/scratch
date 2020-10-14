@@ -298,14 +298,14 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
         override fun priority(streamId: Int, streamDependency: Int, weight: Int, exclusive: Boolean) {
         }
 
-        override fun pushPromise(inFinished: Boolean, streamId: Int, promisedStreamId: Int, headerBlock: List<Header>) {
+        override fun pushPromise(inFinished: Boolean, streamId: Int, promisedStreamId: Int, requestHeaders: List<Header>) {
             lastGoodStreamId = promisedStreamId
             val stream = Http2Socket(this@Http2Connection, promisedStreamId, true)
             streams[promisedStreamId] = stream
             if (inFinished)
                 stream.input.end()
 
-            val headers = headerBlock.toHeaders()
+            val headers = requestHeaders.toHeaders()
 
             val pushPromiseKey = headers.getPushPromiseKey()
             if (pushPromiseKey == null)

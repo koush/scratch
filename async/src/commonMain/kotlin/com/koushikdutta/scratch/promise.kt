@@ -85,6 +85,7 @@ open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getOrThrow(): T {
         return deferred.getCompleted()
     }
@@ -94,6 +95,7 @@ open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.
         getOrThrow()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun rethrowIfDone() {
         if (deferred.isCompleted)
             deferred.getCompleted()

@@ -224,7 +224,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 }
                 else if (key.isReadable) {
                     val socket = key.attachment() as NIOChannel
-                    val transmitted = socket.readable()
+                    socket.readable()
                 }
                 else if (key.isWritable) {
                     val socket = key.attachment() as NIOChannel

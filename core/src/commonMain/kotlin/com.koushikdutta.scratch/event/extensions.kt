@@ -15,6 +15,7 @@ suspend fun AsyncEventLoop.connect(host: String, port: Int): AsyncNetworkSocket 
     return connect(InetSocketAddress(getByName(host), port))
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 fun <T> AsyncEventLoop.run(block: suspend AsyncEventLoop.() -> T): T {
     val ret = async {
         try {

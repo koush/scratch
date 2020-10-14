@@ -270,10 +270,9 @@ class HttpTests {
         val httpClient = AsyncHttpConnectSocketExecutor {
             server.connect()
         }
-        val random = Random.Default
 
         for (i in 1..1000) {
-            async {
+            launch {
                 val request =
                     AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = createRandomRead(postLength))
                 val data = httpClient.execute(request) { readAllString(it.body!!) }
@@ -290,7 +289,7 @@ class HttpTests {
         val pair = createAsyncPipeSocketPair()
 
         var responseSent = 0
-        async {
+        launch {
             val httpServer = AsyncHttpServer {
                 StatusCode.OK(body = Utf8StringBody("hello world")) {
                     responseSent++
@@ -302,7 +301,7 @@ class HttpTests {
 
         var requestsCompleted = 0
         var requestSent = 0
-        async {
+        launch {
             val httpClient = AsyncHttpSocketExecutor(pair.first)
             val get = Methods.GET("http://example/foo") {
                 requestSent++
@@ -320,7 +319,7 @@ class HttpTests {
     @Test
     fun testHttpRedirect() {
         val pipeServer = createAsyncPipeServerSocket()
-        async {
+        launch {
             val httpServer = AsyncHttpServer {
                 if (it.uri.path == "/redirect")
                     StatusCode.movedPermanently("/")
@@ -332,7 +331,7 @@ class HttpTests {
         }
 
         var data = ""
-        async {
+        launch {
             val httpClient = AsyncHttpConnectSocketExecutor {
                 pipeServer.connect()
             }.buildUpon().followRedirects().build()
@@ -353,7 +352,7 @@ class HttpTests {
         }
 
         httpServer.listen(pipeServer)
-        async {
+        launch {
             val httpClient = AsyncHttpConnectSocketExecutor {
                 pipeServer.connect()
             }

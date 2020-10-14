@@ -145,7 +145,6 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
             throw IllegalArgumentException("hybi control code can not send data payloads larger than 125 bytes")
 
         val length = data.remaining()
-        val header = if (length <= 125) 2 else if (length <= 65535) 4 else 10
         val masked = if (masking) MASK else 0
 
         val frame = ByteBufferList()
@@ -173,7 +172,7 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
             frame.add(mask)
             val array = data.readBytes()
             for (i in array.indices) {
-                array[i] = (array[i] xor mask[i % 4]) as Byte
+                array[i] = (array[i] xor mask[i % 4])
             }
             frame.add(array)
         }
