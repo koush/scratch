@@ -24,7 +24,10 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.*
@@ -538,20 +541,25 @@ class LoopTests {
         }
 
         job.await()
+        assertTrue(isAffinityThread)
 
-        // requires unconfined dispatcher.
+        // requires confined dispatcher.
         val job2 = GlobalScope.async {
             assertFalse(isAffinityThread)
-            try {
-                await()
-                fail("await failure expected")
-            }
-            catch (throwable: IllegalStateException) {
-
-            }
+            await()
+            assertTrue(isAffinityThread)
         }
 
         job2.await()
+        assertTrue(isAffinityThread)
+
+
+        // requires confined dispatcher.
+        val job3 = GlobalScope.async {
+            assertFalse(isAffinityThread)
+        }
+        job3.await()
+        assertFalse(isAffinityThread)
     }
 
     @Test
@@ -571,6 +579,8 @@ class LoopTests {
         }
 
         promise.await()
+        assertEquals(count, 0)
+        post()
         assertEquals(count, 2)
     }
 }

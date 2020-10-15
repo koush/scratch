@@ -1,12 +1,12 @@
 package com.koushikdutta.scratch.event
 
-import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.AsyncAffinity
+import com.koushikdutta.scratch.Cancellable
+import com.koushikdutta.scratch.synchronized
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
 import kotlin.math.min
 
@@ -160,10 +160,11 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     }
 
     override suspend fun post() {
-        suspendCoroutine<Unit> {
+        kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn { it: Continuation<Unit> ->
             post {
                 it.resume(Unit)
             }
+            kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
         }
     }
 
@@ -171,8 +172,11 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         if (isAffinityThread)
             return
         post()
-        if (!isAffinityThread)
-            throw IllegalStateException("Failed to switch to affinity thread. Please use a Promise or Future to create your coroutine. Alternatively, use an unconfined CoroutineDispatcher if using kotlinx.coroutines.")
+        if (!isAffinityThread) {
+            val err = "Failed to switch to affinity thread, how did this happen? Use Dispatchers.Unconfirmed when creating your coroutine. Or use AsyncEventLoop.async or AsyncEventLoop.launch."
+            println(err)
+            throw IllegalStateException(err)
+        }
     }
 
     abstract fun wakeup()

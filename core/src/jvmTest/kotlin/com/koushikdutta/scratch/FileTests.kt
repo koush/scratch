@@ -8,7 +8,6 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import org.junit.Test
 import java.io.File
 import java.io.FileOutputStream
-import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import kotlin.random.Random
 import kotlin.test.assertEquals
