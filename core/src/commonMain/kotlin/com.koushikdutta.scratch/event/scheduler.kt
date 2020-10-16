@@ -160,6 +160,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
     }
 
     override suspend fun post() {
+        // this special invocation forces the coroutine to resume on the scheduler thread.
         kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn { it: Continuation<Unit> ->
             post {
                 it.resume(Unit)
