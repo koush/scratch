@@ -5,9 +5,6 @@ import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
 
 /**
  * Read into a buffer.
@@ -151,7 +148,7 @@ suspend fun AsyncSocket.stream(peer: AsyncSocket) {
 
 fun AsyncRead.tee(asyncWrite: AsyncWrite, callback: suspend (throwable: Throwable?) -> Unit = { if (it != null) throw it }): AsyncRead {
     val self = this
-    val tee = pipe {
+    return pipe {
         val tmp = ByteBufferList()
         var error = false
         while (self(buffer)) {
@@ -175,7 +172,6 @@ fun AsyncRead.tee(asyncWrite: AsyncWrite, callback: suspend (throwable: Throwabl
 
         callback(null)
     }
-    return tee
 }
 
 fun ReadableBuffers.createReader(): AsyncRead {
@@ -202,6 +198,7 @@ suspend fun AsyncRead.drain() {
 
 suspend fun AsyncRead.drain(buffer: WritableBuffers) {
     while (this(buffer)) {
+        // prevent ide complaining about empty body
     }
 }
 
