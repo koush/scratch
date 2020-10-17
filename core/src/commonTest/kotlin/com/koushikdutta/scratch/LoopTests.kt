@@ -579,7 +579,6 @@ class LoopTests {
         }
 
         promise.await()
-        assertEquals(count, 0)
         post()
         assertEquals(count, 2)
     }
