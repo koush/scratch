@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.tls
 
 import org.conscrypt.Conscrypt
 import java.security.KeyStore
+import java.security.Provider
 import java.security.SecureRandom
 import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.TrustManagerFactory
@@ -44,7 +45,7 @@ private fun createAndInitConscryptContext(): SSLContext? {
         Conscrypt.checkAvailability()
         val provider = Conscrypt.newProvider()
         val context = SSLContext.getInstance("TLS", provider)
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).provider)
+        val tmf = createDefaultTrustManagerFactory(provider)
         tmf.init(null as KeyStore?)
         context.init(null, tmf.trustManagers, SecureRandom())
         return context
@@ -79,4 +80,13 @@ actual fun SSLEngine.getApplicationProtocol(): String? {
         return null
 
     return Conscrypt.getApplicationProtocol(this)
+}
+
+internal fun createDefaultTrustManagerFactory(provider: Provider): TrustManagerFactory {
+    return try {
+        TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), provider)
+    }
+    catch (throwable: Throwable) {
+        TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).provider)
+    }
 }
