@@ -11,6 +11,21 @@ typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
 typealias PromiseCancelled = suspend (throwable: CancellationException) -> Unit
 typealias PromiseCatchThen<T> = suspend (throwable: Throwable) -> T
 
+interface PromiseApply<T, R> {
+    @Throws(Throwable::class)
+    fun apply(result: T): Promise<R>
+}
+
+interface PromiseResultCallback<T> {
+    @Throws(Throwable::class)
+    fun result(result: T)
+}
+
+interface PromiseErrorCallback {
+    @Throws(Throwable::class)
+    fun error(throwable: Throwable)
+}
+
 class Deferred<T> {
     val deferred = CompletableDeferred<T>()
     val promise = Promise(deferred)
@@ -46,12 +61,12 @@ open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.
             }
 
     private val deferred: kotlinx.coroutines.Deferred<T>
+
     init {
         deferred = GlobalScope.async(Dispatchers.Unconfined) {
             try {
                 result.freeze(Result.success(wrappedDeferred.await()))
-            }
-            catch (throwable: Throwable) {
+            } catch (throwable: Throwable) {
                 result.freeze(Result.failure(throwable))
             }
             val result = result.getFrozen()!!
@@ -62,7 +77,7 @@ open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.
         }
     }
 
-    constructor(block: suspend () -> T): this(suspendJob(block))
+    constructor(block: suspend () -> T) : this(suspendJob(block))
 
     fun cancel(cause: CancellationException? = null): Boolean {
         deferred.cancel(cause)
@@ -126,48 +141,66 @@ open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.
     fun <R> then(callback: PromiseThen<T, R>) = Promise {
         callback(await())
     }
-}
 
-fun <T> Promise<T>.cancelled(callback: PromiseCancelled): Promise<T> {
-    Promise {
-        try {
-            await()
-        } catch (throwable: CancellationException) {
-            callback(throwable)
-            throw throwable
+    fun cancelled(callback: PromiseCancelled): Promise<T> {
+        Promise {
+            try {
+                await()
+            } catch (throwable: CancellationException) {
+                callback(throwable)
+                throw throwable
+            }
         }
+        return this
     }
-    return this
-}
 
-fun <T> Promise<T>.catch(callback: PromiseCatch): Promise<T> {
-    Promise {
+    fun catch(callback: PromiseCatch): Promise<T> {
+        Promise {
+            try {
+                await()
+            } catch (throwable: Throwable) {
+                callback(throwable)
+                throw throwable
+            }
+        }
+        return this
+    }
+
+    fun catchThen(callback: PromiseCatchThen<T>) = Promise {
         try {
             await()
         } catch (throwable: Throwable) {
-            callback(throwable)
-            throw throwable
+            return@Promise callback(throwable)
         }
     }
-    return this
-}
 
-fun <T> Promise<T>.catchThen(callback: PromiseCatchThen<T>) = Promise {
-    try {
-        await()
-    } catch (throwable: Throwable) {
-        return@Promise callback(throwable)
+    fun finally(callback: suspend () -> Unit): Promise<T> {
+        Promise {
+            try {
+                await()
+            } finally {
+                callback()
+            }
+        }
+        return this
     }
-}
 
-fun <T> Promise<T>.finally(callback: suspend () -> Unit): Promise<T> {
-    Promise {
-        try {
-            await()
-        } finally {
-            callback()
+    fun result(callback: PromiseResultCallback<T>): Promise<T> {
+        return then {
+            callback.result(it)
+            it
         }
     }
-    return this
-}
 
+    fun <R> apply(callback: PromiseApply<T, R>): Promise<R> {
+        return then {
+            callback.apply(it).await()
+        }
+    }
+
+    fun error(callback: PromiseErrorCallback): Promise<T> {
+        return catch {
+            callback.error(it)
+        }
+    }
+}
