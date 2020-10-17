@@ -144,6 +144,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     suspend fun sleep(milliseconds: Long) {
         require(milliseconds >= 0) { "negative sleep not allowed" }
         val deferred = CompletableDeferred<Unit>()

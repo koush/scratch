@@ -44,7 +44,7 @@ private fun createAndInitConscryptContext(): SSLContext? {
         Conscrypt.checkAvailability()
         val provider = Conscrypt.newProvider()
         val context = SSLContext.getInstance("TLS", provider)
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), provider)
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).provider)
         tmf.init(null as KeyStore?)
         context.init(null, tmf.trustManagers, SecureRandom())
         return context
