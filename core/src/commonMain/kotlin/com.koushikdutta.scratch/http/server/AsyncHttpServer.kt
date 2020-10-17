@@ -126,14 +126,14 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
             sendHeaders(socket, response)
             responseBody.copy(socket::write)
 
-            response.sent?.invoke(null)
+            response.close(null)
 
             if (KeepAlive.isKeepAlive(request, response))
                 return HttpServerSocketStatus.KeepAlive
             return HttpServerSocketStatus.Close
         }
         catch (throwable: Throwable) {
-            response.sent?.invoke(throwable)
+            response.close(throwable)
             throw throwable
         }
     }

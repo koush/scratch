@@ -16,7 +16,7 @@ abstract class AsyncHttpMessage {
     var body: AsyncRead? = null
         internal set
     abstract val protocol: String
-    internal val sent: AsyncHttpMessageCompletion?
+    private val sent: AsyncHttpMessageCompletion?
 
     constructor(headers: Headers, body: AsyncRead?, sent: AsyncHttpMessageCompletion? = null) {
         this.headers = headers
@@ -30,7 +30,10 @@ abstract class AsyncHttpMessage {
             this.body = body.read
             headers.contentLength = body.contentLength
         }
-        this.sent = sent
+        this.sent = {
+            body?.sent(it)
+            sent?.invoke(it)
+        }
     }
 
     fun toMessageString(): String {
@@ -41,8 +44,8 @@ abstract class AsyncHttpMessage {
         return toMessageString()
     }
 
-    suspend fun close() {
-        sent?.invoke(null)
+    suspend fun close(throwable: Throwable? = null) {
+        sent?.invoke(throwable)
     }
 }
 
@@ -51,6 +54,8 @@ interface AsyncHttpMessageBody {
     val contentType: String?
     val contentLength: Long?
     val read: AsyncRead
+    suspend fun sent(throwable: Throwable?) {
+    }
 }
 
 suspend fun AsyncRandomAccessInput.createHttpMessageBody(contentType: String? = null): AsyncHttpMessageBody {

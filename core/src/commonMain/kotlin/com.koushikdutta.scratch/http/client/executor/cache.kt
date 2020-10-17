@@ -311,7 +311,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
         }
         catch (throwable: Throwable) {
             // if the response fails, clean up and report the error
-            conditionalResponse?.close()
+            conditionalResponse?.close(throwable)
             throw throwable
         }
 
@@ -360,7 +360,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             }
         }
 
-        return AsyncHttpResponse(response.responseLine, response.headers, newBody, response.sent)
+        return AsyncHttpResponse(response.responseLine, response.headers, newBody, response::close)
     }
 }
 
