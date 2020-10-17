@@ -5,15 +5,19 @@ import android.os.Looper
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 
-suspend fun Looper.createAsyncAffinity(): AsyncAffinity {
-    val handler = Handler(this)
+fun Looper.createAsyncAffinity(): AsyncAffinity {
+    return Handler(this).createAsyncAffinity()
+}
+
+fun Handler.createAsyncAffinity(): AsyncAffinity {
+    val handler = this
 
     return object : AsyncAffinity {
         override suspend fun await() {
-            if (thread == Thread.currentThread())
+            if (handler.looper.thread == Thread.currentThread())
                 return
             post()
-            if (thread != Thread.currentThread()) {
+            if (handler.looper.thread != Thread.currentThread()) {
                 val err = "Failed to switch to affinity thread, how did this happen? Use Dispatchers.Unconfirmed when creating your coroutine. Or use AsyncEventLoop.async or AsyncEventLoop.launch."
                 println(err)
                 throw IllegalStateException(err)

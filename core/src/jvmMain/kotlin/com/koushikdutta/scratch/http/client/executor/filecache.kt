@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.http.client.executor
 
 
+import com.koushikdutta.scratch.AsyncAffinity
 import com.koushikdutta.scratch.AsyncRandomAccessInput
 import com.koushikdutta.scratch.AsyncRandomAccessStorage
 import com.koushikdutta.scratch.codec.hex
@@ -13,25 +14,25 @@ import java.io.File
 
 private val tmpdir = System.getProperty("java.io.tmpdir")
 
-class FileStore(val eventLoop: AsyncEventLoop, val cacheDirectory: File): AsyncStore {
+class FileStore(val eventLoop: AsyncEventLoop, val cacheDirectory: File): AsyncStore, AsyncAffinity by eventLoop {
     init {
         cacheDirectory.mkdirs()
     }
 
     override suspend fun openRead(key: String): AsyncRandomAccessInput? {
-        val entryKey = key.encodeToByteArray().hash().sha256().encode().hex()
-        return eventLoop.openFile(File(cacheDirectory, entryKey))
+        val filename = toSafeFilename(key)
+        return eventLoop.openFile(File(cacheDirectory, filename))
     }
 
     override suspend fun openWrite(key: String): AsyncStorage {
-        val entryKey = key.encodeToByteArray().hash().sha256().encode().hex()
-        val tmpFile = File(cacheDirectory, "$entryKey.tmp")
+        val filename = toSafeFilename(key)
+        val tmpFile = File(cacheDirectory, "$filename.tmp")
         val storage = eventLoop.openFile(tmpFile, true)
         return object : AsyncStorage, AsyncRandomAccessStorage by storage {
             override suspend fun commit() {
                 close()
                 tmpFile.runCatching {
-                    renameTo(File(cacheDirectory, entryKey))
+                    renameTo(File(cacheDirectory, filename))
                 }
             }
 
@@ -45,9 +46,21 @@ class FileStore(val eventLoop: AsyncEventLoop, val cacheDirectory: File): AsyncS
     }
 
     override suspend fun remove(key: String) {
-        val entryKey = key.encodeToByteArray().hash().sha256().encode().hex()
-        File(cacheDirectory, entryKey).runCatching {
+        val filename = toSafeFilename(key)
+        File(cacheDirectory, filename).runCatching {
             delete()
+        }
+    }
+
+    override fun exists(key: String): Boolean {
+        val filename = toSafeFilename(key)
+        return File(cacheDirectory, filename).exists()
+    }
+
+    companion object {
+        @JvmStatic
+        fun toSafeFilename(key: String): String {
+            return key.encodeToByteArray().hash().sha256().encode().hex()
         }
     }
 }

@@ -151,7 +151,7 @@ class Http2Socket internal constructor(val connection: Http2Connection, val stre
     }
 }
 
-class Http2Connection private constructor(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read)): AsyncResource by socket, AsyncServerSocket<Http2Socket> {
+class Http2Connection private constructor(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read)): AsyncResource by socket, AsyncAffinity by socket, AsyncServerSocket<Http2Socket> {
     private val pushPromises = mutableMapOf<String, Http2Socket>()
     private val incomingSockets = AsyncQueue<Http2Socket>()
     internal val handler = AsyncHandler(socket)

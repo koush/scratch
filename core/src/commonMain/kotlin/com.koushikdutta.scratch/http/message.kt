@@ -1,7 +1,9 @@
 package com.koushikdutta.scratch.http
 
+import com.koushikdutta.scratch.AsyncInput
 import com.koushikdutta.scratch.AsyncRandomAccessInput
 import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.StringMultimap
 import com.koushikdutta.scratch.collections.parseQuery
@@ -10,7 +12,7 @@ import com.koushikdutta.scratch.uri.URI
 
 typealias AsyncHttpMessageCompletion = suspend(throwable: Throwable?) -> Unit
 
-abstract class AsyncHttpMessage {
+abstract class AsyncHttpMessage: AsyncInput {
     val headers: Headers
     protected abstract val messageLine: String
     var body: AsyncRead? = null
@@ -47,6 +49,9 @@ abstract class AsyncHttpMessage {
     suspend fun close(throwable: Throwable? = null) {
         sent?.invoke(throwable)
     }
+
+    override suspend fun close() = close(null)
+    override suspend fun read(buffer: WritableBuffers) = body?.invoke(buffer) ?: false
 }
 
 

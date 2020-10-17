@@ -10,7 +10,9 @@ import kotlin.coroutines.resume
 import kotlin.math.max
 import kotlin.math.min
 
-typealias AsyncServerRunnable = () -> Unit
+fun interface AsyncServerRunnable {
+    operator fun invoke()
+}
 
 internal class PriorityQueue {
     private var sorted = true

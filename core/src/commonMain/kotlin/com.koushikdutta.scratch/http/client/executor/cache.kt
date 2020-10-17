@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
@@ -199,10 +200,14 @@ interface AsyncStorage: AsyncRandomAccessStorage {
     suspend fun abort()
 }
 
-interface AsyncStore {
+interface AsyncStore: AsyncAffinity {
     suspend fun openRead(key: String): AsyncRandomAccessInput?
     suspend fun openWrite(key: String): AsyncStorage
     suspend fun remove(key: String)
+    fun exists(key: String): Boolean
+    fun removeAsync(key: String) = async {
+        remove(key)
+    }
 }
 
 class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: AsyncStore) : AsyncHttpClientWrappingExecutor {
@@ -371,7 +376,7 @@ fun AsyncHttpExecutorBuilder.useMemoryCache(): AsyncHttpExecutorBuilder {
     return this
 }
 
-class BufferStore : AsyncStore {
+class BufferStore : AsyncStore, AsyncAffinity by AsyncAffinity.NO_AFFINITY {
     private val buffers = mutableMapOf<String, ByteBuffer>()
 
     override suspend fun openRead(key: String): AsyncRandomAccessInput? {
@@ -397,4 +402,7 @@ class BufferStore : AsyncStore {
         buffers.remove(key)
     }
 
+    override fun exists(key: String): Boolean {
+        return buffers.containsKey(key)
+    }
 }

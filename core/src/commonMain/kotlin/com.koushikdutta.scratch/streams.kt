@@ -60,7 +60,7 @@ interface AsyncAffinity {
     }
 }
 
-interface AsyncResource : AsyncAffinity {
+interface AsyncResource {
     suspend fun close()
 }
 
@@ -88,7 +88,7 @@ interface AsyncOutput : AsyncResource {
  * AsyncSocket provides an AsyncRead and AsyncWrite.
  * Must be closed to free the underlying resources.
  */
-interface AsyncSocket : AsyncInput, AsyncOutput
+interface AsyncSocket : AsyncInput, AsyncOutput, AsyncAffinity
 
 /**
  * AsyncSocket that filters another AsyncSocket.
