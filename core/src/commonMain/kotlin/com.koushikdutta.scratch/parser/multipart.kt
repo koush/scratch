@@ -173,12 +173,17 @@ class Part(val headers: Headers = Headers(), val body: AsyncRead) {
 
     val contentDisposition: StringMultimap?
         get() {
-            val contentDisposition = headers.get("Content-Disposition") ?: return null
+            val contentDisposition = headers["Content-Disposition"] ?: return null
             return parseSemicolonDelimited(contentDisposition)
         }
-
-    val filename: String?
-        get() {
-            return contentDisposition?.getFirst("filename")
-        }
 }
+
+val Part.filename: String?
+    get() {
+        return contentDisposition?.getFirst("filename")
+    }
+
+val Part.name: String?
+    get() {
+        return contentDisposition?.getFirst("name")
+    }

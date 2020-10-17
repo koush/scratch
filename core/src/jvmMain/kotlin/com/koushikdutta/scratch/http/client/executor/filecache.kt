@@ -13,7 +13,7 @@ import java.io.File
 
 private val tmpdir = System.getProperty("java.io.tmpdir")
 
-class FileCache(val eventLoop: AsyncEventLoop, val cacheDirectory: File): Cache {
+class FileStore(val eventLoop: AsyncEventLoop, val cacheDirectory: File): AsyncStore {
     init {
         cacheDirectory.mkdirs()
     }
@@ -23,11 +23,11 @@ class FileCache(val eventLoop: AsyncEventLoop, val cacheDirectory: File): Cache 
         return eventLoop.openFile(File(cacheDirectory, entryKey))
     }
 
-    override suspend fun openWrite(key: String): CacheStorage {
+    override suspend fun openWrite(key: String): AsyncStorage {
         val entryKey = key.encodeToByteArray().hash().sha256().encode().hex()
         val tmpFile = File(cacheDirectory, "$entryKey.tmp")
         val storage = eventLoop.openFile(tmpFile, true)
-        return object : CacheStorage, AsyncRandomAccessStorage by storage {
+        return object : AsyncStorage, AsyncRandomAccessStorage by storage {
             override suspend fun commit() {
                 close()
                 tmpFile.runCatching {
@@ -54,7 +54,7 @@ class FileCache(val eventLoop: AsyncEventLoop, val cacheDirectory: File): Cache 
 
 fun AsyncHttpExecutorBuilder.useFileCache(eventLoop: AsyncEventLoop = AsyncEventLoop.default, cacheDirectory: File = File(tmpdir, "scratch-http-cache-" + randomHex())): AsyncHttpExecutorBuilder {
     wrapExecutor {
-        CacheExecutor(eventLoop, it, cache = FileCache(eventLoop, cacheDirectory))
+        CacheExecutor(it, asyncStore = FileStore(eventLoop, cacheDirectory))
     }
     return this
 }

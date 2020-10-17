@@ -194,18 +194,18 @@ private fun removeTransportHeaders(headers: Headers) {
 
 private class CachedResponse(val conditional: Boolean, responseLine: ResponseLine, headers: Headers, body: AsyncRead, sent: AsyncHttpMessageCompletion) : AsyncHttpResponse(responseLine, headers, body, sent)
 
-interface CacheStorage: AsyncRandomAccessStorage {
+interface AsyncStorage: AsyncRandomAccessStorage {
     suspend fun commit()
     suspend fun abort()
 }
 
-interface Cache {
+interface AsyncStore {
     suspend fun openRead(key: String): AsyncRandomAccessInput?
-    suspend fun openWrite(key: String): CacheStorage
+    suspend fun openWrite(key: String): AsyncStorage
     suspend fun remove(key: String)
 }
 
-class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpClientExecutor, val cache: Cache) : AsyncHttpClientExecutor {
+class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: AsyncStore) : AsyncHttpClientWrappingExecutor {
     val sessionKey = randomHex()
 
     private suspend fun AsyncHttpRequest.createCachedResponse(headers: Headers, cacheData: AsyncRandomAccessInput): AsyncHttpResponse {
@@ -222,7 +222,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             return null
 
         val key = request.uri.toString()
-        val entry = cache.openRead(key)
+        val entry = asyncStore.openRead(key)
         if (entry == null)
             return null
 
@@ -324,7 +324,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
 
         // attempt to cache
         val key = request.uri.toString()
-        val entry = cache.openWrite(key)
+        val entry = asyncStore.openWrite(key)
 
         try {
             if (cacheControl.cacheType == CacheType.ExplicitCache && !cacheControl.immutable) {
@@ -366,12 +366,12 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
 
 fun AsyncHttpExecutorBuilder.useMemoryCache(): AsyncHttpExecutorBuilder {
     wrapExecutor {
-        CacheExecutor(it.affinity, it, cache = BufferCache())
+        CacheExecutor(it, asyncStore = BufferStore())
     }
     return this
 }
 
-class BufferCache : Cache {
+class BufferStore : AsyncStore {
     private val buffers = mutableMapOf<String, ByteBuffer>()
 
     override suspend fun openRead(key: String): AsyncRandomAccessInput? {
@@ -381,9 +381,9 @@ class BufferCache : Cache {
         return BufferStorage(ByteBufferList(ByteBufferList.deepCopyExactSize(buffer)))
     }
 
-    override suspend fun openWrite(key: String): CacheStorage {
+    override suspend fun openWrite(key: String): AsyncStorage {
         val storage = BufferStorage(ByteBufferList())
-        return object : CacheStorage, AsyncRandomAccessStorage by storage {
+        return object : AsyncStorage, AsyncRandomAccessStorage by storage {
             override suspend fun commit() {
                 buffers[key] = storage.deepCopyByteBuffer()
             }

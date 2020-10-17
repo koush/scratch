@@ -53,7 +53,7 @@ internal fun <T> suspendJob(block: suspend () -> T) = GlobalScope.async(Dispatch
 
 fun <T> kotlinx.coroutines.Deferred<T>.asPromise(): Promise<T> = Promise(this)
 
-open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.coroutines.Deferred<T>) {
+open class Promise<T> constructor(private val wrappedDeferred: kotlinx.coroutines.Deferred<T>) {
     internal val result = FreezableReference<Result<T>>()
     internal val callbacks =
             FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
@@ -78,6 +78,8 @@ open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.
     }
 
     constructor(block: suspend () -> T) : this(suspendJob(block))
+
+    fun cancel() = cancel(null)
 
     fun cancel(cause: CancellationException? = null): Boolean {
         deferred.cancel(cause)
@@ -115,6 +117,12 @@ open class Promise<T> internal constructor(private val wrappedDeferred: kotlinx.
         if (deferred.isCompleted)
             deferred.getCompleted()
     }
+
+    val isCompleted: Boolean
+        get() = deferred.isCompleted
+
+    val isCancelled: Boolean
+        get() = deferred.isCancelled
 
     companion object {
         suspend fun getJob(): Job? {
