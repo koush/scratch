@@ -11,9 +11,14 @@ typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
 typealias PromiseCancelled = suspend (throwable: CancellationException) -> Unit
 typealias PromiseCatchThen<T> = suspend (throwable: Throwable) -> T
 
-fun interface PromiseApply<T, R> {
+fun interface PromiseApplyCallback<T, R> {
     @Throws(Throwable::class)
-    fun apply(result: T): Promise<R>
+    fun apply(result: T): R
+}
+
+fun interface PromiseThenCallback<T, R> {
+    @Throws(Throwable::class)
+    fun then(result: T): Promise<R>
 }
 
 fun interface PromiseResultCallback<T> {
@@ -197,9 +202,15 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun <R> apply(callback: PromiseApply<T, R>): Promise<R> {
+    fun <R> then(callback: PromiseThenCallback<T, R>): Promise<R> {
         return then {
-            callback.apply(it).await()
+            callback.then(it).await()
+        }
+    }
+
+    fun <R> apply(callback: PromiseApplyCallback<T, R>): Promise<R> {
+        return then {
+            callback.apply(it)
         }
     }
 
