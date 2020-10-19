@@ -195,21 +195,6 @@ private fun removeTransportHeaders(headers: Headers) {
 
 private class CachedResponse(val conditional: Boolean, responseLine: ResponseLine, headers: Headers, body: AsyncRead, sent: AsyncHttpMessageCompletion) : AsyncHttpResponse(responseLine, headers, body, sent)
 
-interface AsyncStorage: AsyncRandomAccessStorage {
-    suspend fun commit()
-    suspend fun abort()
-}
-
-interface AsyncStore: AsyncAffinity {
-    suspend fun openRead(key: String): AsyncRandomAccessInput?
-    suspend fun openWrite(key: String): AsyncStorage
-    suspend fun remove(key: String)
-    fun exists(key: String): Boolean
-    fun removeAsync(key: String) = async {
-        remove(key)
-    }
-}
-
 class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: AsyncStore) : AsyncHttpClientWrappingExecutor {
     val sessionKey = randomHex()
 
@@ -361,7 +346,7 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
             }
             else if (error == null) {
                 // cached successfully, move the file into place
-                entry.commit()
+                entry.close()
             }
         }
 
@@ -374,35 +359,4 @@ fun AsyncHttpExecutorBuilder.useMemoryCache(): AsyncHttpExecutorBuilder {
         CacheExecutor(it, asyncStore = BufferStore())
     }
     return this
-}
-
-class BufferStore : AsyncStore, AsyncAffinity by AsyncAffinity.NO_AFFINITY {
-    private val buffers = mutableMapOf<String, ByteBuffer>()
-
-    override suspend fun openRead(key: String): AsyncRandomAccessInput? {
-        val buffer = buffers[key]?.duplicate()
-        if (buffer == null)
-            return null
-        return BufferStorage(ByteBufferList(ByteBufferList.deepCopyExactSize(buffer)))
-    }
-
-    override suspend fun openWrite(key: String): AsyncStorage {
-        val storage = BufferStorage(ByteBufferList())
-        return object : AsyncStorage, AsyncRandomAccessStorage by storage {
-            override suspend fun commit() {
-                buffers[key] = storage.deepCopyByteBuffer()
-            }
-
-            override suspend fun abort() {
-            }
-        }
-    }
-
-    override suspend fun remove(key: String) {
-        buffers.remove(key)
-    }
-
-    override fun exists(key: String): Boolean {
-        return buffers.containsKey(key)
-    }
 }

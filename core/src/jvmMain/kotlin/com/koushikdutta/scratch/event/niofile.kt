@@ -20,6 +20,10 @@ import kotlin.math.min
 
 interface NIOFileFactory {
     fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int = 16384, write: Boolean = false): AsyncRandomAccessStorage
+    suspend fun listFiles(loop: AsyncEventLoop, directory: File): Array<File> {
+        loop.await()
+        return directory.listFiles() ?: emptyArray()
+    }
 
     companion object {
         val instance: NIOFileFactory

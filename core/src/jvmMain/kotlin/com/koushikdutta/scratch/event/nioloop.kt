@@ -169,6 +169,10 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         return NIOFileFactory.instance.open(this, file, defaultReadLength, write)
     }
 
+    suspend fun listFiles(directory: File): Array<File> {
+        return NIOFileFactory.instance.listFiles(this, directory)
+    }
+
     suspend fun getAllByName(host: String): Array<InetAddress> {
         synchronousResolverWorkers.await()
         val result = InetAddress.getAllByName(host)
