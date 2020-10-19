@@ -10,7 +10,10 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutorBuilder
+import org.bouncycastle.asn1.iana.IANAObjectIdentifiers.directory
 import java.io.File
+import kotlin.random.Random
+
 
 private val tmpdir = System.getProperty("java.io.tmpdir")
 
@@ -57,10 +60,29 @@ class FileStore(val eventLoop: AsyncEventLoop, val cacheDirectory: File): AsyncS
         return File(cacheDirectory, filename).exists()
     }
 
+    fun getTempFile(): File {
+        while (true) {
+            val file = File(cacheDirectory, Random.nextBytes(128 / 8).encode().hex())
+            if (!file.exists())
+                return file;
+        }
+    }
+
+    fun getFile(key: String): File {
+        val filename = toSafeFilename(key)
+        return File(cacheDirectory, filename)
+    }
+
+    fun commitTempFile(key: String, tempFile: File) {
+        tempFile.runCatching {
+            renameTo(getFile(key))
+        }
+    }
+
     companion object {
         @JvmStatic
-        fun toSafeFilename(key: String): String {
-            return key.encodeToByteArray().hash().sha256().encode().hex()
+        fun toSafeFilename(vararg keys: Any): String {
+            return keys.joinToString(":").encodeToByteArray().hash().sha256().encode().hex()
         }
     }
 }

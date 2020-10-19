@@ -5,11 +5,8 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.collections.StringMultimap
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseSemicolonDelimited
-import com.koushikdutta.scratch.http.AsyncHttpMessageBody
-import com.koushikdutta.scratch.http.Headers
+import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.getHttpBody
-import com.koushikdutta.scratch.http.contentLength
-import com.koushikdutta.scratch.http.readHeaderBlock
 import com.koushikdutta.scratch.parser.Parser.Companion.ensureReadString
 import kotlin.random.Random
 
@@ -186,4 +183,12 @@ val Part.filename: String?
 val Part.name: String?
     get() {
         return contentDisposition?.getFirst("name")
+    }
+
+val Headers.multipartBoundary: String?
+    get() {
+        if (contentType == null)
+            return null
+        val map = parseSemicolonDelimited(contentType)
+        return map.getFirst("boundary")
     }

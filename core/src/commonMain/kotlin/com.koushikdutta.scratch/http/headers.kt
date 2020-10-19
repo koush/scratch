@@ -133,6 +133,13 @@ var Headers.contentLength: Long?
     }
 
 
+var Headers.contentType: String?
+    get() = get("Content-Type")
+    set(value) {
+        setOrRemove("Content-Type", value)
+    }
+
+
 var Headers.transferEncoding: String?
     get() = get("Transfer-Encoding")
     set(value) { setOrRemove("Transfer-Encoding", value) }

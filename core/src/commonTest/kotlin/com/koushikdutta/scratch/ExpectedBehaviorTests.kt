@@ -1,9 +1,6 @@
 package com.koushikdutta.scratch
 
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -27,5 +24,19 @@ class ExpectedBehaviorTests {
             done = true
         }
         assertTrue(done)
+    }
+
+    @Test
+    fun testLazyDeferredAwait() {
+        var finished = false
+        val deferred = GlobalScope.async(Dispatchers.Unconfined, start = CoroutineStart.LAZY) {
+            finished = true
+        }
+
+        GlobalScope.launch(Dispatchers.Unconfined) {
+            deferred.await()
+        }
+
+        assertTrue(finished)
     }
 }

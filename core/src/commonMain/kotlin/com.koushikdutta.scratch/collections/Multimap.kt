@@ -94,11 +94,12 @@ fun URI.parseQuery(): StringMultimap {
 
 fun StringMultimap.toString(keyDelimiter: String = "\n", valuesDelimiter: String = ", ", quote: Boolean = true): String {
     return keys.joinToString(keyDelimiter) {
-        get(it)!!.map {  value ->
+        val values = get(it)!!.map {  value ->
             if (quote)
                 "\"$value\""
             else
                 value
         }.joinToString(valuesDelimiter)
+        "$it=$values"
     }
 }

@@ -1,10 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.async
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.*
 import kotlin.coroutines.*
 import kotlin.test.*
 
@@ -198,5 +195,48 @@ class PromiseTests {
 
         deferred.complete(Unit)
         assertEquals(finished, 2)
+    }
+
+    @Test
+    fun testLazyPromise() {
+        var done = false
+        var lazyDone = false
+        val lazy = Promise(CoroutineStart.LAZY) {
+            done = true
+        }
+
+        val lazyDep = lazy.then {
+            lazyDone = true
+        }
+
+        assertFalse(done)
+        assertFalse(lazyDone)
+
+        lazy.start()
+
+        assertTrue(done)
+        assertFalse(lazyDone)
+    }
+
+
+    @Test
+    fun testLazyPromise2() {
+        var done = false
+        var lazyDone = false
+        val lazy = Promise(CoroutineStart.LAZY) {
+            done = true
+        }
+
+        val lazyDep = lazy.then {
+            lazyDone = true
+        }
+
+        assertFalse(done)
+        assertFalse(lazyDone)
+
+        lazyDep.start()
+
+        assertTrue(done)
+        assertTrue(lazyDone)
     }
 }

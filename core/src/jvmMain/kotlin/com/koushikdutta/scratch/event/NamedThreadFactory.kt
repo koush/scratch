@@ -28,9 +28,10 @@ class NamedThreadFactory(private val namePrefix: String) : ThreadFactory {
     }
 
     companion object {
-        fun newSynchronousWorkers(prefix: String): ExecutorService {
+        @JvmStatic
+        fun newSynchronousWorkers(prefix: String, workers: Int = 4): ExecutorService {
             val tf = NamedThreadFactory(prefix)
-            return ThreadPoolExecutor(0, 4, 10L,
+            return ThreadPoolExecutor(0, workers, 10L,
                     TimeUnit.SECONDS, LinkedBlockingQueue(), tf)
         }
     }

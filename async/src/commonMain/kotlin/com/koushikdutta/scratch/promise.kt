@@ -1,29 +1,26 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.atomic.FreezableReference
-import com.koushikdutta.scratch.atomic.FreezableStack
 import kotlinx.coroutines.*
-import kotlin.coroutines.*
+import kotlin.coroutines.coroutineContext
 import kotlin.jvm.JvmStatic
 
-typealias PromiseThen<T, R> = suspend (T) -> R
+typealias PromiseThen<R, T> = suspend (T) -> R
 typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
 typealias PromiseCancelled = suspend (throwable: CancellationException) -> Unit
 typealias PromiseCatchThen<T> = suspend (throwable: Throwable) -> T
 
-fun interface PromiseApplyCallback<T, R> {
+fun interface PromiseApplyCallback<R, T> {
     @Throws(Throwable::class)
     fun apply(result: T): R
-}
-
-fun interface PromiseThenCallback<T, R> {
-    @Throws(Throwable::class)
-    fun then(result: T): Promise<R>
 }
 
 fun interface PromiseResultCallback<T> {
     @Throws(Throwable::class)
     fun result(result: T)
+}
+
+fun interface PromiseCompleteCallback<T> {
+    fun complete(result: Result<T>)
 }
 
 fun interface PromiseErrorCallback {
@@ -52,53 +49,33 @@ class Deferred<T> {
     }
 }
 
-internal fun <T> suspendJob(block: suspend () -> T) = GlobalScope.async(Dispatchers.Unconfined) {
+internal fun <T> suspendJob(block: suspend () -> T, start: CoroutineStart) = GlobalScope.async(Dispatchers.Unconfined, start) {
     block()
 }
 
-fun <T> kotlinx.coroutines.Deferred<T>.asPromise(): Promise<T> = Promise(this)
+fun <T> kotlinx.coroutines.Deferred<T>.asPromise(start: CoroutineStart = CoroutineStart.DEFAULT): Promise<T> = Promise(this, start)
 
-open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Deferred<T>) {
-    internal val result = FreezableReference<Result<T>>()
-    internal val callbacks =
-            FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
-                Unit
-            }
-
-//    private val deferred: kotlinx.coroutines.Deferred<T>
-
-//    init {
-//        deferred = GlobalScope.async(Dispatchers.Unconfined) {
-//            try {
-//                result.freeze(Result.success(wrappedDeferred.await()))
-//            } catch (throwable: Throwable) {
-//                result.freeze(Result.failure(throwable))
-//            }
-//            val result = result.getFrozen()!!
-//            callbacks.clearFreeze(Unit) { _, continuation ->
-//                result.resume(continuation)
-//            }
-//            result.getOrThrow()
-//        }
-//    }
-
-    constructor(block: suspend () -> T) : this(suspendJob(block))
+open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Deferred<T>, val start: CoroutineStart) {
+    constructor(block: suspend () -> T) : this(suspendJob(block, CoroutineStart.DEFAULT), CoroutineStart.DEFAULT)
+    constructor(start: CoroutineStart, block: suspend () -> T) : this(suspendJob(block, start), start)
+    constructor(deferred: kotlinx.coroutines.Deferred<T>): this(deferred, CoroutineStart.DEFAULT)
 
     fun cancel() = cancel(null)
 
     fun cancel(cause: CancellationException? = null): Boolean {
         deferred.cancel(cause)
         return deferred.isCancelled
-//        wrappedDeferred.cancel(cause)
-//        return wrappedDeferred.isCancelled
     }
 
     fun cancel(message: String, cause: Throwable? = null): Boolean {
         deferred.cancel(message, cause)
         return deferred.isCancelled
-//        wrappedDeferred.cancel(message, cause)
-//        return wrappedDeferred.isCancelled
     }
+
+    fun start() = deferred.start()
+
+    val isStarted: Boolean
+        get() = deferred.isActive || deferred.isCancelled || deferred.isCompleted
 
     suspend fun await(): T {
         return deferred.await()
@@ -148,12 +125,12 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun <R> then(callback: PromiseThen<T, R>) = Promise {
+    fun <R> then(callback: PromiseThen<R, T>) = Promise(start) {
         callback(await())
     }
 
     fun cancelled(callback: PromiseCancelled): Promise<T> {
-        Promise {
+        Promise(start) {
             try {
                 await()
             } catch (throwable: CancellationException) {
@@ -165,7 +142,7 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
     }
 
     fun catch(callback: PromiseCatch): Promise<T> {
-        Promise {
+        Promise(start) {
             try {
                 await()
             } catch (throwable: Throwable) {
@@ -176,7 +153,7 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         return this
     }
 
-    fun catchThen(callback: PromiseCatchThen<T>) = Promise {
+    fun catchThen(callback: PromiseCatchThen<T>) = Promise(start) {
         try {
             await()
         } catch (throwable: Throwable) {
@@ -185,7 +162,7 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
     }
 
     fun finally(callback: suspend () -> Unit): Promise<T> {
-        Promise {
+        Promise(start) {
             try {
                 await()
             } finally {
@@ -202,13 +179,21 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun <R> then(callback: PromiseThenCallback<T, R>): Promise<R> {
-        return then {
-            callback.then(it).await()
+    fun complete(callback: PromiseCompleteCallback<T>): Promise<T> {
+        Promise(start) {
+            val value = try {
+                await()
+            }
+            catch (throwable: Throwable) {
+                callback.complete(Result.failure(throwable))
+                return@Promise
+            }
+            callback.complete(Result.success(value))
         }
+        return this
     }
 
-    fun <R> apply(callback: PromiseApplyCallback<T, R>): Promise<R> {
+    fun <R> apply(callback: PromiseApplyCallback<R, T>): Promise<R> {
         return then {
             callback.apply(it)
         }
