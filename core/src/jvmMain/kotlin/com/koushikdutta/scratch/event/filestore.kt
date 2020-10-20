@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.crypto.sha256
 import com.koushikdutta.scratch.extensions.encode
@@ -8,11 +9,14 @@ import com.koushikdutta.scratch.extensions.hash
 import java.io.File
 import kotlin.random.Random
 
-class FileStore(val eventLoop: AsyncEventLoop, val cacheDirectory: File, hashKeys: Boolean): AsyncStore, AsyncAffinity by eventLoop {
-    val keyHash: (String) -> String
-    init {
-        cacheDirectory.mkdirs()
+fun interface FileStoreGetDirectory {
+    operator fun invoke(): File
+}
 
+class FileStore(val eventLoop: AsyncEventLoop, hashKeys: Boolean, val getDirectory: FileStoreGetDirectory): AsyncStore, AsyncAffinity by eventLoop {
+    val keyHash: (String) -> String
+    lateinit var cacheDirectory: File
+    init {
         keyHash = if (hashKeys) {
             {
                 toSafeFilename(it)
@@ -23,7 +27,14 @@ class FileStore(val eventLoop: AsyncEventLoop, val cacheDirectory: File, hashKey
                 it
             }
         }
+
+        eventLoop.launch {
+            cacheDirectory = getDirectory()
+            cacheDirectory.mkdirs()
+        }
     }
+
+    constructor(eventLoop: AsyncEventLoop, hashKeys: Boolean, cacheDirectory: File): this(eventLoop, hashKeys, { cacheDirectory } )
 
     override suspend fun openRead(key: String): AsyncRandomAccessInput? {
         val filename = keyHash(key)

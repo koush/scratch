@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
 import kotlinx.coroutines.*
 import kotlin.coroutines.*
@@ -160,21 +161,21 @@ class PromiseTests {
     @Test
     fun testPromiseCancelHook() {
         var cancelled = false
-        suspend {
+
+        val ret = async {
             val d = Deferred<Unit>()
 
             val promise = d.promise.cancelled {
                 cancelled = true
             }
 
-            assertSame(d.promise, promise)
+            assertNotSame(d.promise, promise)
 
-            promise.cancel()
+            d.promise.cancel()
             promise.await()
-        }.startCoroutine(Continuation<Unit>(EmptyCoroutineContext) {
-            Unit
-        })
+        }
 
+        assertTrue(ret.isCompleted)
         assertTrue(cancelled)
     }
 
@@ -238,5 +239,64 @@ class PromiseTests {
 
         assertTrue(done)
         assertTrue(lazyDone)
+    }
+
+    @Test
+    fun testPromiseChainCancel() {
+        var done = false
+        var lazyDone = false
+        val lazy = Promise(CoroutineStart.LAZY) {
+            done = true
+        }
+
+        val lazyDep = lazy.then {
+            lazyDone = true
+        }
+
+        assertFalse(done)
+        assertFalse(lazyDone)
+        assertFalse(lazyDep.isStarted)
+
+        lazyDep.cancel()
+        assertFalse(lazyDone)
+        assertTrue(lazyDep.isCancelled)
+
+        assertFalse(lazy.isCancelled)
+
+        assertFalse(done)
+        assertFalse(lazyDone)
+    }
+
+
+    @Test
+    fun testPromiseChainCancel2() = networkContextTest {
+        var done = false
+        var promiseDone = false
+        val promise = Promise {
+            post()
+            done = true
+        }
+
+        val promiseDep = promise.then {
+            promiseDone = true
+        }
+
+        assertFalse(done)
+        assertFalse(promiseDone)
+        assertTrue(promiseDep.isStarted)
+        assertTrue(promise.isStarted)
+
+        promiseDep.cancel()
+        assertFalse(promiseDone)
+        assertTrue(promiseDep.isCancelled)
+
+        assertFalse(promise.isCancelled)
+
+        assertFalse(done)
+        assertFalse(promiseDone)
+
+        promise.await()
+        assertTrue(done)
+        assertFalse(promiseDone)
     }
 }

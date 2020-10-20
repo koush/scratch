@@ -15,7 +15,7 @@ import kotlin.coroutines.suspendCoroutine
 
 actual typealias AsyncNetworkServerSocket = NIOServerSocket
 class NIOServerSocket internal constructor(val server: AsyncEventLoop, private val channel: ServerSocketChannel) : AsyncServerSocket<AsyncNetworkSocket>, AsyncAffinity by server {
-    private val key: SelectionKey = channel.register(server.mSelector.selector, SelectionKey.OP_ACCEPT)
+    private val key: SelectionKey = channel.register(server.selector.selector, SelectionKey.OP_ACCEPT)
     val localAddress: InetAddress = channel.socket().inetAddress!!
     val localPort = channel.socket().localPort
 
@@ -56,7 +56,7 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
             if (sc == null)
                 return
             sc.configureBlocking(false)
-            val key = sc.register(server.mSelector.selector, SelectionKey.OP_READ)
+            val key = sc.register(server.selector.selector, SelectionKey.OP_READ)
             val socket = NIOSocket(server, sc, key)
             key.attach(socket)
             queue.add(socket)

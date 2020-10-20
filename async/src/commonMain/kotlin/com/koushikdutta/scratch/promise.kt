@@ -129,28 +129,24 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         callback(await())
     }
 
-    fun cancelled(callback: PromiseCancelled): Promise<T> {
-        Promise(start) {
-            try {
-                await()
-            } catch (throwable: CancellationException) {
-                callback(throwable)
-                throw throwable
-            }
+    fun cancelled(callback: PromiseCancelled) = Promise(start) {
+        try {
+            await()
         }
-        return this
+        catch (throwable: CancellationException) {
+            callback(throwable)
+            throw throwable
+        }
     }
 
-    fun catch(callback: PromiseCatch): Promise<T> {
-        Promise(start) {
-            try {
-                await()
-            } catch (throwable: Throwable) {
-                callback(throwable)
-                throw throwable
-            }
+    fun catch(callback: PromiseCatch) = Promise(start) {
+        try {
+            await()
         }
-        return this
+        catch (throwable: Throwable) {
+            callback(throwable)
+            throw throwable
+        }
     }
 
     fun catchThen(callback: PromiseCatchThen<T>) = Promise(start) {
@@ -161,15 +157,12 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun finally(callback: suspend () -> Unit): Promise<T> {
-        Promise(start) {
-            try {
-                await()
-            } finally {
-                callback()
-            }
+    fun finally(callback: suspend () -> Unit) = Promise(start) {
+        try {
+            await()
+        } finally {
+            callback()
         }
-        return this
     }
 
     fun result(callback: PromiseResultCallback<T>): Promise<T> {
@@ -179,18 +172,15 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun complete(callback: PromiseCompleteCallback<T>): Promise<T> {
-        Promise(start) {
-            val value = try {
-                await()
-            }
-            catch (throwable: Throwable) {
-                callback.complete(Result.failure(throwable))
-                return@Promise
-            }
-            callback.complete(Result.success(value))
+    fun complete(callback: PromiseCompleteCallback<T>) = Promise(start) {
+        val value = try {
+            await()
         }
-        return this
+        catch (throwable: Throwable) {
+            callback.complete(Result.failure(throwable))
+            return@Promise
+        }
+        callback.complete(Result.success(value))
     }
 
     fun <R> apply(callback: PromiseApplyCallback<R, T>): Promise<R> {

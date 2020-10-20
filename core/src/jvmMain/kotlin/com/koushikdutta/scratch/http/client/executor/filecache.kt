@@ -10,7 +10,7 @@ private val tmpdir = System.getProperty("java.io.tmpdir")
 
 fun AsyncHttpExecutorBuilder.useFileCache(eventLoop: AsyncEventLoop = AsyncEventLoop.default, cacheDirectory: File = File(tmpdir, "scratch-http-cache-" + randomHex())): AsyncHttpExecutorBuilder {
     wrapExecutor {
-        CacheExecutor(it, asyncStore = FileStore(eventLoop, cacheDirectory, true))
+        CacheExecutor(it, asyncStore = FileStore(eventLoop, true, cacheDirectory))
     }
     return this
 }

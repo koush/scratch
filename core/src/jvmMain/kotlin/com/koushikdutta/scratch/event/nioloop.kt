@@ -15,6 +15,7 @@ import java.nio.channels.spi.SelectorProvider
 import java.util.*
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 
@@ -43,7 +44,8 @@ internal fun closeQuietly(vararg closeables: Closeable?) {
 actual typealias AsyncEventLoop = NIOEventLoop
 
 open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
-    internal val mSelector: SelectorWrapper = SelectorWrapper(SelectorProvider.provider().openSelector())
+    internal lateinit var selector: SelectorWrapper
+    private val initialized = AtomicBoolean(false)
 
     var affinity: Thread? = null
         internal set
@@ -69,7 +71,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 semaphore!!.release()
                 throw NIOLoopShutdownException()
             }
-            mSelector.wakeupOnce()
+            selector.wakeupOnce()
 
             // force any existing connections to die
             shutdownKeys()
@@ -121,7 +123,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             if (reuseAddress)
                 socket.socket().reuseAddress = true
             socket.socket().bind(inetSocketAddress)
-            ckey = socket.register(mSelector.selector, SelectionKey.OP_READ)
+            ckey = socket.register(selector.selector, SelectionKey.OP_READ)
             return AsyncDatagramSocket(this, socket, ckey)
         }
         catch (e: Exception) {
@@ -139,7 +141,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         try {
             socket = SocketChannel.open()
             socket!!.configureBlocking(false)
-            ckey = socket.register(mSelector.selector, 0)
+            ckey = socket.register(selector.selector, 0)
             return AsyncNetworkSocket(this, socket, ckey)
         }
         catch (e: Exception) {
@@ -188,8 +190,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             if (affinity == null)
                 affinity = Thread.currentThread()
             else
-                throw IllegalStateException("AsyncNetworkContext is already running.")
+                throw IllegalStateException("AsyncEventLoop is already running.")
         }
+
+        if (initialized.compareAndSet(false, true))
+            selector = SelectorWrapper(SelectorProvider.provider().openSelector())
 
         // at this point, this local queue and selector are owned
         // by this thread.
@@ -210,7 +215,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             }
 
             // check to see if the selector was killed somehow?
-            if (!mSelector.isOpen) {
+            if (!selector.isOpen) {
                 shutdownKeys()
                 break
             }
@@ -219,7 +224,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
     private fun runSelector() {
         // process whatever keys are ready
-        val readyKeys = mSelector.selectedKeys()
+        val readyKeys = selector.selectedKeys()
         for (key in readyKeys) {
             try {
                 if (key.isAcceptable) {
@@ -257,15 +262,15 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         try {
             if (wait == QUEUE_EMPTY) {
                 // wait until woken up
-                mSelector.select()
+                selector.select()
             }
             else if (wait == QUEUE_NEXT_LOOP) {
                 //
-                mSelector.selectNow()
+                selector.selectNow()
             }
             else {
                 // nothing to select immediately but there's something pending so let's block that duration and wait.
-                mSelector.select(wait)
+                selector.select(wait)
             }
         } catch (e: Exception) {
             // can ignore these exceptions, they spawn from wakeups
@@ -277,7 +282,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
     private fun shutdownKeys() {
         try {
-            for (key in mSelector.keys()) {
+            for (key in selector.keys()) {
                 closeQuietly(key.channel())
                 try {
                     key.cancel()
@@ -294,7 +299,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             return
         synchronousWorkers.execute {
             try {
-                mSelector.wakeupOnce()
+                selector.wakeupOnce()
             } catch (e: Exception) {
             }
         }
