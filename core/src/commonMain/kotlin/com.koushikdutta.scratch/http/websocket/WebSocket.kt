@@ -222,7 +222,7 @@ suspend fun AsyncHttpClientExecutor.connectWebSocket(request: AsyncHttpRequest, 
     try {
         val response = invoke(request)
         response.close()
-        throw IOException("WebSocket connection failed.")
+        throw IOException("WebSocket connection failed: ${response.code}: ${response.message}")
     }
     catch (switching: AsyncHttpClientSwitchingProtocols) {
         val responseHeaders = switching.responseHeaders
