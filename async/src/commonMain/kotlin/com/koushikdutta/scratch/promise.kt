@@ -14,6 +14,11 @@ fun interface PromiseApplyCallback<R, T> {
     fun apply(result: T): R
 }
 
+fun interface PromiseNextCallback<R, T> {
+    @Throws(Throwable::class)
+    fun next(result: T): Promise<R>
+}
+
 fun interface PromiseResultCallback<T> {
     @Throws(Throwable::class)
     fun result(result: T)
@@ -33,18 +38,14 @@ class Deferred<T> {
     val promise = Promise(deferred)
     fun resolve(result: T) = deferred.complete(result)
     fun reject(throwable: Throwable) = deferred.completeExceptionally(throwable)
-
-    companion object {
-        suspend fun <T> deferResolve(block: suspend (resolve: (T) -> Boolean) -> Unit): T {
-            val deferred = Deferred<T>()
-            block(deferred::resolve)
-            return deferred.promise.await()
-        }
-
-        suspend fun <T> defer(block: suspend (resolve: (T) -> Boolean, reject: (Throwable) -> Boolean) -> Unit): T {
-            val deferred = Deferred<T>()
-            block(deferred::resolve, deferred::reject)
-            return deferred.promise.await()
+    fun resolve(result: Promise<T>) {
+        GlobalScope.async(Dispatchers.Unconfined, start = result.start) {
+            try {
+                resolve(promise.await())
+            }
+            catch (throwable: Throwable) {
+                reject(throwable)
+            }
         }
     }
 }
@@ -55,10 +56,17 @@ internal fun <T> suspendJob(block: suspend () -> T, start: CoroutineStart) = Glo
 
 fun <T> kotlinx.coroutines.Deferred<T>.asPromise(start: CoroutineStart = CoroutineStart.DEFAULT): Promise<T> = Promise(this, start)
 
-open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Deferred<T>, val start: CoroutineStart) {
+open class Promise<T> internal constructor(private val deferred: kotlinx.coroutines.Deferred<T>, internal val start: CoroutineStart) {
     constructor(block: suspend () -> T) : this(suspendJob(block, CoroutineStart.DEFAULT), CoroutineStart.DEFAULT)
     constructor(start: CoroutineStart, block: suspend () -> T) : this(suspendJob(block, start), start)
     constructor(deferred: kotlinx.coroutines.Deferred<T>): this(deferred, CoroutineStart.DEFAULT)
+
+    private val childStart = CompletableDeferred<Unit>()
+
+    init {
+        if (start != CoroutineStart.LAZY)
+            childStart.complete(Unit)
+    }
 
     fun cancel() = cancel(null)
 
@@ -72,12 +80,16 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         return deferred.isCancelled
     }
 
-    fun start() = deferred.start()
+    fun start() {
+        childStart.complete(Unit)
+        deferred.start()
+    }
 
     val isStarted: Boolean
         get() = deferred.isActive || deferred.isCancelled || deferred.isCompleted
 
     suspend fun await(): T {
+        childStart.await()
         return deferred.await()
     }
 
@@ -125,11 +137,11 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun <R> then(callback: PromiseThen<R, T>) = Promise(start) {
+    fun <R> then(callback: PromiseThen<R, T>) = Promise() {
         callback(await())
     }
 
-    fun cancelled(callback: PromiseCancelled) = Promise(start) {
+    fun cancelled(callback: PromiseCancelled) = Promise() {
         try {
             await()
         }
@@ -139,7 +151,7 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun catch(callback: PromiseCatch) = Promise(start) {
+    fun catch(callback: PromiseCatch) = Promise() {
         try {
             await()
         }
@@ -149,7 +161,7 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun catchThen(callback: PromiseCatchThen<T>) = Promise(start) {
+    fun catchThen(callback: PromiseCatchThen<T>) = Promise() {
         try {
             await()
         } catch (throwable: Throwable) {
@@ -157,7 +169,7 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun finally(callback: suspend () -> Unit) = Promise(start) {
+    fun finally(callback: suspend () -> Unit) = Promise() {
         try {
             await()
         } finally {
@@ -172,15 +184,21 @@ open class Promise<T> constructor(private val deferred: kotlinx.coroutines.Defer
         }
     }
 
-    fun complete(callback: PromiseCompleteCallback<T>) = Promise(start) {
+    fun <R> next(callback: PromiseNextCallback<R, T>): Promise<R> {
+        return then {
+            callback.next(it).await()
+        }
+    }
+
+    fun complete(callback: PromiseCompleteCallback<T>) = Promise() {
         val value = try {
-            await()
+            Result.success(await())
         }
         catch (throwable: Throwable) {
-            callback.complete(Result.failure(throwable))
-            return@Promise
+            Result.failure(throwable)
         }
-        callback.complete(Result.success(value))
+        callback.complete(value)
+        value
     }
 
     fun <R> apply(callback: PromiseApplyCallback<R, T>): Promise<R> {

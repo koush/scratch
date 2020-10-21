@@ -199,7 +199,7 @@ class PromiseTests {
     }
 
     @Test
-    fun testLazyPromise() {
+    fun testLazyChildPromiseDoesStart() {
         var done = false
         var lazyDone = false
         val lazy = Promise(CoroutineStart.LAZY) {
@@ -216,12 +216,12 @@ class PromiseTests {
         lazy.start()
 
         assertTrue(done)
-        assertFalse(lazyDone)
+        assertTrue(lazyDone)
     }
 
 
     @Test
-    fun testLazyPromise2() {
+    fun testLazyChildPromiseDoesNotStart() {
         var done = false
         var lazyDone = false
         val lazy = Promise(CoroutineStart.LAZY) {
@@ -237,9 +237,10 @@ class PromiseTests {
 
         lazyDep.start()
 
-        assertTrue(done)
-        assertTrue(lazyDone)
+        assertFalse(done)
+        assertFalse(lazyDone)
     }
+
 
     @Test
     fun testPromiseChainCancel() {
@@ -255,7 +256,7 @@ class PromiseTests {
 
         assertFalse(done)
         assertFalse(lazyDone)
-        assertFalse(lazyDep.isStarted)
+        assertTrue(lazyDep.isStarted)
 
         lazyDep.cancel()
         assertFalse(lazyDone)
@@ -266,7 +267,6 @@ class PromiseTests {
         assertFalse(done)
         assertFalse(lazyDone)
     }
-
 
     @Test
     fun testPromiseChainCancel2() = networkContextTest {
