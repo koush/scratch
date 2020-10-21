@@ -1,8 +1,8 @@
 package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseCommaDelimited
 import com.koushikdutta.scratch.event.milliTime
@@ -29,7 +29,7 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
             // validate timeout
             field = timeout > milliTime()
             if (!field) {
-                Promise {
+                socket.launch {
                     socket.close()
                 }
             }
@@ -66,7 +66,7 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
 
         buffer.putUtf8String(request.toMessageString())
         socket::write.drain(buffer)
-        requestBody.copy(socket::write)
+        requestBody.copy(socket::write, buffer)
         request.close()
 
         val statusLine = reader.readHttpHeaderLine().trim()

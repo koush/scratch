@@ -1,8 +1,8 @@
-package com.koushikdutta.scratch.event
+package com.koushikdutta.scratch
 
 interface Cancellable {
     /**
-     * Check whether this asynchronous operation completed successfully.
+     * Check whether this asynchronous operation has completed or been cancelled.
      * @return
      */
     val isDone: Boolean
@@ -21,7 +21,7 @@ interface Cancellable {
 
     companion object {
         val CANCELLED = object : Cancellable {
-            override val isDone: Boolean = false
+            override val isDone: Boolean = true
             override val isCancelled: Boolean = true
             override fun cancel(): Boolean {
                 return true

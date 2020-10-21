@@ -1,11 +1,14 @@
 package com.koushikdutta.scratch.stream
 
-import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.AsyncAffinity
+import com.koushikdutta.scratch.AsyncInput
 import com.koushikdutta.scratch.NonBlockingWritePipe
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.WritableBuffers
+import com.koushikdutta.scratch.event.closeQuietly
 import java.io.InputStream
 
-fun InputStream.createAsyncRead(readSize: Int = 65536): AsyncRead {
+fun InputStream.createAsyncInput(readSize: Int = 65536): AsyncInput {
     val buffer = ByteBufferList()
 
     val start: NonBlockingWritePipe.() -> Unit = {
@@ -41,5 +44,10 @@ fun InputStream.createAsyncRead(readSize: Int = 65536): AsyncRead {
 
     start(pipe)
 
-    return pipe::read
+    val stream = this
+
+    return object : AsyncInput, AsyncAffinity by AsyncAffinity.NO_AFFINITY {
+        override suspend fun read(buffer: WritableBuffers) = pipe.read(buffer)
+        override suspend fun close() = closeQuietly(stream)
+    }
 }

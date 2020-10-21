@@ -5,25 +5,35 @@ import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.event.*
+import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.event.InetSocketAddress
+import com.koushikdutta.scratch.event.connect
+import com.koushikdutta.scratch.event.run
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.execute
-import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.client.createContentLengthPipe
-import com.koushikdutta.scratch.http.client.executor.*
+import com.koushikdutta.scratch.http.client.execute
+import com.koushikdutta.scratch.http.client.executor.HostSocketProvider
+import com.koushikdutta.scratch.http.client.executor.connectFirstAvailableResolver
+import com.koushikdutta.scratch.http.client.executor.useHttpExecutor
+import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.*
 
 class LoopTests {
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testPostDelayed() {
         val networkContext = AsyncEventLoop()
@@ -36,6 +46,7 @@ class LoopTests {
             finally {
                 networkContext.stop()
             }
+            0
         }
 
         networkContext.postDelayed(3000) {
@@ -44,14 +55,14 @@ class LoopTests {
 
         try {
             networkContext.run()
-            result.rethrow()
+            result.getCompleted()
             fail("exception expected")
         }
         catch (exception: Exception) {
         }
     }
 
-
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testAsyncException() {
         val networkContext = AsyncEventLoop()
@@ -63,6 +74,7 @@ class LoopTests {
             finally {
                 networkContext.stop()
             }
+            0
         }
 
         networkContext.postDelayed(1000) {
@@ -71,7 +83,7 @@ class LoopTests {
 
         try {
             networkContext.run()
-            result.rethrow()
+            result.getCompleted()
             fail("exception expected")
         }
         catch (exception: Exception) {
@@ -79,6 +91,7 @@ class LoopTests {
     }
 
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testAsyncSuccess() {
         val networkContext = AsyncEventLoop()
@@ -97,8 +110,7 @@ class LoopTests {
         }
 
         networkContext.run()
-        result.rethrow()
-        assertEquals(result.getOrThrow(), 42)
+        assertEquals(result.getCompleted(), 42)
     }
 
     @Test
@@ -176,6 +188,7 @@ class LoopTests {
                 val read = connect("127.0.0.1", server.localPort).countBytes()
                 count += read
             }
+            .asPromise()
         }
         .awaitAll()
 
@@ -232,6 +245,9 @@ class LoopTests {
     @Test
     fun testSocketsALotConcurrent() = networkContextTest{
         val server = listen(0, null, 10000)
+        server.acceptAsync {
+            // need to accept/close so handles are freed.
+        }
         var connected = 0
         // there seems to be a weird issue with opening a ton of file descriptors too quickly.
         // the file limit is not hit, but connects will fail with "Connection reset by peer"
@@ -257,6 +273,7 @@ class LoopTests {
                     }
                 }
             }
+            .asPromise()
             promises.add(promise)
         }
         promises.awaitAll()
@@ -315,6 +332,7 @@ class LoopTests {
                 }
                 Unit
             }
+            .asPromise()
 
             promises.add(promise)
         }
@@ -363,7 +381,7 @@ class LoopTests {
         val websocket = httpClient.connectWebSocket("wss://echo.websocket.org")
 
         websocket.ping("ping!")
-        assertEquals("ping!", websocket.readMessage()!!.text)
+        assertEquals("ping!", websocket.readMessage().text)
 
         websocket::write.drain("hello".createByteBufferList())
         websocket::write.drain("world".createByteBufferList())
@@ -422,5 +440,146 @@ class LoopTests {
             readAllString(it.body!!)
         })
         Unit
+    }
+
+    @Test
+    fun testCreateConnect() = networkContextTest {
+        val server = listen()
+        val client = createSocket()
+
+        val promise = Promise {
+            client.connect("127.0.0.1", server.localPort)
+        }
+
+        promise.await()
+    }
+
+    @Test
+    fun testCreateConnectClose() = networkContextTest {
+        val server = listen()
+        val client = createSocket()
+
+        val promise = Promise {
+            client.connect("127.0.0.1", server.localPort)
+        }
+
+        client.close()
+        try {
+            promise.await()
+            fail("connection failure expected")
+        }
+        catch (throwable: Throwable) {
+        }
+    }
+
+    @Test
+    fun testConnectCancel() = networkContextTest {
+        val server = listen()
+
+        var failed = false
+        val promise = Promise {
+            try {
+                connect("127.0.0.1", server.localPort)
+                fail("cancellation expected")
+            }
+            catch (throwable: CancellationException) {
+                failed = true
+            }
+        }
+
+        // post to trigger the connect
+        post()
+        // cancel will end the coroutine
+        promise.cancel()
+        try {
+            // will throw due to cancel
+            promise.await()
+            fail("connection failure expected")
+        }
+        catch (throwable: Throwable) {
+            // post to trigger close/cancellation
+            post()
+        }
+
+        assertTrue(failed)
+    }
+
+    @Test
+    fun testSleepCancel() = networkContextTest {
+        var failed = false
+        val promise = Promise {
+            try {
+                sleep(1000000)
+                Promise.ensureActive()
+                fail("cancellation expected")
+            }
+            catch (throwable: CancellationException) {
+                failed = true
+            }
+        }
+
+        post()
+        promise.cancel()
+
+        try {
+            promise.await()
+            fail("sleep failure expected")
+        }
+        catch (throwable: Throwable) {
+        }
+
+        post()
+        assertTrue(failed)
+    }
+
+    @Test
+    fun testDispatcher() = networkContextTest {
+        val job = async {
+            assertTrue(isAffinityThread)
+            await()
+            assertTrue(isAffinityThread)
+        }
+
+        job.await()
+        assertTrue(isAffinityThread)
+
+        // requires confined dispatcher.
+        val job2 = GlobalScope.async {
+            assertFalse(isAffinityThread)
+            await()
+            assertTrue(isAffinityThread)
+        }
+
+        job2.await()
+        assertTrue(isAffinityThread)
+
+
+        // requires confined dispatcher.
+        val job3 = GlobalScope.async {
+            assertFalse(isAffinityThread)
+        }
+        job3.await()
+        assertFalse(isAffinityThread)
+    }
+
+    @Test
+    fun testPromiseMultipleCallbacks() = networkContextTest{
+        val promise = Promise {
+            post()
+            Unit
+        }
+
+        var count = 0
+        promise.then {
+            count++
+        }
+
+        promise.then {
+            count++
+        }
+
+        promise.await()
+        post()
+        assertEquals(count, 2)
     }
 }

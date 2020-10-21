@@ -97,7 +97,6 @@ internal class Http2ExchangeCodec {
             val method = headers[Header.TARGET_METHOD_UTF8]
             val path = headers[Header.TARGET_PATH_UTF8]!!
             val host = headers[Header.TARGET_AUTHORITY_UTF8]
-            val scheme = headers[Header.TARGET_SCHEME_UTF8]
 
             headers["Host"] = host
 

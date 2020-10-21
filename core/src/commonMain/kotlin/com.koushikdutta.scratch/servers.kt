@@ -1,6 +1,10 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.async.startSafeCoroutine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 
 /**
  * AsyncServerSocket accepts incoming AsyncSocket clients.
@@ -48,7 +52,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket:
         }
     }
 
-    private val closePromise = Promise {
+    private val closePromise = serverSocket.async {
         for (socket in serverSocket.accept()) {
             startSafeCoroutine socketCoroutine@{
                 try {
@@ -62,7 +66,6 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket:
             }
         }
     }
-
     suspend fun awaitClose() = closePromise.await()
 }
 

@@ -78,7 +78,6 @@ class AsyncReader(val input: AsyncRead) {
      * Returns true if found, returns false if the read ended before
      * the sequence was found.
      */
-    @UseExperimental(ExperimentalStdlibApi::class)
     suspend fun readScanUtf8String(buffer: WritableBuffers, scanString: String): Boolean {
         val scan = scanString.encodeToByteArray()
         return readScan(buffer, scan)
@@ -91,7 +90,9 @@ class AsyncReader(val input: AsyncRead) {
     suspend fun readScanUtf8String(scanString: String): String {
         val buffer = ByteBufferList()
         readScanUtf8String(buffer, scanString)
-        return buffer.readUtf8String()
+        val scanned = buffer.readUtf8String()
+        pending.takeReclaimedBuffers(buffer)
+        return scanned
     }
 
     /**
@@ -117,7 +118,6 @@ class AsyncReader(val input: AsyncRead) {
      * Perform a read for a given length of bytes and return the result as a string.
      * Returns a string up to the given length, or shorter if end of stream was reached.
      */
-    @UseExperimental(ExperimentalStdlibApi::class)
     suspend fun readUtf8String(length: Int): String {
         return readBytes(length).decodeToString()
     }
@@ -165,7 +165,6 @@ class AsyncReader(val input: AsyncRead) {
     /**
      * Peek a number of bytes as a String.
      */
-    @UseExperimental(ExperimentalStdlibApi::class)
     suspend fun peekString(length: Int): String {
         return peekBytes(length).decodeToString()
     }
@@ -174,15 +173,15 @@ class AsyncReader(val input: AsyncRead) {
      * Skip a number of bytes.
      */
     suspend fun skip(length: Int): Boolean {
-        var length = length
+        var tmp = length
 
-        while (length > 0) {
+        while (tmp > 0) {
             if (pending.isEmpty && !input(pending))
                 return false
 
-            val skip = min(length, pending.remaining())
+            val skip = min(tmp, pending.remaining())
             pending.skip(skip)
-            length -= skip
+            tmp -= skip
         }
 
         return true

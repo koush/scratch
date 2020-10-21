@@ -13,12 +13,11 @@ import java.net.NetworkInterface
 import java.nio.channels.*
 import java.nio.channels.spi.SelectorProvider
 import java.util.*
-import java.util.concurrent.Executor
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 actual typealias InetAddress = java.net.InetAddress
 actual typealias Inet4Address = java.net.Inet4Address
@@ -27,14 +26,6 @@ actual typealias InetSocketAddress = java.net.InetSocketAddress
 
 internal actual fun milliTime(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
 internal actual fun nanoTime(): Long = System.nanoTime()
-
-private suspend fun Executor.await() {
-    suspendCoroutine<Unit> {
-        this.execute {
-            it.resume(Unit)
-        }
-    }
-}
 
 internal fun closeQuietly(vararg closeables: Closeable?) {
     for (closeable in closeables) {
@@ -53,7 +44,8 @@ internal fun closeQuietly(vararg closeables: Closeable?) {
 actual typealias AsyncEventLoop = NIOEventLoop
 
 open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
-    internal val mSelector: SelectorWrapper = SelectorWrapper(SelectorProvider.provider().openSelector())
+    internal lateinit var selector: SelectorWrapper
+    private val initialized = AtomicBoolean(false)
 
     var affinity: Thread? = null
         internal set
@@ -79,7 +71,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 semaphore!!.release()
                 throw NIOLoopShutdownException()
             }
-            mSelector.wakeupOnce()
+            selector.wakeupOnce()
 
             // force any existing connections to die
             shutdownKeys()
@@ -131,7 +123,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             if (reuseAddress)
                 socket.socket().reuseAddress = true
             socket.socket().bind(inetSocketAddress)
-            ckey = socket.register(mSelector.selector, SelectionKey.OP_READ)
+            ckey = socket.register(selector.selector, SelectionKey.OP_READ)
             return AsyncDatagramSocket(this, socket, ckey)
         }
         catch (e: Exception) {
@@ -141,7 +133,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    suspend fun connect(socketAddress: InetSocketAddress): AsyncNetworkSocket {
+    suspend fun createSocket(): AsyncNetworkSocket {
         await()
 
         var ckey: SelectionKey? = null
@@ -149,29 +141,8 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         try {
             socket = SocketChannel.open()
             socket!!.configureBlocking(false)
-
-            ckey = socket.register(mSelector.selector, SelectionKey.OP_CONNECT)
-            suspendCoroutine<Unit> {
-                ckey.attach(it)
-                socket.connect(socketAddress)
-            }
-
-            // for some reason this seems necessary? (see testSocketsALot)
-            // must post, or it seems to just... hang? no more incoming connections.
-            // attempting to log stuff to diagnose issue in itself solves the problem.
-            // ie, slowing down how quickly the sockets are connected addresses some underlying race condition.
-            // but, given that the test itself is entirely single threaded and non-concurrent,
-            // it leads me to believe the underlying problem is in the SUN NIO implementation.
-//            post()
-
-            if (!socket.finishConnect()) {
-                ckey.cancel()
-                throw IOException("socket failed to connect")
-            }
-
-            val ret = AsyncNetworkSocket(this, socket, ckey)
-            ckey.interestOps(SelectionKey.OP_READ)
-            return ret;
+            ckey = socket.register(selector.selector, 0)
+            return AsyncNetworkSocket(this, socket, ckey)
         }
         catch (e: Exception) {
             ckey?.cancel()
@@ -200,6 +171,10 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         return NIOFileFactory.instance.open(this, file, defaultReadLength, write)
     }
 
+    suspend fun listFiles(directory: File): Array<File> {
+        return NIOFileFactory.instance.listFiles(this, directory)
+    }
+
     suspend fun getAllByName(host: String): Array<InetAddress> {
         synchronousResolverWorkers.await()
         val result = InetAddress.getAllByName(host)
@@ -215,8 +190,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             if (affinity == null)
                 affinity = Thread.currentThread()
             else
-                throw IllegalStateException("AsyncNetworkContext is already running.")
+                throw IllegalStateException("AsyncEventLoop is already running.")
         }
+
+        if (initialized.compareAndSet(false, true))
+            selector = SelectorWrapper(SelectorProvider.provider().openSelector())
 
         // at this point, this local queue and selector are owned
         // by this thread.
@@ -237,7 +215,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             }
 
             // check to see if the selector was killed somehow?
-            if (!mSelector.isOpen) {
+            if (!selector.isOpen) {
                 shutdownKeys()
                 break
             }
@@ -246,7 +224,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
     private fun runSelector() {
         // process whatever keys are ready
-        val readyKeys = mSelector.selectedKeys()
+        val readyKeys = selector.selectedKeys()
         for (key in readyKeys) {
             try {
                 if (key.isAcceptable) {
@@ -255,18 +233,18 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
                 }
                 else if (key.isReadable) {
                     val socket = key.attachment() as NIOChannel
-                    val transmitted = socket.readable()
+                    socket.readable()
                 }
                 else if (key.isWritable) {
                     val socket = key.attachment() as NIOChannel
                     socket.writable()
                 }
                 else if (key.isConnectable) {
-                    val continuation = key.attachment() as Continuation<Unit>?
+                    val continuation = key.attachment() as Continuation<Boolean>?
                     key.interestOps(0)
                     key.attach(null)
                     // continuation may not fire synchronously.
-                    continuation?.resume(Unit)
+                    continuation?.resume(true)
                 }
                 else {
                     throw AssertionError("Unknown key state")
@@ -284,15 +262,15 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         try {
             if (wait == QUEUE_EMPTY) {
                 // wait until woken up
-                mSelector.select()
+                selector.select()
             }
             else if (wait == QUEUE_NEXT_LOOP) {
                 //
-                mSelector.selectNow()
+                selector.selectNow()
             }
             else {
                 // nothing to select immediately but there's something pending so let's block that duration and wait.
-                mSelector.select(wait)
+                selector.select(wait)
             }
         } catch (e: Exception) {
             // can ignore these exceptions, they spawn from wakeups
@@ -304,7 +282,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
     private fun shutdownKeys() {
         try {
-            for (key in mSelector.keys()) {
+            for (key in selector.keys()) {
                 closeQuietly(key.channel())
                 try {
                     key.cancel()
@@ -321,14 +299,13 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
             return
         synchronousWorkers.execute {
             try {
-                mSelector.wakeupOnce()
+                selector.wakeupOnce()
             } catch (e: Exception) {
             }
         }
     }
 
     companion object {
-        val LOGTAG = "NIO"
         val default = AsyncEventLoop()
 
         init {

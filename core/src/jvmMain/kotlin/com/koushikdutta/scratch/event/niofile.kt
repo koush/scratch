@@ -20,6 +20,10 @@ import kotlin.math.min
 
 interface NIOFileFactory {
     fun open(loop: AsyncEventLoop, file: File, defaultReadLength: Int = 16384, write: Boolean = false): AsyncRandomAccessStorage
+    suspend fun listFiles(loop: AsyncEventLoop, directory: File): Array<File> {
+        loop.await()
+        return directory.listFiles() ?: emptyArray()
+    }
 
     companion object {
         val instance: NIOFileFactory
@@ -114,8 +118,6 @@ class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: In
     }
 
     override suspend fun readPosition(position: Long, length: Long, buffer: WritableBuffers): Boolean {
-        await()
-
         val toRead = min(defaultReadLength, length.toInt())
         val singleBuffer = buffer.obtain(toRead)
         singleBuffer.limit(toRead)
@@ -123,8 +125,6 @@ class NIOFile7(val server: AsyncEventLoop, file: File, var defaultReadLength: In
         val read = suspendCoroutine<Int> {
             fileChannel.read(singleBuffer, position, null, completionHandler(it))
         }
-
-        await()
 
         singleBuffer.flip()
         buffer.add(singleBuffer)

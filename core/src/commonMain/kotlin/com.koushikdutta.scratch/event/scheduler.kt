@@ -1,13 +1,18 @@
 package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.AsyncAffinity
+import com.koushikdutta.scratch.Cancellable
 import com.koushikdutta.scratch.synchronized
+import kotlinx.coroutines.CompletableDeferred
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 import kotlin.math.max
 import kotlin.math.min
 
-typealias AsyncServerRunnable = () -> Unit
+fun interface AsyncServerRunnable {
+    operator fun invoke()
+}
 
 internal class PriorityQueue {
     private var sorted = true
@@ -141,20 +146,29 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     suspend fun sleep(milliseconds: Long) {
         require(milliseconds >= 0) { "negative sleep not allowed" }
-        suspendCoroutine<Unit> {
-            postDelayed(milliseconds) {
-                it.resume(Unit)
-            }
+        val deferred = CompletableDeferred<Unit>()
+        val cancel = postDelayed(milliseconds) {
+            deferred.complete(Unit)
+        }
+        try {
+            deferred.await()
+        }
+        catch (throwable: CancellationException) {
+            cancel.cancel()
+            throw throwable
         }
     }
 
     override suspend fun post() {
-        suspendCoroutine<Unit> {
+        // this special invocation forces the coroutine to resume on the scheduler thread.
+        kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn { it: Continuation<Unit> ->
             post {
                 it.resume(Unit)
             }
+            kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
         }
     }
 
@@ -162,6 +176,11 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         if (isAffinityThread)
             return
         post()
+        if (!isAffinityThread) {
+            val err = "Failed to switch to affinity thread, how did this happen? Use Dispatchers.Unconfirmed when creating your coroutine. Or use AsyncEventLoop.async or AsyncEventLoop.launch."
+            println(err)
+            throw IllegalStateException(err)
+        }
     }
 
     abstract fun wakeup()
@@ -199,7 +218,7 @@ internal class Scheduler private constructor() : Comparator<Scheduled> {
 }
 
 internal class Scheduled(val server: AsyncScheduler<*>, val runnable: AsyncServerRunnable, val time: Long) :
-    Cancellable {
+        Cancellable {
     private var cancelled: Boolean = false
 
     override val isDone: Boolean

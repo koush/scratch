@@ -11,6 +11,7 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -24,8 +25,7 @@ class TlsTests {
 
         val pair = createAsyncPipeSocketPair()
 
-
-        async {
+        launch {
             val serverContext = createTLSContext()
             serverContext.init(keypairCert.first, keypairCert.second)
 
@@ -38,7 +38,7 @@ class TlsTests {
         }
 
         var data = ""
-        async {
+        launch {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
 
@@ -52,6 +52,7 @@ class TlsTests {
         assertEquals(data, "Hello World")
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testCertificateNameMismatch() {
         val keypairCert = createSelfSignedCertificate("TestServer")
@@ -71,7 +72,6 @@ class TlsTests {
                 server.close()
             }
 
-            var data = ""
             val result2 = async {
                 val clientContext = createTLSContext()
                 clientContext.init(keypairCert.second)
@@ -80,11 +80,11 @@ class TlsTests {
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                data = readAllString({client.read(it)})
+                readAllString(client::read)
             }
 
-            result1.rethrow()
-            result2.rethrow()
+            result1.getCompleted()
+            result2.getCompleted()
         } catch (exception: SSLException) {
             assertTrue(exception.message!!.toLowerCase().contains("hostname"))
             return
@@ -93,6 +93,7 @@ class TlsTests {
     }
 
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testCertificateTrustFailure() {
         val keypairCert = createSelfSignedCertificate("TestServer")
@@ -112,18 +113,17 @@ class TlsTests {
                 server.close()
             }
 
-            var data = ""
             val result2 = async {
 
                 val engine = getDefaultSSLContext().createSSLEngine("BadServerName", 80)
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                data = readAllString({client.read(it)})
+                readAllString(client::read)
             }
 
-            result1.rethrow()
-            result2.rethrow()
+            result2.getCompleted()
+            result1.getCompleted()
         } catch (exception: SSLException) {
             return
         }
@@ -145,7 +145,7 @@ class TlsTests {
         }
 
         for (i in 1..2) {
-            async {
+            launch {
                 val clientContext = createTLSContext()
                 clientContext.init(keypairCert.second)
 
@@ -219,7 +219,7 @@ class TlsTests {
         }
 
         var count = 0
-        async {
+        launch {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
             count += server.connect().connectTls("TestServer", 80, clientContext).countBytes()
@@ -230,7 +230,6 @@ class TlsTests {
         // these are big due to certs. oof.
         assertTrue(mid - start < 250000)
         // check streaming allocations
-        println(ByteBufferList.totalObtained - mid)
         assertTrue(ByteBufferList.totalObtained - mid < 80000)
     }
 
@@ -249,7 +248,7 @@ class TlsTests {
             data += readAllString({read(it)})
         }
 
-        async {
+        launch {
             for (i in 1..2) {
                 val clientContext = createTLSContext()
                 clientContext.init(keypairCert.second)
@@ -283,7 +282,7 @@ class TlsTests {
         httpServer.listen(tlsServer)
 
         var requestsCompleted = 0
-        async {
+        launch {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
 

@@ -2,8 +2,6 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.atomic.FreezableReference
 import kotlin.coroutines.Continuation
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 private fun <T> Continuation<T>.resume(result: Result<T>) {
@@ -135,7 +133,7 @@ class Baton<T> {
                             found.frozen
                         )
                     )) {
-                    if (freeze.compareAndSetNull(found)) {
+                    if (found.frozen || freeze.compareAndSetNull(found)) {
                         taken = found.value.getContinuationLockedData()
                         break
                     }

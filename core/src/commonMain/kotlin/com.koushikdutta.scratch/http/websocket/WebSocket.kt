@@ -143,8 +143,6 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protoc
     override suspend fun read(buffer: WritableBuffers): Boolean {
         while (!isEnded) {
             val message = readMessage()
-            if (message == null)
-                return true
 
             if (message.isPing) {
                 pong(message.text)

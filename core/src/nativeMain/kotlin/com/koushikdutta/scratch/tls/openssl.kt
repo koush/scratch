@@ -314,7 +314,7 @@ actual fun SSLEngine.getApplicationProtocol(): String? {
         encoded.value!!.readBytes(encodedLen.value.toInt())
     }
 
-    return encoded.stringFromUtf8()
+    return encoded.decodeToString()
 }
 
 class SSLEngineImpl(ctx: CPointer<SSL_CTX>, engine: CPointer<SSL>) : SSLEngine(ctx, engine) {

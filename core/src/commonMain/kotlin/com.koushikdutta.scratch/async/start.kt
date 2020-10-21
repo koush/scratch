@@ -1,8 +1,11 @@
 package com.koushikdutta.scratch.async
 
 import com.koushikdutta.scratch.AsyncAffinity
-import com.koushikdutta.scratch.Promise
 import com.koushikdutta.scratch.exitProcess
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine
@@ -29,9 +32,12 @@ internal fun startSafeCoroutine(block: suspend() -> Unit) {
     })
 }
 
-fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T): Promise<T> {
-    return Promise {
-        await()
-        block()
-    }
+fun <S: AsyncAffinity, T> S.async(block: suspend S.() -> T) = GlobalScope.async(Dispatchers.Unconfined) {
+    await()
+    block()
+}
+
+fun <S: AsyncAffinity, T> S.launch(block: suspend S.() -> T) = GlobalScope.launch(Dispatchers.Unconfined) {
+    await()
+    block()
 }

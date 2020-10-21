@@ -1,127 +1,101 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.atomic.FreezableReference
-import com.koushikdutta.scratch.atomic.FreezableStack
-import kotlin.coroutines.*
+import kotlinx.coroutines.*
+import kotlin.coroutines.coroutineContext
 import kotlin.jvm.JvmStatic
 
-typealias PromiseThen<T, R> = suspend (T) -> R
+typealias PromiseThen<R, T> = suspend (T) -> R
 typealias PromiseCatch = suspend (throwable: Throwable) -> Unit
-typealias PromiseRecover<T> = suspend (throwable: Throwable) -> T
+typealias PromiseCancelled = suspend (throwable: CancellationException) -> Unit
+typealias PromiseCatchThen<T> = suspend (throwable: Throwable) -> T
+
+fun interface PromiseApplyCallback<R, T> {
+    @Throws(Throwable::class)
+    fun apply(result: T): R
+}
+
+fun interface PromiseNextCallback<R, T> {
+    @Throws(Throwable::class)
+    fun next(result: T): Promise<R>
+}
+
+fun interface PromiseResultCallback<T> {
+    @Throws(Throwable::class)
+    fun result(result: T)
+}
+
+fun interface PromiseCompleteCallback<T> {
+    fun complete(result: Result<T>)
+}
+
+fun interface PromiseErrorCallback {
+    @Throws(Throwable::class)
+    fun error(throwable: Throwable)
+}
 
 class Deferred<T> {
-    val promise = Promise<T>()
-    fun resolve(result: T) = promise.resolve(result)
-    fun reject(throwable: Throwable) = promise.reject(throwable)
-
-    companion object {
-        suspend fun <T> defer(block: suspend (resolve: (T) -> Boolean, reject: (Throwable) -> Boolean) -> Unit): T {
-            val deferred = Deferred<T>()
-            block(deferred::resolve, deferred::reject)
-            return deferred.promise.await()
-        }
-    }
-}
-
-expect class Promise<T> : PromiseBase<T> {
-    constructor(block: suspend () -> T)
-    internal constructor()
-}
-
-open class PromiseBase<T> {
-    private val atomicReference =
-        FreezableReference<Result<T>>()
-    private val callbacks =
-        FreezableStack<Continuation<T>, Unit>(Unit) { _, _ ->
-            Unit
-        }
-
-    internal constructor()
-
-    internal fun reject(throwable: Throwable): Boolean {
-        if (atomicReference.freeze(Result.failure(throwable))?.frozen == true)
-            return false
-        callbacks.freeze()
-        callbacks.clear(Unit) { _, continuation ->
-            continuation.resumeWithException(throwable)
-        }
-        return true
-    }
-
-    internal fun resolve(result: T): Boolean {
-        if (atomicReference.freeze(Result.success(result))?.frozen == true)
-            return false
-        callbacks.freeze()
-        callbacks.clear(Unit) { _, continuation ->
-            continuation.resume(result)
-        }
-        return true
-    }
-
-    constructor(block: suspend () -> T) {
-        block.startCoroutine(Continuation(EmptyCoroutineContext) {
+    val deferred = CompletableDeferred<T>()
+    val promise = Promise(deferred)
+    fun resolve(result: T) = deferred.complete(result)
+    fun reject(throwable: Throwable) = deferred.completeExceptionally(throwable)
+    fun resolve(result: Promise<T>) {
+        GlobalScope.async(Dispatchers.Unconfined, start = result.start) {
             try {
-                if (it.isFailure)
-                    reject(it.exceptionOrNull()!!)
-                else
-                    resolve(it.getOrThrow())
+                resolve(promise.await())
             }
             catch (throwable: Throwable) {
-                println("unexpected throwable in promise?")
-                println(throwable)
                 reject(throwable)
             }
-        })
-    }
-
-    fun <R> then(callback: PromiseThen<T, R>): Promise<R> {
-        return Promise {
-            callback(await())
         }
     }
+}
 
-    fun catch(callback: PromiseCatch): Promise<T> {
-        return Promise {
-            try {
-                await()
-            } catch (throwable: Throwable) {
-                callback(throwable)
-                throw throwable
-            }
-        }
+internal fun <T> suspendJob(block: suspend () -> T, start: CoroutineStart) = GlobalScope.async(Dispatchers.Unconfined, start) {
+    block()
+}
+
+fun <T> kotlinx.coroutines.Deferred<T>.asPromise(start: CoroutineStart = CoroutineStart.DEFAULT): Promise<T> = Promise(this, start)
+
+open class Promise<T> internal constructor(private val deferred: kotlinx.coroutines.Deferred<T>, internal val start: CoroutineStart) {
+    constructor(block: suspend () -> T) : this(suspendJob(block, CoroutineStart.DEFAULT), CoroutineStart.DEFAULT)
+    constructor(start: CoroutineStart, block: suspend () -> T) : this(suspendJob(block, start), start)
+    constructor(deferred: kotlinx.coroutines.Deferred<T>): this(deferred, CoroutineStart.DEFAULT)
+
+    private val childStart = CompletableDeferred<Unit>()
+
+    init {
+        if (start != CoroutineStart.LAZY)
+            childStart.complete(Unit)
     }
 
-    fun recover(callback: PromiseRecover<T>): Promise<T> {
-        return Promise {
-            try {
-                await()
-            } catch (throwable: Throwable) {
-                return@Promise callback(throwable)
-            }
-        }
+    fun cancel() = cancel(null)
+
+    fun cancel(cause: CancellationException? = null): Boolean {
+        deferred.cancel(cause)
+        return deferred.isCancelled
     }
 
-    fun finally(callback: suspend () -> Unit): Promise<T> {
-        return Promise {
-            try {
-                await()
-            } finally {
-                callback()
-            }
-        }
+    fun cancel(message: String, cause: Throwable? = null): Boolean {
+        deferred.cancel(message, cause)
+        return deferred.isCancelled
     }
+
+    fun start() {
+        childStart.complete(Unit)
+        deferred.start()
+    }
+
+    val isStarted: Boolean
+        get() = deferred.isActive || deferred.isCancelled || deferred.isCompleted
 
     suspend fun await(): T {
-        return suspendCoroutine {
-            if (!callbacks.push(it).frozen)
-                return@suspendCoroutine
-            atomicReference.get()!!.value.resume(it)
-        }
+        childStart.await()
+        return deferred.await()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun getOrThrow(): T {
-        val value = atomicReference.get() ?: throw Exception("Promise is unresolved");
-        return value.value.getOrThrow();
+        return deferred.getCompleted()
     }
 
     // just an alias that returns nothing.
@@ -129,24 +103,113 @@ open class PromiseBase<T> {
         getOrThrow()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun rethrowIfDone() {
-        val value = atomicReference.get()
-        value?.value?.getOrThrow();
+        if (deferred.isCompleted)
+            deferred.getCompleted()
     }
 
+    val isCompleted: Boolean
+        get() = deferred.isCompleted
+
+    val isCancelled: Boolean
+        get() = deferred.isCancelled
+
     companion object {
+        suspend fun getJob(): Job? {
+            return coroutineContext[Job]
+        }
+
         @JvmStatic
         fun <T> resolve(value: T): Promise<T> {
-            val ret = Promise<T>()
-            ret.resolve(value)
-            return ret
+            return Promise(CompletableDeferred(value))
         }
 
         @JvmStatic
         fun <T> reject(throwable: Throwable): Promise<T> {
-            val ret = Promise<T>()
-            ret.reject(throwable)
-            return ret
+            val deferred = CompletableDeferred<T>()
+            deferred.completeExceptionally(throwable)
+            return Promise(deferred)
+        }
+
+        suspend fun ensureActive() {
+            getJob()?.ensureActive()
+        }
+    }
+
+    fun <R> then(callback: PromiseThen<R, T>) = Promise() {
+        callback(await())
+    }
+
+    fun cancelled(callback: PromiseCancelled) = Promise() {
+        try {
+            await()
+        }
+        catch (throwable: CancellationException) {
+            callback(throwable)
+            throw throwable
+        }
+    }
+
+    fun catch(callback: PromiseCatch) = Promise() {
+        try {
+            await()
+        }
+        catch (throwable: Throwable) {
+            callback(throwable)
+            throw throwable
+        }
+    }
+
+    fun catchThen(callback: PromiseCatchThen<T>) = Promise() {
+        try {
+            await()
+        } catch (throwable: Throwable) {
+            return@Promise callback(throwable)
+        }
+    }
+
+    fun finally(callback: suspend () -> Unit) = Promise() {
+        try {
+            await()
+        } finally {
+            callback()
+        }
+    }
+
+    fun result(callback: PromiseResultCallback<T>): Promise<T> {
+        return then {
+            callback.result(it)
+            it
+        }
+    }
+
+    fun <R> next(callback: PromiseNextCallback<R, T>): Promise<R> {
+        return then {
+            callback.next(it).await()
+        }
+    }
+
+    fun complete(callback: PromiseCompleteCallback<T>) = Promise() {
+        val value = try {
+            Result.success(await())
+        }
+        catch (throwable: Throwable) {
+            Result.failure(throwable)
+        }
+        callback.complete(value)
+        value
+    }
+
+    fun <R> apply(callback: PromiseApplyCallback<R, T>): Promise<R> {
+        return then {
+            callback.apply(it)
+        }
+    }
+
+    fun error(callback: PromiseErrorCallback): Promise<T> {
+        return catch {
+            callback.error(it)
         }
     }
 }

@@ -5,6 +5,7 @@ import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
+import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientWrappingExecutor
 import com.koushikdutta.scratch.uri.URI
 
 private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: String) {
@@ -15,9 +16,7 @@ private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: Str
 
 private val defaultMaxRedirects = 5
 
-private class RedirectExecutor(val next: AsyncHttpClientExecutor, val maxRedirects: Int = defaultMaxRedirects) : AsyncHttpClientExecutor {
-    override val affinity = next.affinity
-
+private class RedirectExecutor(override val next: AsyncHttpClientExecutor, val maxRedirects: Int = defaultMaxRedirects) : AsyncHttpClientWrappingExecutor {
     private suspend fun handleRedirects(redirects: Int, request: AsyncHttpRequest, response: AsyncHttpResponse): AsyncHttpResponse {
         val responseCode = response.code
         // valid redirects

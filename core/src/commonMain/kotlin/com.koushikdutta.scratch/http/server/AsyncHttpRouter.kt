@@ -94,7 +94,7 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend AsyncH
                 // will only be called once.
                 val sliced = input.seekRead(position, length)
 
-                return object : AsyncInput, AsyncAffinity by input {
+                return object : AsyncInput {
                     override suspend fun read(buffer: WritableBuffers) = sliced(buffer)
                     override suspend fun close() = input.close()
                 }

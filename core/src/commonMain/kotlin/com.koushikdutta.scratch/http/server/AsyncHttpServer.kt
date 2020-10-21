@@ -39,9 +39,9 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         .awaitClose()
     }
 
-    internal suspend fun accept(server: AsyncServerSocket<*>?, socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) {
+    private suspend fun acceptLoop(socket: AsyncSocket, reader: AsyncReader = AsyncReader({ socket.read(it) })) {
         while (true) {
-            val socketStatus = acceptInternal(server, socket, reader)
+            val socketStatus = acceptInternal(socket, reader)
             if (socketStatus == HttpServerSocketStatus.KeepAlive)
                 continue
             if (socketStatus == HttpServerSocketStatus.Close)
@@ -50,9 +50,9 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         }
     }
 
-    suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) = accept(null, socket, reader)
+    suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) = acceptLoop(socket, reader)
 
-    private suspend fun acceptInternal(server: AsyncServerSocket<*>?, socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})): HttpServerSocketStatus {
+    private suspend fun acceptInternal(socket: AsyncSocket, reader: AsyncReader = AsyncReader({ socket.read(it) })): HttpServerSocketStatus {
         val requestLine = reader.readScanUtf8String("\r\n")
         if (requestLine.isEmpty())
             return HttpServerSocketStatus.Close
@@ -126,21 +126,21 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
             sendHeaders(socket, response)
             responseBody.copy(socket::write)
 
-            response.sent?.invoke(null)
+            response.close(null)
 
             if (KeepAlive.isKeepAlive(request, response))
                 return HttpServerSocketStatus.KeepAlive
             return HttpServerSocketStatus.Close
         }
         catch (throwable: Throwable) {
-            response.sent?.invoke(throwable)
+            response.close(throwable)
             throw throwable
         }
     }
 
     override fun listen(server: AsyncServerSocket<*>) = server.acceptAsync {
         try {
-            accept(server, this, AsyncReader(this::read))
+            acceptLoop(this, AsyncReader(this::read))
         }
         catch (throwable: Throwable) {
             // can safely ignore these, as they are transport errors

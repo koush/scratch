@@ -1,7 +1,11 @@
 plugins {
     id "org.jetbrains.kotlin.multiplatform"
+    id("com.android.library")
+    id("kotlin-android-extensions")
 }
 repositories {
+    google()
+    jcenter()
     mavenCentral()
     maven {
         url  "https://dl.bintray.com/kotlin/kotlin-eap/"
@@ -9,6 +13,7 @@ repositories {
 }
 group 'com.koushikdutta.scratch'
 version '0.0.1'
+def conscryptVersion = '2.5.0'
 
 apply plugin: 'maven-publish'
 
@@ -20,6 +25,8 @@ kotlin {
 //        nodejs {
 //        }
 //    }
+
+    android()
 
     compileKotlinJvm {
         kotlinOptions {
@@ -52,45 +59,28 @@ kotlin {
         commonMain {
             dependencies {
                 implementation kotlin('stdlib-common')
-                implementation project(':scratch:buffer')
-                implementation project(':scratch:atomic')
-                implementation project(':scratch:async')
-            }
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+                api project(':scratch:buffer')
+                api project(':scratch:atomic')
+                api project(':scratch:async')
+                api 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.9'
             }
         }
         commonTest {
             dependencies {
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
-            }
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+                implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.9'
             }
         }
         jvmMain {
             dependencies {
                 implementation kotlin('stdlib-jdk8')
 
-//                implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.2"
-                compileOnly 'org.conscrypt:conscrypt-openjdk-uber:2.2.1'
+                compileOnly group: 'org.conscrypt', name: 'conscrypt-openjdk-uber', version: conscryptVersion
 
                 // this is only necessary to get compilation working for self signed certificates. dependency isn't added.
                 compileOnly group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
                 compileOnly group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
-            }
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
             }
         }
         jvmTest {
@@ -98,20 +88,33 @@ kotlin {
                 implementation kotlin('test')
                 implementation kotlin('test-junit')
 
-                implementation 'org.conscrypt:conscrypt-openjdk-uber:2.2.1'
-
+                implementation group: 'org.conscrypt', name: 'conscrypt-openjdk-uber', version: conscryptVersion
                 implementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
                 implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
-
-                implementation group: 'io.netty', name: 'netty-all', version: '4.1.42.Final'
-                implementation group: 'org.eclipse.jetty', name: 'jetty-server', version: '9.4.28.v20200408'
-                implementation group: 'org.eclipse.jetty', name: 'jetty-servlet', version: '9.4.28.v20200408'
             }
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
+        }
+        androidMain {
+            dependencies {
+                implementation kotlin('stdlib-jdk8')
+
+                compileOnly group: 'org.conscrypt', name: 'conscrypt-android', version: conscryptVersion
+
+                // this is only necessary to get compilation working for self signed certificates. dependency isn't added.
+                compileOnly group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
+                compileOnly group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
+            }
+        }
+        androidTest {
+            dependencies {
+                implementation kotlin('test')
+                implementation kotlin('test-junit')
+
+                implementation 'androidx.test.ext:junit:1.1.2'
+                implementation 'androidx.test.espresso:espresso-core:3.3.0'
+
+                implementation group: 'org.conscrypt', name: 'conscrypt-android', version: conscryptVersion
+                implementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
+                implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
             }
         }
 //        jsMain {
@@ -131,20 +134,33 @@ kotlin {
 //            }
 //        }
         nativeMain {
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
-            }
         }
         nativeTest {
-            languageSettings {
-                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
-            }
+        }
+    }
+}
+
+android {
+    sourceSets.main.manifest.srcFile("src/androidMain/AndroidManifest.xml")
+    sourceSets.main.java.srcDirs += "../core/src/jvmMain/kotlin"
+    sourceSets.androidTest.java.srcDirs += "../core/src/jvmTest/kotlin"
+
+    compileSdkVersion 30
+    buildToolsVersion "29.0.2"
+
+    defaultConfig {
+        minSdkVersion 19
+        targetSdkVersion 30
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

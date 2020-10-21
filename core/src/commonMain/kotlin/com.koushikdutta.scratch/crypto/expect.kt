@@ -1,10 +1,21 @@
 package com.koushikdutta.scratch.crypto
 
+import com.koushikdutta.scratch.buffers.ByteBuffer
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.extensions.HashExtensions
 
 interface Hash {
     fun update(byteArray: ByteArray, offset: Int = 0, len: Int = byteArray.size)
+    fun update(buffer: ByteBuffer)
     fun final(): ByteArray
+}
+
+fun Hash.update(buffer: ReadableBuffers) {
+    val buffers = buffer.readAll()
+    for (b in buffers) {
+        update(b)
+    }
+    buffer.reclaim(*buffers)
 }
 
 class SHA1: Hash by createSha1()

@@ -43,6 +43,7 @@ open class HttpCacheTests {
 
             assertEquals(data, data2)
         }
+        .asPromise()
 
         result.finally { loop.stop() }
 

@@ -99,13 +99,13 @@ internal class Http2Reader(
     when (type) {
       TYPE_DATA -> readData(handler, length, flags, streamId)
       TYPE_HEADERS -> readHeaders(handler, length, flags, streamId)
-      TYPE_PRIORITY -> readPriority(handler, length, flags, streamId)
-      TYPE_RST_STREAM -> readRstStream(handler, length, flags, streamId)
+      TYPE_PRIORITY -> readPriority(handler, length, streamId)
+      TYPE_RST_STREAM -> readRstStream(handler, length, streamId)
       TYPE_SETTINGS -> readSettings(handler, length, flags, streamId)
       TYPE_PUSH_PROMISE -> readPushPromise(handler, length, flags, streamId)
       TYPE_PING -> readPing(handler, length, flags, streamId)
-      TYPE_GOAWAY -> readGoAway(handler, length, flags, streamId)
-      TYPE_WINDOW_UPDATE -> readWindowUpdate(handler, length, flags, streamId)
+      TYPE_GOAWAY -> readGoAway(handler, length, streamId)
+      TYPE_WINDOW_UPDATE -> readWindowUpdate(handler, length, streamId)
       else -> source.skip(length.toLong()) // Implementations MUST discard frames of unknown types.
     }
 
@@ -188,7 +188,7 @@ internal class Http2Reader(
     source.skip(padding.toLong())
   }
 
-  private fun readPriority(handler: Handler, length: Int, flags: Int, streamId: Int) {
+  private fun readPriority(handler: Handler, length: Int, streamId: Int) {
     if (length != 5) throw IOException("TYPE_PRIORITY length: $length != 5")
     if (streamId == 0) throw IOException("TYPE_PRIORITY streamId == 0")
     readPriority(handler, streamId)
@@ -202,7 +202,7 @@ internal class Http2Reader(
     handler.priority(streamId, streamDependency, weight, exclusive)
   }
 
-  private fun readRstStream(handler: Handler, length: Int, flags: Int, streamId: Int) {
+  private fun readRstStream(handler: Handler, length: Int, streamId: Int) {
     if (length != 4) throw IOException("TYPE_RST_STREAM length: $length != 4")
     if (streamId == 0) throw IOException("TYPE_RST_STREAM streamId == 0")
     val errorCodeInt = source.readInt()
@@ -290,7 +290,7 @@ internal class Http2Reader(
     handler.ping(ack, payload1, payload2)
   }
 
-  private fun readGoAway(handler: Handler, length: Int, flags: Int, streamId: Int) {
+  private fun readGoAway(handler: Handler, length: Int, streamId: Int) {
     if (length < 8) throw IOException("TYPE_GOAWAY length < 8: $length")
     if (streamId != 0) throw IOException("TYPE_GOAWAY streamId != 0")
     val lastStreamId = source.readInt()
@@ -306,7 +306,7 @@ internal class Http2Reader(
     handler.goAway(lastStreamId, errorCode, debugData)
   }
 
-  private fun readWindowUpdate(handler: Handler, length: Int, flags: Int, streamId: Int) {
+  private fun readWindowUpdate(handler: Handler, length: Int, streamId: Int) {
     if (length != 4) throw IOException("TYPE_WINDOW_UPDATE length !=4: $length")
     val increment = source.readInt() and 0x7fffffffL
     if (increment == 0L) throw IOException("windowSizeIncrement was 0")

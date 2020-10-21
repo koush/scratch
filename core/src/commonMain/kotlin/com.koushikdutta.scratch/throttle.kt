@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.event.Cancellable
 
 typealias ValuesCallback<T> = (values: Collection<T>) -> Unit
 

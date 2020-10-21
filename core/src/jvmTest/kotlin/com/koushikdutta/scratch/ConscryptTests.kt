@@ -20,7 +20,7 @@ import org.junit.Test
 import javax.net.ssl.SSLContext
 import kotlin.test.assertEquals
 
-class TLSTests {
+class ConscryptTests {
     @Test
     fun testConscryptTlsServer() {
         val conscrypt = Conscrypt.newProvider()

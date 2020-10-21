@@ -1,12 +1,12 @@
 package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
-import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.nanoTime
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.http.*
@@ -195,21 +195,10 @@ private fun removeTransportHeaders(headers: Headers) {
 
 private class CachedResponse(val conditional: Boolean, responseLine: ResponseLine, headers: Headers, body: AsyncRead, sent: AsyncHttpMessageCompletion) : AsyncHttpResponse(responseLine, headers, body, sent)
 
-interface CacheStorage: AsyncRandomAccessStorage {
-    suspend fun commit()
-    suspend fun abort()
-}
-
-interface Cache {
-    suspend fun openRead(key: String): AsyncRandomAccessInput?
-    suspend fun openWrite(key: String): CacheStorage
-    suspend fun remove(key: String)
-}
-
-class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpClientExecutor, val cache: Cache) : AsyncHttpClientExecutor {
+class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: AsyncStore) : AsyncHttpClientWrappingExecutor {
     val sessionKey = randomHex()
 
-    private suspend fun AsyncHttpRequest.createCachedResponse(conditional: Boolean, key: String, responseLine: ResponseLine, headers: Headers, cacheData: AsyncRandomAccessInput): AsyncHttpResponse {
+    private suspend fun AsyncHttpRequest.createCachedResponse(headers: Headers, cacheData: AsyncRandomAccessInput): AsyncHttpResponse {
         val start = cacheData.getPosition()
         val size = cacheData.size() - start
         return createSliceableResponse(size, headers) { position, length ->
@@ -223,7 +212,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             return null
 
         val key = request.uri.toString()
-        val entry = cache.openRead(key)
+        val entry = asyncStore.openRead(key)
         if (entry == null)
             return null
 
@@ -261,7 +250,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             if (cacheControl.lastModified != null)
                 request.headers["If-Modified-Since"] = cacheControl.lastModified!!
             headers["X-Scratch-Cache"] = CacheResult.ConditionalCache.toString()
-            return request.createCachedResponse(true, key, responseLine, headers, entry)
+            return request.createCachedResponse(headers, entry)
         }
 
         headers["X-Scratch-Cache"] = CacheResult.Cache.toString()
@@ -281,7 +270,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             }
         }
 
-        return request.createCachedResponse(false, key, responseLine, headers, entry)
+        return request.createCachedResponse(headers, entry)
     }
 
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
@@ -312,7 +301,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
         }
         catch (throwable: Throwable) {
             // if the response fails, clean up and report the error
-            conditionalResponse?.close()
+            conditionalResponse?.close(throwable)
             throw throwable
         }
 
@@ -325,7 +314,7 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
 
         // attempt to cache
         val key = request.uri.toString()
-        val entry = cache.openWrite(key)
+        val entry = asyncStore.openWrite(key)
 
         try {
             if (cacheControl.cacheType == CacheType.ExplicitCache && !cacheControl.immutable) {
@@ -357,45 +346,17 @@ class CacheExecutor(override val affinity: AsyncAffinity, val next: AsyncHttpCli
             }
             else if (error == null) {
                 // cached successfully, move the file into place
-                entry.commit()
+                entry.close()
             }
         }
 
-        return AsyncHttpResponse(response.responseLine, response.headers, newBody, response.sent)
+        return AsyncHttpResponse(response.responseLine, response.headers, newBody, response::close)
     }
 }
 
 fun AsyncHttpExecutorBuilder.useMemoryCache(): AsyncHttpExecutorBuilder {
     wrapExecutor {
-        CacheExecutor(it.affinity, it, cache = BufferCache())
+        CacheExecutor(it, asyncStore = BufferStore())
     }
     return this
-}
-
-class BufferCache : Cache {
-    private val buffers = mutableMapOf<String, ByteBuffer>()
-
-    override suspend fun openRead(key: String): AsyncRandomAccessInput? {
-        val buffer = buffers[key]?.duplicate()
-        if (buffer == null)
-            return null
-        return BufferStorage(ByteBufferList(ByteBufferList.deepCopyExactSize(buffer)))
-    }
-
-    override suspend fun openWrite(key: String): CacheStorage {
-        val storage = BufferStorage(ByteBufferList())
-        return object : CacheStorage, AsyncRandomAccessStorage by storage {
-            override suspend fun commit() {
-                buffers[key] = storage.deepCopyByteBuffer()
-            }
-
-            override suspend fun abort() {
-            }
-        }
-    }
-
-    override suspend fun remove(key: String) {
-        buffers.remove(key)
-    }
-
 }

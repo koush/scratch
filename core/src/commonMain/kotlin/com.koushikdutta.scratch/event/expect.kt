@@ -21,7 +21,7 @@ internal expect fun milliTime(): Long
 expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
     fun run()
     suspend fun getAllByName(host: String): Array<InetAddress>
-    suspend fun connect(socketAddress: InetSocketAddress): AsyncNetworkSocket
+    suspend fun createSocket(): AsyncNetworkSocket
     suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncNetworkServerSocket
     // todo: should be suspend
@@ -37,7 +37,9 @@ expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
 }
 
 expect class AsyncNetworkSocket: AsyncSocket {
+    val loop: AsyncEventLoop
     val localPort: Int
+    suspend fun connect(socketAddress: InetSocketAddress)
 }
 expect class AsyncNetworkServerSocket : AsyncServerSocket<AsyncNetworkSocket> {
     val localPort: Int

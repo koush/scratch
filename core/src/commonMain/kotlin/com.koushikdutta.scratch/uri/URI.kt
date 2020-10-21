@@ -3436,7 +3436,7 @@ class URI : Comparable<URI> {
         private fun appendEncoded(sb: StringBuffer, c: Char) {
             val bb: ByteBuffer = createByteBuffer(c.toString().encodeToByteArray())
 
-            while (bb!!.hasRemaining()) {
+            while (bb.hasRemaining()) {
                 val b = bb.get().toInt() and 0xff
                 if (b >= 0x80)
                     appendEscape(sb, b.toByte())

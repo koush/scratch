@@ -25,8 +25,8 @@ private fun timerCallback(timerHandle: CPointer<uv_timer_t>?) {
 internal val timerCallbackPtr = staticCFunction(::timerCallback)
 
 private fun connectCallback(connect: CPointer<uv_connect_t>?, status: Int) {
-    val socket = connect!!.pointed.handle!!.reinterpret<uv_tcp_t>().pointed
-    val resume = freeStableRef<Continuation<Unit>>(socket.data)!!
+//    val socket = connect!!.pointed.handle!!.reinterpret<uv_tcp_t>().pointed
+    val resume = freeStableRef<Continuation<Unit>>(connect!!.pointed.data)!!
     if (status == 0)
         resume.resume(Unit)
     else

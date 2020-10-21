@@ -1,7 +1,9 @@
 package com.koushikdutta.scratch.http
 
+import com.koushikdutta.scratch.AsyncInput
 import com.koushikdutta.scratch.AsyncRandomAccessInput
 import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.collections.Multimap
 import com.koushikdutta.scratch.collections.StringMultimap
 import com.koushikdutta.scratch.collections.parseQuery
@@ -10,13 +12,13 @@ import com.koushikdutta.scratch.uri.URI
 
 typealias AsyncHttpMessageCompletion = suspend(throwable: Throwable?) -> Unit
 
-abstract class AsyncHttpMessage {
+abstract class AsyncHttpMessage: AsyncInput {
     val headers: Headers
     protected abstract val messageLine: String
     var body: AsyncRead? = null
         internal set
     abstract val protocol: String
-    internal val sent: AsyncHttpMessageCompletion?
+    private val sent: AsyncHttpMessageCompletion?
 
     constructor(headers: Headers, body: AsyncRead?, sent: AsyncHttpMessageCompletion? = null) {
         this.headers = headers
@@ -30,7 +32,10 @@ abstract class AsyncHttpMessage {
             this.body = body.read
             headers.contentLength = body.contentLength
         }
-        this.sent = sent
+        this.sent = {
+            body?.sent(it)
+            sent?.invoke(it)
+        }
     }
 
     fun toMessageString(): String {
@@ -41,9 +46,12 @@ abstract class AsyncHttpMessage {
         return toMessageString()
     }
 
-    suspend fun close() {
-        sent?.invoke(null)
+    suspend fun close(throwable: Throwable? = null) {
+        sent?.invoke(throwable)
     }
+
+    override suspend fun close() = close(null)
+    override suspend fun read(buffer: WritableBuffers) = body?.invoke(buffer) ?: false
 }
 
 
@@ -51,6 +59,8 @@ interface AsyncHttpMessageBody {
     val contentType: String?
     val contentLength: Long?
     val read: AsyncRead
+    suspend fun sent(throwable: Throwable?) {
+    }
 }
 
 suspend fun AsyncRandomAccessInput.createHttpMessageBody(contentType: String? = null): AsyncHttpMessageBody {

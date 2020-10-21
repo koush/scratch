@@ -1,16 +1,12 @@
 package com.koushikdutta.scratch.http.client
 
-import com.koushikdutta.scratch.AsyncAffinity
 import com.koushikdutta.scratch.AsyncReader
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
-import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
-import com.koushikdutta.scratch.http.client.executor.SchemeExecutor
-import com.koushikdutta.scratch.http.client.executor.useHttpExecutor
-import com.koushikdutta.scratch.http.client.executor.useHttpsExecutor
+import com.koushikdutta.scratch.http.client.executor.*
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
 
@@ -27,9 +23,7 @@ fun AsyncHttpExecutorBuilder.addDefaultHeaders(userAgent: String = "scratch/1.0"
 }
 
 
-class DefaultHeadersExecutor(val next: AsyncHttpClientExecutor, val userAgent: String) : AsyncHttpClientExecutor {
-    override val affinity: AsyncAffinity = next.affinity
-
+class DefaultHeadersExecutor(override val next: AsyncHttpClientExecutor, val userAgent: String) : AsyncHttpClientWrappingExecutor {
     private fun addHeaderIfNotExists(headers: Headers, name: String, value: String) {
         if (!headers.contains(name))
             headers.add(name, value)

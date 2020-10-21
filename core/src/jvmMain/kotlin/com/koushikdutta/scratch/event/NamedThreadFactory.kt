@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.event
 
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -28,18 +29,21 @@ class NamedThreadFactory(private val namePrefix: String) : ThreadFactory {
     }
 
     companion object {
-        fun newSynchronousWorkers(prefix: String): ExecutorService {
+        @JvmStatic
+        fun newSynchronousWorkers(prefix: String, workers: Int = 4): ExecutorService {
             val tf = NamedThreadFactory(prefix)
-            return ThreadPoolExecutor(0, 4, 10L,
+            return ThreadPoolExecutor(0, workers, 10L,
                     TimeUnit.SECONDS, LinkedBlockingQueue(), tf)
         }
     }
 }
 
 suspend fun ExecutorService.await() {
-    suspendCoroutine<Unit> {
+    // this special invocation forces the coroutine to resume on the scheduler thread.
+    kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn { it: Continuation<Unit> ->
         submit {
             it.resume(Unit)
         }
+        kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
     }
 }

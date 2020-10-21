@@ -1,13 +1,13 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.async
+import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import org.junit.Test
 import java.io.File
 import java.io.FileOutputStream
-import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import kotlin.random.Random
 import kotlin.test.assertEquals
@@ -84,7 +84,7 @@ class FileTests {
 
         var hash = ""
         val digest = MessageDigest.getInstance("MD5")
-        loop.async {
+        loop.launch {
             val fwrite = openFile(temp, true)
             fwrite.write("willbeclobbered".createByteBufferList())
             fwrite.writePosition(0, sr.nextBytes(10000000).createByteBufferList())

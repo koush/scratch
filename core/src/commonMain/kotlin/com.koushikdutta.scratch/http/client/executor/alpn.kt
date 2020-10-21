@@ -1,9 +1,8 @@
 package com.koushikdutta.scratch.http.client.executor
 
-import com.koushikdutta.scratch.AsyncAffinity
-import com.koushikdutta.scratch.AsyncSocket
-import com.koushikdutta.scratch.Promise
-import com.koushikdutta.scratch.acceptAsync
+import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.async.async
+import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.http2.Http2Connection
@@ -49,14 +48,20 @@ class AsyncHttpAlpnExecutor(override val affinity: AsyncAffinity = AsyncAffinity
 
             val connection = Http2Connection.upgradeHttp2Connection(socket, Http2ConnectionMode.Client)
             // do not accept incoming connections (but push promises are accepted)
-            Promise {
-                connection.acceptAsync {
-                    close()
+            affinity.launch {
+                try {
+                    connection.acceptAsync {
+                        close()
+                    }
+                    .observeIgnoreErrors()
+                    .awaitClose()
                 }
-                        .awaitClose()
-            }
-            .finally {
-                http2Executor = null
+                catch (t: Throwable) {
+                    // ignore dirty transport close, etc.
+                }
+                finally {
+                    http2Executor = null
+                }
             }
 
             http2Executor = Http2ConnectionExecutor(connection)

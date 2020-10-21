@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch.crypto
 
+import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.extensions.HashExtensions
 import kotlinx.cinterop.*
 
@@ -15,11 +16,15 @@ private class OpenSSLHash<HashCtx: CVariable>(private val hash_update: hash_upda
             throw IllegalStateException("Hash.final has already been called")
     }
 
-    override fun update(byteArray: ByteArray) {
+    override fun update(byteArray: ByteArray, offset: Int, len: Int) {
         ensureNotFinal()
         byteArray.usePinned {
-            hash_update(ctx.ptr, it.addressOf(0), byteArray.size.toULong())
+            hash_update(ctx.ptr, it.addressOf(offset), len.toULong())
         }
+    }
+
+    override fun update(buffer: ByteBuffer) {
+        update(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining())
     }
 
     private var finished = false

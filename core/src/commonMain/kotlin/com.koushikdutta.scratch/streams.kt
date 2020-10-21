@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
@@ -59,7 +60,7 @@ interface AsyncAffinity {
     }
 }
 
-interface AsyncResource : AsyncAffinity {
+interface AsyncResource {
     suspend fun close()
 }
 
@@ -87,7 +88,7 @@ interface AsyncOutput : AsyncResource {
  * AsyncSocket provides an AsyncRead and AsyncWrite.
  * Must be closed to free the underlying resources.
  */
-interface AsyncSocket : AsyncInput, AsyncOutput
+interface AsyncSocket : AsyncInput, AsyncOutput, AsyncAffinity
 
 /**
  * AsyncSocket that filters another AsyncSocket.
@@ -138,7 +139,7 @@ fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
 }
 
 suspend fun AsyncSocket.stream(peer: AsyncSocket) {
-    val other = Promise {
+    val other = async {
         peer::read.copy(::write)
     }
     ::read.copy(peer::write)
@@ -147,7 +148,7 @@ suspend fun AsyncSocket.stream(peer: AsyncSocket) {
 
 fun AsyncRead.tee(asyncWrite: AsyncWrite, callback: suspend (throwable: Throwable?) -> Unit = { if (it != null) throw it }): AsyncRead {
     val self = this
-    val tee = pipe {
+    return pipe {
         val tmp = ByteBufferList()
         var error = false
         while (self(buffer)) {
@@ -171,7 +172,6 @@ fun AsyncRead.tee(asyncWrite: AsyncWrite, callback: suspend (throwable: Throwabl
 
         callback(null)
     }
-    return tee
 }
 
 fun ReadableBuffers.createReader(): AsyncRead {
@@ -198,13 +198,13 @@ suspend fun AsyncRead.drain() {
 
 suspend fun AsyncRead.drain(buffer: WritableBuffers) {
     while (this(buffer)) {
+        // prevent ide complaining about empty body
     }
 }
 
-suspend fun AsyncRead.copy(asyncWrite: AsyncWrite) {
-    val bytes = ByteBufferList()
-    while (this(bytes)) {
-        asyncWrite.drain(bytes)
+suspend fun AsyncRead.copy(asyncWrite: AsyncWrite, buffer: ByteBufferList = ByteBufferList()) {
+    while (this(buffer)) {
+        asyncWrite.drain(buffer)
     }
 }
 

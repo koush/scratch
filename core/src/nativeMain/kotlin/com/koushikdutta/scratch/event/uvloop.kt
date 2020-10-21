@@ -36,10 +36,9 @@ class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: 
     init {
         // set a handle destructor to ensure the correspoding UvSocket is also cleaned up
         loop.handles[this.socket] = ::closeInternal
+
         // socket handle data points to this instance
         socket.struct.data = StableRef.create(this).asCPointer()
-        // start reading.
-        uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
 
         localPort = memScoped {
             val sockaddr: sockaddr_storage = alloc()
@@ -99,6 +98,53 @@ class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: 
         socket.free()
         nio.end()
     }
+
+    internal fun startReading() {
+        uv_read_start(socket.ptr, allocBufferPtr, readCallbackPtr)
+    }
+
+    internal suspend fun connectInternal(socket: AllocedHandle<uv_tcp_t>, connect: Alloced<uv_connect_t>, port: Int, address: InetAddress) = loop.safeSuspendCoroutine<Unit> {
+        // track the socket handle destruction, in case the event loop gets closed before the connect completes.
+        loop.handles[socket] = {
+            closeInternal()
+            it.resumeWithException(EventLoopClosedException())
+        }
+        connect.struct.data = StableRef.create(it).asCPointer()
+
+        memScoped {
+            val connectErr: Int
+            // todo sanity check addresses
+            if (address is Inet4Address) {
+                val sockaddr: sockaddr_in = alloc()
+                uv_ip4_addr(address.toString(), port, sockaddr.ptr)
+                connectErr = uv_tcp_connect(connect.ptr, socket.ptr, sockaddr.ptr.reinterpret(), connectCallbackPtr)
+            } else {
+                val sockaddr: sockaddr_in6 = alloc()
+                uv_ip6_addr(address.toString(), port, sockaddr.ptr)
+                connectErr = uv_tcp_connect(connect.ptr, socket.ptr, sockaddr.ptr.reinterpret(), connectCallbackPtr)
+            }
+            checkZero(connectErr, "tcp connect failed")
+        }
+    }
+
+    suspend fun connect(socketAddress: InetSocketAddress) {
+        // these need to be allocated outside of the memScope as they need to stay alive for the entire duration of the
+        // call, until the callback is invoked.
+        val connect = Alloced(nativeHeap.alloc<uv_connect_t>())
+        try {
+            connectInternal(socket as AllocedHandle<uv_tcp_t>, connect, socketAddress.getPort(), socketAddress.getAddress())
+        }
+        catch (throwable: Throwable) {
+            throw throwable
+        }
+        finally {
+            loop.handles[this.socket] = ::closeInternal
+            connect.free()
+        }
+
+        post()
+        startReading()
+    }
 }
 
 actual typealias AsyncNetworkServerSocket = UvServerSocket
@@ -134,7 +180,9 @@ class UvServerSocket(val loop: UvEventLoop, socket: uv_tcp_t, val localAddress: 
             }
 
             checkZero(uv_accept(socket.ptr.reinterpret(), client.ptr.reinterpret()), "accept failed")
-            yield(UvSocket(loop, client as AllocedHandle<uv_stream_t>))
+            val uvSocket = UvSocket(loop, client as AllocedHandle<uv_stream_t>)
+            uvSocket.startReading()
+            yield(uvSocket)
         }
     }
 
@@ -234,57 +282,15 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
         uv_getaddrinfo(loop.ptr, getAddrInfo.ptr, addrInfoCallbackPtr, host, null, null)
     }
 
-    private suspend fun connectInternal(socket: AllocedHandle<uv_tcp_t>, connect: Alloced<uv_connect_t>, port: Int, address: InetAddress) = safeSuspendCoroutine<Unit> {
-        try {
-            checkZero(uv_tcp_init(loop.ptr, socket.ptr), "tcp init failed")
-            // track the socket handle destruction, in case the event loop gets closed before the connect completes.
-            handles[socket] = { it.resumeWithException(EventLoopClosedException()) }
-            socket.struct.data = StableRef.create(it).asCPointer()
-
-            connect.value = nativeHeap.alloc()
-            memScoped {
-                val connectErr: Int
-                // todo sanity check addresses
-                if (address is Inet4Address) {
-                    val sockaddr: sockaddr_in = alloc()
-                    uv_ip4_addr(address.toString(), port, sockaddr.ptr)
-                    connectErr = uv_tcp_connect(connect.ptr, socket.ptr, sockaddr.ptr.reinterpret(), connectCallbackPtr)
-                } else {
-                    val sockaddr: sockaddr_in6 = alloc()
-                    uv_ip6_addr(address.toString(), port, sockaddr.ptr)
-                    connectErr = uv_tcp_connect(connect.ptr, socket.ptr, sockaddr.ptr.reinterpret(), connectCallbackPtr)
-                }
-                checkZero(connectErr, "tcp connect failed")
-            }
-        } catch (exception: Exception) {
-            socket.free()
-            connect.free()
-            throw exception
-        }
-    }
-
-    suspend fun connect(socketAddress: InetSocketAddress): UvSocket {
-        // these need to be allocated outside of the memScope as they need to stay alive for the entire duration of the
-        // call, until the callback is invoked.
-        val connect = Alloced(nativeHeap.alloc<uv_connect_t>())
+    suspend fun createSocket(): UvSocket {
+        await()
         val socket = AllocedHandle(this, nativeHeap.alloc<uv_tcp_t>())
-        try {
-            connectInternal(socket, connect, socketAddress.getPort(), socketAddress.getAddress())
-        }
-        catch (exception: Exception) {
-            socket.free()
-            throw exception
-        }
-        finally {
-            connect.free()
-        }
-
-        post()
-        val uvSocket = UvSocket(this, socket as AllocedHandle<uv_stream_t>)
-        return uvSocket
+        checkZero(uv_tcp_init(loop.ptr, socket.ptr), "tcp init failed")
+        return UvSocket(this, socket as AllocedHandle<uv_stream_t>)
     }
 
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): UvServerSocket {
+        await()
         return listenInternal(port, address ?: parseInet4Address("0.0.0.0"), backlog)
     }
 
@@ -362,7 +368,8 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
     private val thisRef = StableRef.create(this).asCPointer()
     internal val handles = mutableMapOf<AllocedHandle<*>, () -> Unit>()
 
-    override val isAffinityThread: Boolean = running
+    override val isAffinityThread: Boolean
+        get() = running
 
     init {
         checkZero(uv_loop_init(loop.ptr), "uv_loop_init failed")

@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.http.http2
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.AsyncHandler
+import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -150,7 +151,7 @@ class Http2Socket internal constructor(val connection: Http2Connection, val stre
     }
 }
 
-class Http2Connection private constructor(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read)): AsyncResource by socket, AsyncServerSocket<Http2Socket> {
+class Http2Connection private constructor(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read)): AsyncResource by socket, AsyncAffinity by socket, AsyncServerSocket<Http2Socket> {
     private val pushPromises = mutableMapOf<String, Http2Socket>()
     private val incomingSockets = AsyncQueue<Http2Socket>()
     internal val handler = AsyncHandler(socket)
@@ -297,14 +298,14 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
         override fun priority(streamId: Int, streamDependency: Int, weight: Int, exclusive: Boolean) {
         }
 
-        override fun pushPromise(inFinished: Boolean, streamId: Int, promisedStreamId: Int, headerBlock: List<Header>) {
+        override fun pushPromise(inFinished: Boolean, streamId: Int, promisedStreamId: Int, requestHeaders: List<Header>) {
             lastGoodStreamId = promisedStreamId
             val stream = Http2Socket(this@Http2Connection, promisedStreamId, true)
             streams[promisedStreamId] = stream
             if (inFinished)
                 stream.input.end()
 
-            val headers = headerBlock.toHeaders()
+            val headers = requestHeaders.toHeaders()
 
             val pushPromiseKey = headers.getPushPromiseKey()
             if (pushPromiseKey == null)
@@ -427,15 +428,15 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
         }
     }
 
-    private fun processMessages() = Promise {
+    private fun processMessages() = socket.launch {
         try {
             while (true) {
                 reader.nextFrame(readerHandler)
             }
         }
-        catch (e: Exception) {
-            close(e)
-            return@Promise
+        catch (t: Throwable) {
+            close(t)
+            return@launch
         }
     }
 
