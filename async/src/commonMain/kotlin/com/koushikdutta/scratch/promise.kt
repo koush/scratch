@@ -72,7 +72,7 @@ internal fun <T> suspendJob(block: suspend () -> T, start: CoroutineStart) = Glo
 
 fun <T> kotlinx.coroutines.Deferred<T>.asPromise(start: CoroutineStart = CoroutineStart.DEFAULT): Promise<T> = Promise(this, start)
 
-open class Promise<T> internal constructor(private val deferred: kotlinx.coroutines.Deferred<T>, internal val start: CoroutineStart) {
+open class Promise<T> internal constructor(val deferred: kotlinx.coroutines.Deferred<T>, internal val start: CoroutineStart) {
     constructor(block: suspend () -> T) : this(suspendJob(block, CoroutineStart.DEFAULT), CoroutineStart.DEFAULT)
     constructor(start: CoroutineStart, block: suspend () -> T) : this(suspendJob(block, start), start)
     constructor(deferred: kotlinx.coroutines.Deferred<T>): this(deferred, CoroutineStart.DEFAULT)
