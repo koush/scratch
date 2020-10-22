@@ -106,7 +106,7 @@ open class Promise<T> internal constructor(val deferred: kotlinx.coroutines.Defe
     val isStarted: Boolean
         get() = deferred.isActive || deferred.isCancelled || deferred.isCompleted
 
-    suspend fun await(): T {
+    open suspend fun await(): T {
         childStart.await()
         return deferred.await()
     }
