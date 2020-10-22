@@ -48,6 +48,22 @@ class Deferred<T> {
             }
         }
     }
+
+    companion object {
+        @JvmStatic
+        suspend fun <T> deferResolve(block: suspend (resolve: (T) -> Boolean) -> Unit): T {
+            val deferred = Deferred<T>()
+            block(deferred::resolve)
+            return deferred.promise.await()
+        }
+
+        @JvmStatic
+        suspend fun <T> defer(block: suspend (resolve: (T) -> Boolean, reject: (Throwable) -> Boolean) -> Unit): T {
+            val deferred = Deferred<T>()
+            block(deferred::resolve, deferred::reject)
+            return deferred.promise.await()
+        }
+    }
 }
 
 internal fun <T> suspendJob(block: suspend () -> T, start: CoroutineStart) = GlobalScope.async(Dispatchers.Unconfined, start) {
@@ -72,11 +88,13 @@ open class Promise<T> internal constructor(private val deferred: kotlinx.corouti
 
     fun cancel(cause: CancellationException? = null): Boolean {
         deferred.cancel(cause)
+        childStart.completeExceptionally(cause ?: CancellationException("parent promise cancelled"))
         return deferred.isCancelled
     }
 
     fun cancel(message: String, cause: Throwable? = null): Boolean {
         deferred.cancel(message, cause)
+        childStart.completeExceptionally(cause ?: CancellationException("parent promise cancelled", cause))
         return deferred.isCancelled
     }
 

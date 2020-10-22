@@ -20,13 +20,13 @@ suspend fun AsyncReader.readHeaderBlock(): Headers {
 
 data class Header(val name: String, val value: String)
 
-class Headers {
+class Headers : Iterable<Header> {
     private val headers = mutableListOf<Header>()
 
     val size
         get() = headers.size
 
-    operator fun iterator(): Iterator<Header> {
+    override operator fun iterator(): Iterator<Header> {
         return headers.iterator()
     }
 
