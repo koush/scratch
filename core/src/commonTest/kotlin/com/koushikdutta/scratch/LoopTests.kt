@@ -400,16 +400,15 @@ class LoopTests {
             createAsyncIterable {
                 val port = it.getPortOrDefault(80)
 
-                val fail: ResolvedSocketConnect<AsyncNetworkSocket> = {
-                    connect("0.0.0.0", port)
+                try {
+                    yield(connect("0.0.0.0", port))
                 }
-                yield(fail)
+                catch (ignored: Throwable) {
+
+                }
 
                 for (address in cwm) {
-                    val valid: ResolvedSocketConnect<AsyncNetworkSocket> = {
-                        connect(InetSocketAddress(address, port))
-                    }
-                    yield(valid)
+                    yield(connect(InetSocketAddress(address, port)))
                 }
             }
         }
@@ -428,10 +427,7 @@ class LoopTests {
 
             createAsyncIterable {
                 for (address in cwm) {
-                    val valid: ResolvedSocketConnect<AsyncNetworkSocket> = {
-                        connect(InetSocketAddress(address, port))
-                    }
-                    yield(valid)
+                    yield(connect(InetSocketAddress(address, port)))
                 }
             }
         }

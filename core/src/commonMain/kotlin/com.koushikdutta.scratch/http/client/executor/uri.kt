@@ -10,8 +10,8 @@ import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.tls.*
 
-typealias ResolvedSocketConnect<T> = suspend () -> T
-typealias RequestSocketResolver = suspend (request:AsyncHttpRequest) -> AsyncIterable<ResolvedSocketConnect<AsyncSocket>>
+typealias ResolvedSocketConnect<T> = suspend() -> T
+typealias RequestSocketResolver = suspend (request:AsyncHttpRequest) -> AsyncIterable<AsyncSocket>
 
 fun AsyncHttpRequest.getPortOrDefault(defaultPort: Int): Int {
     return if (uri.port == -1)
@@ -28,10 +28,12 @@ fun createNetworkResolver(defaultPort: Int, eventLoop: AsyncEventLoop): RequestS
         createAsyncIterable {
             val resolved = eventLoop.getAllByName(host)
             for (address in resolved) {
-                val connect: ResolvedSocketConnect<AsyncSocket> = {
-                    eventLoop.connect(InetSocketAddress(address, port))
+                try {
+                    yield(eventLoop.connect(InetSocketAddress(address, port)))
                 }
-                yield(connect)
+                catch (_: Throwable) {
+                    // ignore errors, try all addresses
+                }
             }
         }
     }
@@ -56,10 +58,6 @@ abstract class HostExecutor<T: AsyncSocket>(override val affinity: AsyncAffinity
     override suspend fun createExecutor(request: AsyncHttpRequest): AsyncHttpExecutor {
         return createConnectExecutor(request) {
             val isProxying = request.isProxying
-//            val resolver = if (!isProxying)
-//                resolver
-//            else
-//                proxyResolver
             val candidates = if (!isProxying) {
                 resolver(request)
             }
@@ -74,27 +72,23 @@ abstract class HostExecutor<T: AsyncSocket>(override val affinity: AsyncAffinity
                     val port = request.getPortOrDefault(defaultPort)
                     val host = request.uri.host!!
 
-                    for (candidate in candidates) {
-                        val resolved: ResolvedSocketConnect<AsyncSocket> = {
-                            val socket = candidate()
-                            val connectBuffer = "CONNECT ${host}:$port HTTP/1.1\r\n\r\n".createByteBufferList()
-                            socket::write.drain(connectBuffer)
-                            val reader = AsyncReader(socket::read)
-                            val statusLine = reader.readHttpHeaderLine().trim()
-                            val headers = reader.readHeaderBlock()
-                            val responseLine = ResponseLine(statusLine)
-                            if (responseLine.code != 200)
-                                throw Exception("proxy failure, code ${responseLine.code}")
-                            socket
-                        }
-                        yield(resolved)
+                    for (socket in candidates) {
+                        val connectBuffer = "CONNECT ${host}:$port HTTP/1.1\r\n\r\n".createByteBufferList()
+                        socket::write.drain(connectBuffer)
+                        val reader = AsyncReader(socket::read)
+                        val statusLine = reader.readHttpHeaderLine().trim()
+                        val headers = reader.readHeaderBlock()
+                        val responseLine = ResponseLine(statusLine)
+                        if (responseLine.code != 200)
+                            throw Exception("proxy failure, code ${responseLine.code}")
+                        yield(socket)
                     }
                 }
             }
             var throwable: Throwable? = null
-            for (candidate in candidates) {
+            for (socket in candidates) {
                 try {
-                    return@createConnectExecutor upgrade(request, candidate())
+                    return@createConnectExecutor upgrade(request, socket)
                 }
                 catch (t: Throwable) {
                     if (throwable == null)

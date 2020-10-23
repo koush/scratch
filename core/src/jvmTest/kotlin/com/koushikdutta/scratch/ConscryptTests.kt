@@ -115,10 +115,7 @@ class ConscryptTests {
         val client = SchemeExecutor(AsyncAffinity.NO_AFFINITY)
         client.useHttpsAlpnExecutor(AsyncAffinity.NO_AFFINITY, clientContext) {
             createAsyncIterable {
-                val connect: ResolvedSocketConnect<AsyncSocket> = {
-                    server.connect()
-                }
-                yield(connect)
+                yield(server.connect())
             }
         }
 
