@@ -26,15 +26,20 @@ fun createNetworkResolver(defaultPort: Int, eventLoop: AsyncEventLoop): RequestS
         val host = request.uri.host!!
 
         createAsyncIterable {
+            var throwable: Throwable? = null
             val resolved = eventLoop.getAllByName(host)
             for (address in resolved) {
                 try {
                     yield(eventLoop.connect(InetSocketAddress(address, port)))
                 }
-                catch (_: Throwable) {
+                catch (e: Throwable) {
                     // ignore errors, try all addresses
+                    if (throwable == null)
+                        throwable = e
                 }
             }
+            if (throwable != null)
+                throw throwable
         }
     }
 }
@@ -95,7 +100,7 @@ abstract class HostExecutor<T: AsyncSocket>(override val affinity: AsyncAffinity
                         throwable = t
                 }
             }
-            throw throwable!!
+            throw throwable ?: Exception("connect failed, no resolved candidates")
         }
     }
 

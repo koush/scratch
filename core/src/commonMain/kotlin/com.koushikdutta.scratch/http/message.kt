@@ -75,11 +75,25 @@ suspend fun AsyncRandomAccessInput.createHttpMessageBody(contentType: String? = 
 
 class RequestLine {
     val method: String
-    val uri: URI
+    val message: String
+    val uri: URI?
     val protocol: String
 
     constructor(method: String, uri: URI, protocol: String) {
         this.uri = uri
+        this.method = method
+        this.protocol = protocol
+        this.message = uri.toString()
+    }
+
+    constructor(method: String, message: String, protocol: String) {
+        this.message = message
+        this.uri = try {
+             URI.create(message)
+        }
+        catch (_: Throwable) {
+            null
+        }
         this.method = method
         this.protocol = protocol
     }
@@ -89,7 +103,13 @@ class RequestLine {
         require(parts.size == 3) { "invalid request line $requestLine" }
 
         method = parts[0]
-        uri = URI.create(parts[1])
+        this.message = parts[1]
+        this.uri = try {
+            URI.create(message)
+        }
+        catch (_: Throwable) {
+            null
+        }
         protocol = parts[2]
     }
 }
@@ -104,15 +124,17 @@ open class AsyncHttpRequest : AsyncHttpMessage {
     }
     constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, uri, protocol), headers, body, sent)
     constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, uri, protocol), headers, body, sent)
+    constructor(message: String, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, message, protocol), headers, body, sent)
 
     override val messageLine: String
-        get() = "$method $requestLinePathAndQuery $protocol"
+        get() = if (requestLine.uri != null) "$method $requestLinePathAndQuery $protocol" else "$method ${requestLine.message} $protocol"
 
     val method: String
         get() = requestLine.method
 
+    // allow the error to be rethrown by parsing again
     val uri: URI
-        get() = requestLine.uri
+        get() = requestLine.uri ?: URI.create(requestLine.message)
 
 
     override val protocol: String

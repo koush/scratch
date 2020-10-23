@@ -11,6 +11,6 @@ enum class Methods(val responseHasBody: Boolean = true) {
     PUT;
 
     operator fun invoke(uri: String, headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpRequest {
-        return AsyncHttpRequest(URI.create(uri), toString(), headers = headers, body = body, sent = sent)
+        return AsyncHttpRequest(uri, toString(), headers = headers, body = body, sent = sent)
     }
 }

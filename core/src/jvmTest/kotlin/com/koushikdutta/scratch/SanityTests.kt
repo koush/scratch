@@ -13,7 +13,7 @@ class SanityTests {
 
     @Test
     fun testWeirdUri() {
-        val uri = URI.create("foo:3333")
+        val uri = URI.create("/testbar")
         println(uri)
     }
 }
