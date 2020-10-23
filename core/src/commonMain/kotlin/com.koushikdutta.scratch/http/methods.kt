@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http
 import com.koushikdutta.scratch.uri.URI
 
 enum class Methods(val responseHasBody: Boolean = true) {
+    CONNECT(false),
     HEAD(false),
     GET,
     DELETE,

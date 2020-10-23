@@ -26,15 +26,17 @@ abstract class RegisterKeyPoolExecutor: KeyPoolExecutor() {
     }
 }
 
-abstract class CreateKeyPoolExecutor(private val create: KeyPoolExecutorFactory) : KeyPoolExecutor() {
+abstract class CreateKeyPoolExecutor : KeyPoolExecutor() {
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
         affinity.await()
 
         val key = getKey(request)
         val executor = pool.getOrPut(key) {
-            create(request)
+            createExecutor(request)
         }
 
         return executor(request)
     }
+
+    abstract suspend fun createExecutor(request: AsyncHttpRequest): AsyncHttpExecutor
 }

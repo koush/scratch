@@ -5,20 +5,16 @@ import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.event.AsyncEventLoop
-import com.koushikdutta.scratch.event.InetSocketAddress
-import com.koushikdutta.scratch.event.connect
-import com.koushikdutta.scratch.event.run
+import com.koushikdutta.scratch.event.*
 import com.koushikdutta.scratch.http.AsyncHttpRequest
+import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.execute
-import com.koushikdutta.scratch.http.client.executor.HostSocketProvider
-import com.koushikdutta.scratch.http.client.executor.connectFirstAvailableResolver
-import com.koushikdutta.scratch.http.client.executor.useHttpExecutor
+import com.koushikdutta.scratch.http.client.executor.*
 import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
@@ -400,21 +396,23 @@ class LoopTests {
         val cwm = getAllByName("clockworkmod.com")
         val loop = this
         val httpClient = AsyncHttpClient(loop)
-        httpClient.schemeExecutor.useHttpExecutor(loop, connectFirstAvailableResolver(connectionProvider = { _, port ->
-            asyncIterator {
-                val fail: HostSocketProvider = {
+        httpClient.schemeExecutor.useHttpExecutor(loop) {
+            createAsyncIterable {
+                val port = it.getPortOrDefault(80)
+
+                val fail: ResolvedSocketConnect<AsyncNetworkSocket> = {
                     connect("0.0.0.0", port)
                 }
                 yield(fail)
 
                 for (address in cwm) {
-                    val valid: HostSocketProvider = {
+                    val valid: ResolvedSocketConnect<AsyncNetworkSocket> = {
                         connect(InetSocketAddress(address, port))
                     }
                     yield(valid)
                 }
             }
-        }))
+        }
 
         try {
             httpClient.get("http://clockworkmod.com") {
@@ -425,16 +423,18 @@ class LoopTests {
         catch (throwable: Throwable) {
         }
 
-        httpClient.schemeExecutor.useHttpExecutor(loop, connectFirstAvailableResolver(connectionProvider = { _, port ->
-            asyncIterator {
+        httpClient.schemeExecutor.useHttpExecutor(loop) {
+            val port = it.getPortOrDefault(80)
+
+            createAsyncIterable {
                 for (address in cwm) {
-                    val valid: HostSocketProvider = {
+                    val valid: ResolvedSocketConnect<AsyncNetworkSocket> = {
                         connect(InetSocketAddress(address, port))
                     }
                     yield(valid)
                 }
             }
-        }))
+        }
 
         assertNotNull(httpClient.get("http://clockworkmod.com") {
             readAllString(it.body!!)
@@ -581,5 +581,14 @@ class LoopTests {
         promise.await()
         post()
         assertEquals(count, 2)
+    }
+
+    @Test
+    fun testHttpProxy() = networkContextTest {
+        val request = Methods.GET("https://www.clockworkmod.com")
+        request.setProxy("192.168.2.7", 8888)
+        val httpClient = AsyncHttpClient(this)
+        val ret = readAllString(httpClient(request).body!!)
+        println(ret)
     }
 }

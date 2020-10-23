@@ -2,16 +2,12 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
+import com.koushikdutta.scratch.event.AsyncNetworkSocket
 import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
-import com.koushikdutta.scratch.http.client.buildUpon
 import com.koushikdutta.scratch.http.client.execute
-import com.koushikdutta.scratch.http.client.executor.AlpnSocket
-import com.koushikdutta.scratch.http.client.executor.HostSocketProvider
-import com.koushikdutta.scratch.http.client.executor.SchemeExecutor
-import com.koushikdutta.scratch.http.client.executor.useHttpsAlpnExecutor
+import com.koushikdutta.scratch.http.client.executor.*
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.tls.*
@@ -117,9 +113,9 @@ class ConscryptTests {
 
         var protocol: String? = null
         val client = SchemeExecutor(AsyncAffinity.NO_AFFINITY)
-        client.useHttpsAlpnExecutor(AsyncAffinity.NO_AFFINITY, clientContext) { _, _ ->
-            asyncIterator {
-                val connect: HostSocketProvider = {
+        client.useHttpsAlpnExecutor(AsyncAffinity.NO_AFFINITY, clientContext) {
+            createAsyncIterable {
+                val connect: ResolvedSocketConnect<AsyncSocket> = {
                     server.connect()
                 }
                 yield(connect)
