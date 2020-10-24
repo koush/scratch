@@ -44,16 +44,8 @@ interface AsyncAffinity {
      */
     suspend fun await()
 
-    /**
-     * Post (suspend and resume) execution onto the next loop of the owner thread queue.
-     * This clears the coroutine stack trace.
-     */
-    suspend fun post()
-
     companion object {
         val NO_AFFINITY = object : AsyncAffinity {
-            override suspend fun post() {
-            }
             override suspend fun await() {
             }
         }

@@ -13,11 +13,10 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 
-actual typealias AsyncNetworkServerSocket = NIOServerSocket
-class NIOServerSocket internal constructor(val server: AsyncEventLoop, private val channel: ServerSocketChannel) : AsyncServerSocket<AsyncNetworkSocket>, AsyncAffinity by server {
+actual class AsyncNetworkServerSocket internal constructor(val server: AsyncEventLoop, private val channel: ServerSocketChannel) : AsyncServerSocket<AsyncNetworkSocket>, AsyncAffinity by server {
     private val key: SelectionKey = channel.register(server.selector.selector, SelectionKey.OP_ACCEPT)
-    val localAddress: InetAddress = channel.socket().inetAddress!!
-    val localPort = channel.socket().localPort
+    actual val localAddress: InetAddress = channel.socket().inetAddress!!
+    actual val localPort = channel.socket().localPort
 
     init {
         key.attach(this)
@@ -43,7 +42,7 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
     }
 
     // todo: backlog?
-    private val queue = AsyncQueue<NIOSocket>()
+    private val queue = AsyncQueue<AsyncNetworkSocket>()
 
     override fun accept(): AsyncIterable<AsyncNetworkSocket> {
         return queue
@@ -57,7 +56,7 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
                 return
             sc.configureBlocking(false)
             val key = sc.register(server.selector.selector, SelectionKey.OP_READ)
-            val socket = NIOSocket(server, sc, key)
+            val socket = AsyncNetworkSocket(server, sc, key)
             key.attach(socket)
             queue.add(socket)
         }
@@ -67,8 +66,6 @@ class NIOServerSocket internal constructor(val server: AsyncEventLoop, private v
     }
 }
 
-actual typealias AsyncDatagramSocket = NIODatagram
-
 interface NIOChannel {
     fun readable(): Int
     fun writable()
@@ -77,8 +74,8 @@ interface NIOChannel {
 private data class NIODatagramPacket(val remoteAddress: InetSocketAddress, val data: ByteBuffer)
 
 
-class NIODatagram internal constructor(val server: AsyncEventLoop, private val channel: DatagramChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by server {
-    val localPort = channel.socket().localPort
+actual class AsyncDatagramSocket internal constructor(val server: AsyncEventLoop, private val channel: DatagramChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by server {
+    actual val localPort = channel.socket().localPort
     val localAddress = channel.socket().localAddress!!
     private val output = BlockingWritePipe {
         while (it.hasRemaining()) {
@@ -164,7 +161,7 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
         return total
     }
 
-    suspend fun receivePacket(buffer: WritableBuffers): InetSocketAddress {
+    actual suspend fun receivePacket(buffer: WritableBuffers): InetSocketAddress {
         await()
         pending.takeReclaimedBuffers(buffer)
 
@@ -173,7 +170,7 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
         return packet.remoteAddress
     }
 
-    suspend fun sendPacket(socketAddress: InetSocketAddress, buffer: ReadableBuffers) {
+    actual suspend fun sendPacket(socketAddress: InetSocketAddress, buffer: ReadableBuffers) {
         await()
 
         val singleBuffer = buffer.readByteBuffer()
@@ -199,22 +196,20 @@ class NIODatagram internal constructor(val server: AsyncEventLoop, private val c
         closeInternal()
     }
 
-    suspend fun connect(socketAddress: InetSocketAddress) {
+    actual suspend fun connect(socketAddress: InetSocketAddress) {
         await()
         channel.connect(socketAddress)
     }
 
-    suspend fun disconnect() {
+    actual suspend fun disconnect() {
         await()
         channel.disconnect()
     }
 }
 
-actual typealias AsyncNetworkSocket = NIOSocket
-
-class NIOSocket internal constructor(val loop: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by loop {
+actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by loop {
     val socket = channel.socket()
-    val localPort = channel.socket().localPort
+    actual val localPort = channel.socket().localPort
     val localAddress = channel.socket().localAddress
     val remoteAddress: java.net.InetSocketAddress? = channel.socket().remoteSocketAddress as InetSocketAddress?
     private val inputBuffer = ByteBufferList()
@@ -326,7 +321,7 @@ class NIOSocket internal constructor(val loop: AsyncEventLoop, private val chann
         output.write(buffer)
     }
 
-    suspend fun connect(socketAddress: InetSocketAddress) {
+    actual suspend fun connect(socketAddress: InetSocketAddress) {
         await()
 
         if (key.attachment() != null)

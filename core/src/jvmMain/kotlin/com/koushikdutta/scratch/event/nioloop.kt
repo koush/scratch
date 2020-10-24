@@ -41,9 +41,7 @@ internal fun closeQuietly(vararg closeables: Closeable?) {
     }
 }
 
-actual typealias AsyncEventLoop = NIOEventLoop
-
-open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
+actual open class AsyncEventLoop: AsyncScheduler<AsyncEventLoop>() {
     internal lateinit var selector: SelectorWrapper
     private val initialized = AtomicBoolean(false)
 
@@ -53,11 +51,11 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
     override val isAffinityThread: Boolean
         get() = affinity === Thread.currentThread()
 
-    fun stop() {
+    actual fun stop() {
         stop(false)
     }
 
-    fun stop(wait: Boolean) {
+    actual fun stop(wait: Boolean) {
         //        Log.i(LOGTAG, "****AsyncServer is shutting down.****");
         var semaphore: Semaphore? = null
         var isAffinityThread = false
@@ -83,7 +81,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncNetworkServerSocket {
+    actual suspend fun listen(port: Int, address: InetAddress?, backlog: Int): AsyncNetworkServerSocket {
         await()
 
         var closeableServer: ServerSocketChannel? = null
@@ -105,9 +103,9 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
     }
 
     suspend fun AsyncServer.listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5) =
-        listen(this@NIOEventLoop.listen(port, address, backlog))
+        listen(this@AsyncEventLoop.listen(port, address, backlog))
 
-    suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket {
+    actual suspend fun createDatagram(port: Int, address: InetAddress?, reuseAddress: Boolean): AsyncDatagramSocket {
         await()
 
         var ckey: SelectionKey? = null
@@ -133,7 +131,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    suspend fun createSocket(): AsyncNetworkSocket {
+    actual suspend fun createSocket(): AsyncNetworkSocket {
         await()
 
         var ckey: SelectionKey? = null
@@ -175,7 +173,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         return NIOFileFactory.instance.listFiles(this, directory)
     }
 
-    suspend fun getAllByName(host: String): Array<InetAddress> {
+    actual suspend fun getAllByName(host: String): Array<InetAddress> {
         synchronousResolverWorkers.await()
         val result = InetAddress.getAllByName(host)
         Arrays.sort(result, ipSorter)
@@ -185,7 +183,7 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         return result
     }
 
-    fun run() {
+    actual fun run() {
         synchronized(this) {
             if (affinity == null)
                 affinity = Thread.currentThread()
@@ -305,8 +303,8 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    companion object {
-        val default = AsyncEventLoop()
+    actual companion object {
+        actual val default = AsyncEventLoop()
 
         init {
             val defaultThread = Thread {
@@ -318,17 +316,17 @@ open class NIOEventLoop: AsyncScheduler<AsyncEventLoop>() {
 
         private val synchronousWorkers = newSynchronousWorkers("AsyncServer-worker-")
 
-        fun parseInet4Address(address: String): Inet4Address {
+        actual fun parseInet4Address(address: String): Inet4Address {
             // necessary to prevent dns lookup
             require(Character.digit(address[0], 16) != -1) { "not an Inet4Address" }
             return InetAddress.getByName(address) as Inet4Address
         }
-        fun parseInet6Address(address: String): Inet6Address {
+        actual fun parseInet6Address(address: String): Inet6Address {
             // necessary to prevent dns lookup
             require(address.contains(':')) { "not an Inet6Address" }
             return InetAddress.getByName(address) as Inet6Address
         }
-        fun getInterfaceAddresses(): Array<InetAddress> {
+        actual fun getInterfaceAddresses(): Array<InetAddress> {
             val ret = arrayListOf<InetAddress>()
             for (ni in NetworkInterface.getNetworkInterfaces()) {
                 for (ia in ni.interfaceAddresses) {

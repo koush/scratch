@@ -47,7 +47,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(val serverSocket:
             observer(socket, exception)
         }
         catch (throwable: Throwable) {
-            serverSocket.post()
+            serverSocket.await()
             throw throwable
         }
     }

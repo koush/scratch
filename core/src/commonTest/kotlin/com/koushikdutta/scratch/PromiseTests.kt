@@ -2,6 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
+import com.koushikdutta.scratch.event.post
 import kotlinx.coroutines.*
 import kotlin.coroutines.*
 import kotlin.test.*

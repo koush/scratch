@@ -20,10 +20,7 @@ import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.readAllString
 import com.koushikdutta.scratch.uri.URI
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.*
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.*
@@ -586,5 +583,33 @@ class LoopTests {
         val httpClient = AsyncHttpClient(this)
         val ret = readAllString(httpClient(request).body!!)
         println(ret)
+    }
+
+    @Test
+    fun testTimeout() = networkContextTest(true) {
+        val deferred = CompletableDeferred<Unit>()
+
+        try {
+            timeout(10) {
+                deferred.await()
+            }
+        }
+        catch (throwable: CancellationException) {
+            throw ExpectedException()
+        }
+    }
+
+    @Test
+    fun testTimeout2() = networkContextTest {
+        val deferred = CompletableDeferred<Unit>(Unit)
+
+        try {
+            timeout(10) {
+                deferred.await()
+            }
+        }
+        catch (throwable: CancellationException) {
+            throw ExpectedException()
+        }
     }
 }

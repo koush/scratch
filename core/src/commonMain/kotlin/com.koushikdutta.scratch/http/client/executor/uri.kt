@@ -115,13 +115,6 @@ class HttpHostExecutor(affinity: AsyncAffinity, resolver: RequestSocketResolver)
     override suspend fun upgrade(request: AsyncHttpRequest, socket: AsyncSocket): AsyncSocket {
         return socket
     }
-
-    companion object {
-        fun createDefaultHttpHostExecutor(eventLoop: AsyncEventLoop): HttpHostExecutor {
-            val resolver = createNetworkResolver(80, eventLoop)
-            return HttpHostExecutor(eventLoop, resolver)
-        }
-    }
 }
 
 class HttpsHostExecutor(affinity: AsyncAffinity, val sslContext: SSLContext, resolver: RequestSocketResolver):

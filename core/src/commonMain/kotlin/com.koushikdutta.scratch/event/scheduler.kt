@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.AsyncAffinity
 import com.koushikdutta.scratch.Cancellable
+import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.synchronized
 import kotlinx.coroutines.CompletableDeferred
 import kotlin.coroutines.Continuation
@@ -19,7 +20,7 @@ internal class PriorityQueue {
     private fun sortIfNeeded() {
         if (sorted)
             return
-        queue.sortWith(Scheduler.INSTANCE)
+        queue.sortWith(SORTER)
         sorted = true
     }
 
@@ -49,13 +50,87 @@ internal class PriorityQueue {
     fun isEmpty() = queue.isEmpty()
     val size: Int
         get() = queue.size
+
+
+    companion object {
+        private val SORTER = object : Comparator<Scheduled> {
+            override fun compare(s1: Scheduled, s2: Scheduled): Int {
+                // keep the smaller ones at the head, so they get tossed out quicker
+                if (s1.time == s2.time)
+                    return 0
+                return if (s1.time > s2.time) 1 else -1
+            }
+        }
+    }
 }
 
-interface ScratchRunnable {
-    operator fun invoke();
+interface Scheduler: AsyncAffinity {
+    val isAffinityThread: Boolean
+
+    fun post(runnable: AsyncServerRunnable): Cancellable
+    fun postDelayed(delayMillis: Long, runnable: AsyncServerRunnable): Cancellable
+
+    override suspend fun await() {
+        if (isAffinityThread)
+            return
+        post()
+        if (!isAffinityThread) {
+            val err = "Failed to switch to affinity thread, how did this happen? Use Dispatchers.Unconfirmed when creating your coroutine. Or use AsyncEventLoop.async or AsyncEventLoop.launch."
+            println(err)
+            throw IllegalStateException(err)
+        }
+    }
 }
 
-abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
+suspend fun Scheduler.post() {
+    // this special invocation forces the coroutine to resume on the scheduler thread.
+    kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn { it: Continuation<Unit> ->
+        post {
+            it.resume(Unit)
+        }
+        kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+    }
+}
+
+fun Scheduler.postImmediate(runnable: AsyncServerRunnable): Cancellable? {
+    if (isAffinityThread) {
+        runnable()
+        return null
+    }
+    return postDelayed(-1, runnable)
+}
+
+@OptIn(ExperimentalStdlibApi::class)
+suspend fun Scheduler.sleep(milliseconds: Long) {
+    require(milliseconds >= 0) { "negative sleep not allowed" }
+    val deferred = CompletableDeferred<Unit>()
+    val cancel = postDelayed(milliseconds) {
+        deferred.complete(Unit)
+    }
+    try {
+        deferred.await()
+    }
+    catch (throwable: CancellationException) {
+        cancel.cancel()
+        throw throwable
+    }
+}
+
+suspend fun <T> Scheduler.timeout(milliseconds: Long, block: suspend() -> T): T {
+    val task = async {
+        block()
+    }
+    val sleeper = async {
+        sleep(milliseconds)
+        task.cancel()
+    }
+
+    val ret = task.await()
+    sleeper.cancel()
+    return ret
+}
+
+abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity, Scheduler {
     private var postCounter = 0
     internal val mQueue = PriorityQueue()
 
@@ -92,13 +167,7 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         }
     }
 
-    fun postDelayed(delay: Long, runnable: ScratchRunnable): Cancellable {
-        return postDelayed(delay) {
-            runnable()
-        }
-    }
-
-    fun postDelayed(delay: Long, runnable: AsyncServerRunnable): Cancellable {
+    override fun postDelayed(delayMillis: Long, runnable: AsyncServerRunnable): Cancellable {
         return synchronized(this) {
             if (stopping)
                 return Cancellable.CANCELLED
@@ -112,9 +181,9 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
             // as it will always be less than the current time and also remain
             // behind all other immediately run queue items.
             val time: Long
-            if (delay > 0)
-                time = milliTime() + delay
-            else if (delay == 0L)
+            if (delayMillis > 0)
+                time = milliTime() + delayMillis
+            else if (delayMillis == 0L)
                 time = postCounter++.toLong()
             else if (mQueue.size > 0)
                 time = min(0, mQueue.peek().time - 1)
@@ -146,74 +215,16 @@ abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity {
         }
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
-    suspend fun sleep(milliseconds: Long) {
-        require(milliseconds >= 0) { "negative sleep not allowed" }
-        val deferred = CompletableDeferred<Unit>()
-        val cancel = postDelayed(milliseconds) {
-            deferred.complete(Unit)
-        }
-        try {
-            deferred.await()
-        }
-        catch (throwable: CancellationException) {
-            cancel.cancel()
-            throw throwable
-        }
-    }
-
-    override suspend fun post() {
-        // this special invocation forces the coroutine to resume on the scheduler thread.
-        kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn { it: Continuation<Unit> ->
-            post {
-                it.resume(Unit)
-            }
-            kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
-        }
-    }
-
-    override suspend fun await() {
-        if (isAffinityThread)
-            return
-        post()
-        if (!isAffinityThread) {
-            val err = "Failed to switch to affinity thread, how did this happen? Use Dispatchers.Unconfirmed when creating your coroutine. Or use AsyncEventLoop.async or AsyncEventLoop.launch."
-            println(err)
-            throw IllegalStateException(err)
-        }
-    }
 
     abstract fun wakeup()
-    abstract val isAffinityThread: Boolean
 
-    fun postImmediate(runnable: AsyncServerRunnable): Cancellable? {
-        if (isAffinityThread) {
-            runnable()
-            return null
-        }
-        return postDelayed(-1, runnable)
-    }
-
-    fun post(runnable: AsyncServerRunnable): Cancellable {
+    override fun post(runnable: AsyncServerRunnable): Cancellable {
         return postDelayed(0, runnable)
     }
 
     companion object {
         const val QUEUE_EMPTY = Long.MAX_VALUE
         const val QUEUE_NEXT_LOOP = 0L
-    }
-}
-
-internal class Scheduler private constructor() : Comparator<Scheduled> {
-    override fun compare(s1: Scheduled, s2: Scheduled): Int {
-        // keep the smaller ones at the head, so they get tossed out quicker
-        if (s1.time == s2.time)
-            return 0
-        return if (s1.time > s2.time) 1 else -1
-    }
-
-    companion object {
-        var INSTANCE = Scheduler()
     }
 }
 

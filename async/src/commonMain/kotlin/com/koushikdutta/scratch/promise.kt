@@ -25,6 +25,7 @@ fun interface PromiseResultCallback<T> {
 }
 
 fun interface PromiseCompleteCallback<T> {
+    @Throws(Throwable::class)
     fun complete(result: Result<T>)
 }
 
