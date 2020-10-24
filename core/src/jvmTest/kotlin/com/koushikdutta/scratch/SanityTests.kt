@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch;
 
 import org.junit.Test
+import java.io.File
 import java.net.URI
 import kotlin.test.assertEquals
 
@@ -15,5 +16,10 @@ class SanityTests {
     fun testWeirdUri() {
         val uri = URI.create("/testbar")
         println(uri)
+    }
+
+    @Test
+    fun testFileExt() {
+        println(File("/tmp/bar", ".tmp"))
     }
 }
