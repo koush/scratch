@@ -5,6 +5,7 @@ import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.client.AsyncHttpClient
+import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import kotlin.reflect.KClass
 
 interface AsyncHttpClientExecutor {
@@ -34,11 +35,13 @@ fun AsyncHttpClientExecutor.getHttpClientExecutorChain(): Array<AsyncHttpClientE
     return list.toTypedArray()
 }
 
-fun AsyncHttpClientExecutor.findHttpClientExecutor(kclass: KClass<*>): AsyncHttpClientExecutor? {
+fun <T: AsyncHttpClientExecutor> AsyncHttpClientExecutor.findHttpClientExecutor(type: KClass<T>): T? {
     var current: AsyncHttpClientExecutor? = this
     while (current != null) {
-        if (kclass.isInstance(current))
-            return current
+        if (type.isInstance(current))
+            return current as T
+        else
+            current = current.getWrappedAsyncHttpClientExecutor()
     }
     return null
 }

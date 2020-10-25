@@ -14,6 +14,7 @@ interface AsyncStore: AsyncAffinity {
     suspend fun openRead(key: String): AsyncRandomAccessInput?
     suspend fun openWrite(key: String): AsyncStoreItem
     suspend fun remove(key: String)
+    suspend fun clear()
     fun exists(key: String): Boolean
     fun size(key: String): Long
     fun removeAsync(key: String) = async {
@@ -50,6 +51,10 @@ class BufferStore : AsyncStore, AsyncAffinity by AsyncAffinity.NO_AFFINITY {
 
     override suspend fun remove(key: String) {
         buffers.remove(key)
+    }
+
+    override suspend fun clear() {
+        buffers.clear()
     }
 
     override fun exists(key: String): Boolean {

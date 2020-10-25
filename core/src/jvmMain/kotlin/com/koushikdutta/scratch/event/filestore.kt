@@ -7,15 +7,11 @@ import com.koushikdutta.scratch.crypto.sha256
 import com.koushikdutta.scratch.extensions.encode
 import com.koushikdutta.scratch.extensions.hash
 import java.io.File
+import java.io.FileFilter
 import kotlin.random.Random
 
-fun interface FileStoreGetDirectory {
-    operator fun invoke(): File
-}
-
-class FileStore(val eventLoop: AsyncEventLoop, hashKeys: Boolean, val getDirectory: FileStoreGetDirectory): AsyncStore, AsyncAffinity by eventLoop {
+class FileStore(val eventLoop: AsyncEventLoop, hashKeys: Boolean, val cacheDirectory: File): AsyncStore, AsyncAffinity by eventLoop {
     val keyHash: (String) -> String
-    lateinit var cacheDirectory: File
     init {
         keyHash = if (hashKeys) {
             {
@@ -29,12 +25,9 @@ class FileStore(val eventLoop: AsyncEventLoop, hashKeys: Boolean, val getDirecto
         }
 
         eventLoop.launch {
-            cacheDirectory = getDirectory()
             cacheDirectory.mkdirs()
         }
     }
-
-    constructor(eventLoop: AsyncEventLoop, hashKeys: Boolean, cacheDirectory: File): this(eventLoop, hashKeys, { cacheDirectory } )
 
     override suspend fun openRead(key: String): AsyncRandomAccessInput? {
         val filename = keyHash(key)
@@ -62,7 +55,18 @@ class FileStore(val eventLoop: AsyncEventLoop, hashKeys: Boolean, val getDirecto
         }
     }
 
+    override suspend fun clear() {
+        await()
+        cacheDirectory.listFiles(FileFilter {
+            it.isFile
+        })
+        ?.forEach {
+            it.delete()
+        }
+    }
+
     override suspend fun remove(key: String) {
+        await()
         val filename = keyHash(key)
         File(cacheDirectory, filename).runCatching {
             delete()

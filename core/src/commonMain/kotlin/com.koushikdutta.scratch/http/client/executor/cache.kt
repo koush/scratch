@@ -5,6 +5,7 @@ import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
+import com.koushikdutta.scratch.collections.LruCache
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseStringMultimap
 import com.koushikdutta.scratch.event.nanoTime
@@ -352,9 +353,13 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
     }
 }
 
-fun AsyncHttpExecutorBuilder.useMemoryCache(): AsyncHttpExecutorBuilder {
+fun AsyncHttpExecutorBuilder.useMemoryCache(maxSize: Long? = null) = useCache(BufferStore(), maxSize)
+
+fun AsyncHttpExecutorBuilder.useCache(store: AsyncStore, maxSize: Long?) = if (maxSize != null) useCache(LruCache(store, maxSize)) else useCache(store)
+
+fun AsyncHttpExecutorBuilder.useCache(store: AsyncStore): AsyncHttpExecutorBuilder {
     wrapExecutor {
-        CacheExecutor(it, asyncStore = BufferStore())
+        CacheExecutor(it, store)
     }
     return this
 }

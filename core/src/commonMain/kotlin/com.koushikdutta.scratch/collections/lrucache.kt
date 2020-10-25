@@ -8,14 +8,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
-private class LruStoreItem(val cache: LruCache, val key: String, val initialSize: Long, val storeItem: AsyncStoreItem): AsyncStoreItem by storeItem {
+private class LruStoreItem<T: AsyncStore>(val cache: LruCache<T>, val key: String, val initialSize: Long, val storeItem: AsyncStoreItem): AsyncStoreItem by storeItem {
     override suspend fun close() {
-        storeItem.close()
         cache.updateSize(key, size() - initialSize)
+        storeItem.close()
     }
 }
 
-class LruCache(val store: AsyncStore, val maxSize: Long): AsyncStore by store {
+class LruCache<T: AsyncStore>(val store: T, val maxSize: Long): AsyncStore by store {
     var currentSize = 0L
         private set
 
@@ -50,6 +50,11 @@ class LruCache(val store: AsyncStore, val maxSize: Long): AsyncStore by store {
         val storage = store.openWrite(key)
         val initialSize = storage.size()
         return LruStoreItem(this, key, initialSize, storage)
+    }
+
+    override suspend fun clear() {
+        currentSize = 0
+        store.clear()
     }
 
     override suspend fun openRead(key: String): AsyncRandomAccessInput? {
