@@ -44,7 +44,7 @@ interface WebSocketMessage {
 
 class WebSocketCloseMessage(val code: Int, val reason: String)
 
-class WebSocket(private val socket: AsyncSocket, reader: AsyncReader, val protocol: String? = null, server: Boolean = false, val requestHeaders: Headers = Headers(), val responseHeaders: Headers = Headers()): AsyncSocket, AsyncAffinity by socket {
+class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket::read), val protocol: String? = null, server: Boolean = false, val requestHeaders: Headers = Headers(), val responseHeaders: Headers = Headers()): AsyncSocket, AsyncAffinity by socket {
     private val parser = HybiParser(reader, server)
 
     val isClosed
@@ -237,7 +237,7 @@ suspend fun AsyncHttpClientExecutor.connectWebSocket(request: AsyncHttpRequest, 
 
         val protocol = responseHeaders["Sec-WebSocket-Protocol"]
 
-        return WebSocket(switching.socket, switching.socketReader, protocol, requestHeaders = headers, responseHeaders = responseHeaders)
+        return WebSocket(switching.socket, protocol = protocol, requestHeaders = headers, responseHeaders = responseHeaders)
     }
 }
 
@@ -285,6 +285,6 @@ fun AsyncHttpRequest.upgradeWebsocket(protocol: String? = null, block: suspend (
     headers["Sec-WebSocket-Accept"] = expected
 
     return AsyncHttpResponse.SWITCHING_PROTOCOLS(headers) {
-        block(WebSocket(it.socket, it.socketReader, protocol, true, requestHeaders, headers))
+        block(WebSocket(it, protocol = protocol, server = true, requestHeaders = requestHeaders, responseHeaders = headers))
     }
 }

@@ -5,7 +5,6 @@ import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.getHttpBody
@@ -81,13 +80,9 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
 
         if (response is AsyncHttpResponseSwitchingProtocols) {
             sendHeaders(socket, response)
-            val switching = object : AsyncHttpDetachedSocket {
-                override val socket = socket
-                override val socketReader = reader
-            }
             val block = response.block
             startSafeCoroutine {
-                block(switching)
+                block(socket)
             }
             return HttpServerSocketStatus.Upgrade
         }

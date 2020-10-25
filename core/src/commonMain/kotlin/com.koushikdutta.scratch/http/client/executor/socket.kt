@@ -8,13 +8,12 @@ import com.koushikdutta.scratch.collections.parseCommaDelimited
 import com.koushikdutta.scratch.event.milliTime
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
-import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
 import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.createEndWatcher
 import com.koushikdutta.scratch.http.client.getHttpBodyOrNull
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
-internal class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, override val socket: AsyncSocket, override val socketReader: AsyncReader): Exception(), AsyncHttpDetachedSocket
+internal class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, val socket: AsyncSocket): Exception()
 
 class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader = AsyncReader(socket::read)): AsyncHttpClientExecutor {
     override val affinity = socket
@@ -74,7 +73,7 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
         val responseLine = ResponseLine(statusLine)
 
         if (responseLine.code == StatusCode.SWITCHING_PROTOCOLS.code)
-            throw AsyncHttpClientSwitchingProtocols(headers, socket, reader)
+            throw AsyncHttpClientSwitchingProtocols(headers, socket)
 
         val statusCode = StatusCode.values().find { it.code == responseLine.code }
         val body = if (statusCode?.hasBody == false)

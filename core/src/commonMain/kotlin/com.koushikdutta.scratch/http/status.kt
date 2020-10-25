@@ -1,14 +1,14 @@
 package com.koushikdutta.scratch.http
 
 import com.koushikdutta.scratch.AsyncRead
-import com.koushikdutta.scratch.http.client.AsyncHttpDetachedSocket
+import com.koushikdutta.scratch.AsyncSocket
 
 private const val HTTP_1_1 = "HTTP/1.1"
 
-internal class AsyncHttpResponseSwitchingProtocols(headers: Headers = Headers(), protocol: String = HTTP_1_1, internal val block: suspend(detachedSocket: AsyncHttpDetachedSocket) -> Unit)
+internal class AsyncHttpResponseSwitchingProtocols(headers: Headers = Headers(), protocol: String = HTTP_1_1, internal val block: suspend(socket: AsyncSocket) -> Unit)
     : AsyncHttpResponse(ResponseLine(StatusCode.SWITCHING_PROTOCOLS, protocol), headers, null as AsyncRead?, null)
 
-fun AsyncHttpResponse.Companion.SWITCHING_PROTOCOLS(headers: Headers = Headers(), protocol: String = HTTP_1_1, block: suspend(detachedSocket: AsyncHttpDetachedSocket) -> Unit) : AsyncHttpResponse
+fun AsyncHttpResponse.Companion.SWITCHING_PROTOCOLS(headers: Headers = Headers(), protocol: String = HTTP_1_1, block: suspend(socket: AsyncSocket) -> Unit) : AsyncHttpResponse
     = AsyncHttpResponseSwitchingProtocols(headers, protocol, block)
 
 enum class StatusCode(val code: Int, val message: String, val hasBody: Boolean = true) {

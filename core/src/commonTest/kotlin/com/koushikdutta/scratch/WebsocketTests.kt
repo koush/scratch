@@ -125,8 +125,8 @@ class WebsocketTests {
     @Test
     fun testWebSocket() {
         val pipe = createAsyncPipeSocketPair()
-        val clientSocket = WebSocket(pipe.first, AsyncReader(pipe.first::read))
-        val serverSocket = WebSocket(pipe.second, AsyncReader(pipe.second::read), server = true)
+        val clientSocket = WebSocket(pipe.first)
+        val serverSocket = WebSocket(pipe.second, server = true)
 
         var data: String? = null
         async {

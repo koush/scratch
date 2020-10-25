@@ -10,11 +10,6 @@ import com.koushikdutta.scratch.http.client.executor.*
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
 
-interface AsyncHttpDetachedSocket {
-    val socket: AsyncSocket
-    val socketReader: AsyncReader
-}
-
 fun AsyncHttpExecutorBuilder.addDefaultHeaders(userAgent: String = "scratch/1.0"): AsyncHttpExecutorBuilder {
     wrapExecutor {
         DefaultHeadersExecutor(it, userAgent)
