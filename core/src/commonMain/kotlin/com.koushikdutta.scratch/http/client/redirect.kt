@@ -18,35 +18,43 @@ private val defaultMaxRedirects = 5
 
 private class RedirectExecutor(override val next: AsyncHttpClientExecutor, val maxRedirects: Int = defaultMaxRedirects) : AsyncHttpClientWrappingExecutor {
     private suspend fun handleRedirects(redirects: Int, request: AsyncHttpRequest, response: AsyncHttpResponse): AsyncHttpResponse {
-        val responseCode = response.code
-        // valid redirects
-        if (responseCode != 301 && responseCode != 302 && responseCode != 307)
+        val newRequest = checkRedirect(request, response)
+        if (newRequest == null)
             return response
 
-        // drain the body to allow socket reuse.
         response.body?.drain()
 
         if (redirects <= 0)
             throw Exception("Too many redirects")
-
-        val location = response.headers.get("Location")
-        if (location == null)
-            throw Exception("Location header missing on redirect")
-
-        var redirect = URI(location)
-        if (redirect.scheme == null)
-            redirect = request.uri.resolve(location)
-
-        val method = if (request.method == Methods.HEAD.toString()) Methods.HEAD else Methods.GET
-        val newRequest = AsyncHttpRequest(URI.create(redirect.toString()), method.toString())
-        copyHeader(request, newRequest, "User-Agent")
-        copyHeader(request, newRequest, "Range")
 
         return handleRedirects(redirects - 1,  newRequest, next(newRequest))
     }
 
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
         return handleRedirects(maxRedirects, request, next(request))
+    }
+
+    companion object {
+        fun checkRedirect(request: AsyncHttpRequest, response: AsyncHttpResponse): AsyncHttpRequest? {
+            val responseCode = response.code
+            if (responseCode != 301 && responseCode != 302 && responseCode != 307)
+                return null
+
+            val location = response.headers.get("Location")
+            if (location == null)
+                throw Exception("Location header missing on redirect")
+
+            var redirect = URI(location)
+            if (redirect.scheme == null)
+                redirect = request.uri.resolve(location)
+
+            val method = if (request.method == Methods.HEAD.toString()) Methods.HEAD else Methods.GET
+            val newRequest = AsyncHttpRequest(URI.create(redirect.toString()), method.toString())
+            copyHeader(request, newRequest, "User-Agent")
+            copyHeader(request, newRequest, "Range")
+
+            return newRequest
+        }
     }
 }
 
