@@ -193,8 +193,6 @@ private fun removeTransportHeaders(headers: Headers) {
     headers.remove("Content-Encoding")
 }
 
-private class CachedResponse(val conditional: Boolean, responseLine: ResponseLine, headers: Headers, body: AsyncRead, sent: AsyncHttpMessageCompletion) : AsyncHttpResponse(responseLine, headers, body, sent)
-
 class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: AsyncStore) : AsyncHttpClientWrappingExecutor {
     val sessionKey = randomHex()
 

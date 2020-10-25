@@ -14,7 +14,7 @@ import com.koushikdutta.scratch.http.client.createEndWatcher
 import com.koushikdutta.scratch.http.client.getHttpBodyOrNull
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
-class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, override val socket: AsyncSocket, override val socketReader: AsyncReader): Exception(), AsyncHttpDetachedSocket
+internal class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, override val socket: AsyncSocket, override val socketReader: AsyncReader): Exception(), AsyncHttpDetachedSocket
 
 class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader = AsyncReader(socket::read)): AsyncHttpClientExecutor {
     override val affinity = socket

@@ -102,11 +102,6 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
 
             if (response.body != null) {
                 responseBody = response.body!!
-                // todo: fixup for jvm
-//                if (requestHeaders.acceptEncodingDeflate) {
-//                    response.headers.set("Content-Encoding", "deflate")
-//                    responseBody = responseBody.pipe(DeflatePipe)
-//                }
 
                 if (response.headers.contentLength == null) {
                     response.headers.transferEncoding = "chunked"
