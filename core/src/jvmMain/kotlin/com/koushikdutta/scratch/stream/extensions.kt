@@ -7,47 +7,54 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.closeQuietly
 import java.io.InputStream
+import java.util.concurrent.Semaphore
 
 fun InputStream.createAsyncInput(readSize: Int = 65536): AsyncInput {
+    val stream = this
+
     val buffer = ByteBufferList()
 
-    val start: NonBlockingWritePipe.() -> Unit = {
-        val thread = Thread({
-            try {
-                while (true) {
-                    val read = buffer.putAllocatedByteBuffer(readSize) {
-                        val read = read(it.array(), it.arrayOffset() + it.position(), readSize)
-                        if (read >= 0)
-                            it.position(it.position() + read)
-                        read
-                    }
-
-                    if (read < 0)
-                        break
-
-                    if (!write(buffer))
-                        return@Thread
-                }
-                end()
-            }
-            catch (throwable: Throwable) {
-                end(throwable)
-            }
-        }, "InputStreamThread")
-
-        thread.start()
-    }
+    val semaphore = Semaphore(0)
 
     val pipe = NonBlockingWritePipe(readSize * 3) {
-        start()
+        semaphore.release()
     }
 
-    start(pipe)
+    val thread = Thread({
+        try {
+            while (true) {
+                val read = buffer.putAllocatedByteBuffer(readSize) {
+                    val read = read(it.array(), it.arrayOffset() + it.position(), readSize)
+                    if (read >= 0)
+                        it.position(it.position() + read)
+                    read
+                }
 
-    val stream = this
+                if (read < 0)
+                    break
+
+                if (!pipe.write(buffer)) {
+                    semaphore.acquire()
+                }
+            }
+            pipe.end()
+        }
+        catch (throwable: Throwable) {
+            pipe.end(throwable)
+        }
+        finally {
+            closeQuietly(stream)
+        }
+    }, "InputStreamThread")
+
+    thread.start()
+
 
     return object : AsyncInput, AsyncAffinity by AsyncAffinity.NO_AFFINITY {
         override suspend fun read(buffer: WritableBuffers) = pipe.read(buffer)
-        override suspend fun close() = closeQuietly(stream)
+        override suspend fun close() {
+            closeQuietly(stream)
+            semaphore.release()
+        }
     }
 }
