@@ -236,8 +236,15 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
 
         val cacheControl = headers.getResponseCacheControl(request)
         // todo: vary unhandled, implement this.
-        if (cacheControl.vary != null)
-            return null
+        if (cacheControl.vary != null) {
+            val varies = cacheControl.vary!!.split(",").map { it.trim() }
+            for (vary in varies) {
+                if (request.headers[vary] != varyHeaders[vary]) {
+                    println("$vary mismatch")
+                    return null
+                }
+            }
+        }
 
         // revalidate in case erroneously stored
         if (!responseLine.isCacheable())
