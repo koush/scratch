@@ -13,7 +13,7 @@ import com.koushikdutta.scratch.http.client.createEndWatcher
 import com.koushikdutta.scratch.http.client.getHttpBodyOrNull
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
-internal class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, val socket: AsyncSocket): Exception()
+class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, val socket: AsyncSocket): Exception()
 
 class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader = AsyncReader(socket::read)): AsyncHttpClientExecutor {
     override val affinity = socket

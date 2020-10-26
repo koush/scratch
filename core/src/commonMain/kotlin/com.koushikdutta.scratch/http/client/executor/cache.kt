@@ -104,6 +104,11 @@ enum class CacheResult {
     ConditionalCache,
 }
 
+val AsyncHttpResponse.cacheResult: CacheResult?
+    get() = headers["X-Scratch-Cache"]?.let {
+        return CacheResult.valueOf(it)
+    }
+
 private class ParsedCacheControl {
     var noCache = false
     var noStore = false
@@ -218,7 +223,9 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
         val reader = AsyncReader(entry::read)
         val responseLine: ResponseLine
         val headers: Headers
+        val varyHeaders: Headers
         try {
+            varyHeaders = reader.readHeaderBlock()
             responseLine = ResponseLine(reader.readHttpHeaderLine())
             headers = reader.readHeaderBlock()
         }
@@ -277,7 +284,7 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
             // attempt to retrieve directly from cache, or prepare any conditional cache headers
             val cacheResponse = prepareExecute(request)
             // response is cached for an explicit duration, can be served without sending the request
-            if (cacheResponse != null && cacheResponse.headers["X-Scratch-Cache"] != CacheType.ConditionalCache.toString())
+            if (cacheResponse != null && cacheResponse.headers["X-Scratch-Cache"] != CacheResult.ConditionalCache.toString())
                 return cacheResponse
             cacheResponse
         }
@@ -327,6 +334,15 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
             }
 
             val buffer = ByteBufferList()
+            val varyHeaders = Headers()
+            val vary = response.headers["Vary"]
+            if (vary != null) {
+                val varies = vary.split(",").map { it.trim() }
+                for (varyHeader in varies) {
+                    varyHeaders[varyHeader] = request.headers[varyHeader]
+                }
+            }
+            buffer.putUtf8String(varyHeaders.toString())
             buffer.putUtf8String(response.toMessageString())
             entry::write.drain(buffer)
         }
