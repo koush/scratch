@@ -1,8 +1,6 @@
 package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
-import com.koushikdutta.scratch.async.async
-import com.koushikdutta.scratch.buffers.ByteBuffer
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.LruCache
@@ -171,15 +169,17 @@ private fun Headers.getResponseCacheControl(request: AsyncHttpRequest): ParsedCa
         return cacheControl
     }
 
+    // prefer conditional cache, because explicit cache does not work between sessions. is there a better way to store sessions that persists
+    // even if the app is restarted on a running system?
+    if (cacheControl.mustRevalidate || cacheControl.noCache || cacheControl.public || cacheControl.etag != null || cacheControl.lastModified != null) {
+        cacheControl.cacheType = CacheType.ConditionalCache
+        return cacheControl
+    }
+
     // if there's a specific duration on this response, it can explicitly be cached
     val explicit = cacheControl.immutable || cacheControl.maxAge != null || cacheControl.sMaxAge != null || cacheControl.expires != null
     if (explicit) {
         cacheControl.cacheType = CacheType.ExplicitCache
-        return cacheControl
-    }
-
-    if (cacheControl.mustRevalidate || cacheControl.noCache || cacheControl.public || cacheControl.etag != null || cacheControl.lastModified != null) {
-        cacheControl.cacheType = CacheType.ConditionalCache
         return cacheControl
     }
 
@@ -240,7 +240,6 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
             val varies = cacheControl.vary!!.split(",").map { it.trim() }
             for (vary in varies) {
                 if (request.headers[vary] != varyHeaders[vary]) {
-                    println("$vary mismatch")
                     return null
                 }
             }
@@ -249,6 +248,7 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
         // revalidate in case erroneously stored
         if (!responseLine.isCacheable())
             return null
+
 
         // grab the cached headers and prepare to serve them if necessary
         removeTransportHeaders(headers)
