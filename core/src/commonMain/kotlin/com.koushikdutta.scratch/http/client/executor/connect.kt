@@ -1,11 +1,14 @@
 package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.AsyncAffinity
+import com.koushikdutta.scratch.AsyncIterable
 import com.koushikdutta.scratch.AsyncSocket
+import com.koushikdutta.scratch.createAsyncIterable
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.http.client.createEndWatcher
+import kotlinx.coroutines.yield
 
 typealias AsyncHttpConnectSocket = suspend () -> AsyncSocket
 

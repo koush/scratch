@@ -130,6 +130,22 @@ suspend fun <T> Scheduler.timeout(milliseconds: Long, block: suspend() -> T): T 
     return ret
 }
 
+suspend fun <T> Scheduler.monitor(milliseconds: Long, check: () -> Boolean, block: suspend() -> T): T {
+    val task = async {
+        block()
+    }
+    val monitor = async {
+        while (check()) {
+            sleep(milliseconds)
+        }
+        task.cancel()
+    }
+
+    val ret = task.await()
+    monitor.cancel()
+    return ret
+}
+
 abstract class AsyncScheduler<S : AsyncScheduler<S>> : AsyncAffinity, Scheduler {
     private var postCounter = 0
     internal val mQueue = PriorityQueue()
