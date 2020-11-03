@@ -135,7 +135,7 @@ fun <T> createAsyncIterable(block: suspend AsyncIteratorScope<T>.() -> Unit): As
  */
 open class AsyncQueue<T> : AsyncIterable<T> {
     private val queue = FreezableQueue<T>()
-    private val baton = Baton<Unit>()
+    private val baton = Baton<Boolean>()
 
     fun poll(): T? {
         return queue.remove()?.value
@@ -151,14 +151,14 @@ open class AsyncQueue<T> : AsyncIterable<T> {
             // queue empty
             if (item == null) {
                 // ignore exceptions to drain the queue
-                baton.pass(Unit) { true }
+                baton.pass(false) { true }
                 continue
             }
 
             // end of queue, wait until the baton finishes.
             if (item.frozen) {
                 // rethrow the finisher, or continue if not finished.
-                if (baton.pass(Unit) { it.getOrThrow(); it.finished })
+                if (baton.pass(false) { it.getOrThrow(); it.finished })
                     break
             }
 
@@ -174,7 +174,7 @@ open class AsyncQueue<T> : AsyncIterable<T> {
 
     fun end(): Boolean {
         queue.freeze()
-        return baton.finish(Unit) {
+        return baton.finish(true) {
             it?.finished != true
         }
     }
@@ -187,12 +187,22 @@ open class AsyncQueue<T> : AsyncIterable<T> {
     }
 
     open fun add(value: T): Boolean {
-        return baton.toss(Unit) {
-            // only add if not finished
-            if (it?.finished == true)
-                false
-            else
-                queue.add(value)
+        // use spin lock to ensure an add message pending is pending
+        while (true) {
+            val ret = baton.toss(true) {
+                // only add if not finished
+                if (it?.finished == true)
+                    false
+                else if (it?.getOrThrow() == true)
+                    null
+                else
+                    queue.add(value)
+            }
+
+            if (ret == null)
+                continue
+
+            return ret
         }
     }
 }

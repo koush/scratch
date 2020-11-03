@@ -47,20 +47,20 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
      */
     fun write(buffer: ReadableBuffers): Boolean {
         // provide the data and resume any readers.
+
+        // use spin lock to ensure a write message pending is pending
         while (true) {
             val read = baton.toss(true) {
                 // this is a synchronization point between the write and read.
                 // check this to guarantee that this is resuming a read to
                 // so as not to feed data after the baton has closed.
 
-                // had previous write message pending that was cleared, spin and try again,
-                // until getting a read or empty inbox
-                if (it?.getOrThrow() == true)
-                    -1
-                else if (it?.finished != true)
-                    buffer.read(pending)
-                else
+                if (it?.finished == true)
                     null
+                else if (it?.getOrThrow() == true)
+                    -1
+                else
+                    buffer.read(pending)
             }
 
             if (read == -1)
