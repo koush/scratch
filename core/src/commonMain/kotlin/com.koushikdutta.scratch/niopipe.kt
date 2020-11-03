@@ -46,28 +46,37 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
      * will be called once the reader has sufficiently drained the buffer.
      */
     fun write(buffer: ReadableBuffers): Boolean {
-//        println("pooped" + buffer.peekUtf8String())
         // provide the data and resume any readers.
-        val read = baton.toss(true) {
-            // this is a synchronization point between the write and read.
-            // check this to guarantee that this is resuming a read to
-            // so as not to feed data after the baton has closed.
-            if (it?.finished != true)
-                buffer.read(pending)
-            else
-                null
+        while (true) {
+            val read = baton.toss(true) {
+                // this is a synchronization point between the write and read.
+                // check this to guarantee that this is resuming a read to
+                // so as not to feed data after the baton has closed.
+
+                // had previous write message pending that was cleared, spin and try again,
+                // until getting a read or empty inbox
+                if (it?.getOrThrow() == true)
+                    -1
+                else if (it?.finished != true)
+                    buffer.read(pending)
+                else
+                    null
+            }
+
+            if (read == -1)
+                continue
+
+            // the read coroutine will have synchronously finished
+            // reading the buffer and may be reclaimed.
+            buffer.takeReclaimedBuffers(pending)
+
+            // check if writable needs to be invoked
+            val setNeedsWritable = read != null && pending.remaining >= highWaterMark
+            if (setNeedsWritable)
+                needsWritable.set(true)
+
+            return !setNeedsWritable
         }
-
-        // the read coroutine will have synchronously finished
-        // reading the buffer and may be reclaimed.
-        buffer.takeReclaimedBuffers(pending)
-
-        // check if writable needs to be invoked
-        val setNeedsWritable = read != null && pending.remaining >= highWaterMark
-        if (setNeedsWritable)
-            needsWritable.set(true)
-
-        return !setNeedsWritable
     }
 
     suspend fun read(buffer: WritableBuffers): Boolean {
