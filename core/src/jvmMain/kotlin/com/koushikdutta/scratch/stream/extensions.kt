@@ -21,6 +21,7 @@ fun InputStream.createAsyncInput(readSize: Int = 65536): AsyncInput {
     }
 
     val thread = Thread({
+        Thread.sleep(1000L)
         try {
             while (true) {
                 val read = buffer.putAllocatedByteBuffer(readSize) {

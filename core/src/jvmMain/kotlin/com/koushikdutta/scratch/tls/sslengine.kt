@@ -23,6 +23,7 @@ fun javax.net.ssl.SSLEngineResult.HandshakeStatus.convert(): SSLEngineHandshakeS
         javax.net.ssl.SSLEngineResult.HandshakeStatus.NOT_HANDSHAKING -> SSLEngineHandshakeStatus.FINISHED
         javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_UNWRAP -> SSLEngineHandshakeStatus.NEED_UNWRAP
         javax.net.ssl.SSLEngineResult.HandshakeStatus.NEED_WRAP -> SSLEngineHandshakeStatus.NEED_WRAP
+        else -> throw IllegalStateException("unknown handshake status: $this")
     }
 }
 
