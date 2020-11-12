@@ -133,21 +133,6 @@ class HttpsHostExecutor(affinity: AsyncAffinity, val sslContext: SSLContext, res
     }
 }
 
-class HttpsInsecureHostExecutor(affinity: AsyncAffinity, val sslContext: SSLContext, resolver: RequestSocketResolver):
-        HostExecutor<AsyncTlsSocket>(affinity, 443, resolver) {
-
-    override suspend fun upgrade(request: AsyncHttpRequest, socket: AsyncSocket): AsyncTlsSocket {
-        val port = request.getPortOrDefault(443)
-        val host = request.uri.host!!
-        return socket.connectTls(host, port, sslContext)
-    }
-
-
-    override suspend fun createConnectExecutor(request: AsyncHttpRequest, connect: ResolvedSocketConnect<AsyncTlsSocket>): AsyncHttpExecutor {
-        return AsyncHttpConnectSocketExecutor(affinity, connect)::invoke
-    }
-}
-
 class HttpsAlpnHostExecutor(affinity: AsyncAffinity, val sslContext: SSLContext, resolver: RequestSocketResolver):
         HostExecutor<AlpnSocket>(affinity, 443, resolver) {
 
@@ -202,14 +187,3 @@ fun SchemeExecutor.useHttpsAlpnExecutor(affinity: AsyncAffinity,
 
 fun SchemeExecutor.useHttpsAlpnExecutor(eventLoop: AsyncEventLoop, sslContext: SSLContext = getDefaultALPNSSLContext()) =
         this.useHttpsAlpnExecutor(eventLoop, sslContext, createNetworkResolver(443, eventLoop))
-
-
-fun SchemeExecutor.useInsecureHttpsExecutor(affinity: AsyncAffinity,
-                                    sslContext: SSLContext = getDefaultSSLContext(),
-                                    resolver: RequestSocketResolver): SchemeExecutor {
-    val https = HttpsInsecureHostExecutor(affinity, sslContext, resolver)
-
-    register("https", https::invoke)
-    register("wss", https::invoke)
-    return this
-}
