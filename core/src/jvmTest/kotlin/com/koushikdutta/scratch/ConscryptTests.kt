@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.AsyncNetworkSocket
 import com.koushikdutta.scratch.http.Methods
@@ -27,14 +28,14 @@ class ConscryptTests {
         serverContext.init(keypairCert.first, keypairCert.second)
 
         val server = createAsyncPipeServerSocket()
-        val tlsServer = server.listenTls {
+        val tlsServer: AsyncServerSocket<AsyncTlsSocket> = server.listenTls {
             serverContext.createSSLEngine("TestServer", 80)
         }
 
 
         var data = ""
         tlsServer.acceptAsync {
-            data += readAllString(::read)
+            data += readAllString(this)
         }
 
         for (i in 1..2) {
@@ -74,7 +75,7 @@ class ConscryptTests {
         async {
             val tlsClient = tlsServer.accept().iterator().next()
             protocol = Conscrypt.getApplicationProtocol(tlsClient.engine)
-            tlsClient::write.drain("hello world".createByteBufferList())
+            tlsClient.drain("hello world".createByteBufferList())
             tlsClient.close()
         }
 
@@ -85,7 +86,7 @@ class ConscryptTests {
             engine.useClientMode = true
             Conscrypt.setApplicationProtocols(engine, arrayOf("foo"))
             val tlsSocket = tlsHandshake(socket, engine)
-            data = readAllString(tlsSocket::read)
+            data = readAllString(tlsSocket)
         }
 
         assert(data == "hello world")

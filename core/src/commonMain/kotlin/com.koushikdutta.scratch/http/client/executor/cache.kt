@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.codec.hex
 import com.koushikdutta.scratch.collections.LruCache
 import com.koushikdutta.scratch.collections.getFirst
@@ -220,7 +221,7 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
         if (entry == null)
             return null
 
-        val reader = AsyncReader(entry::read)
+        val reader = AsyncReader(entry)
         val responseLine: ResponseLine
         val headers: Headers
         val varyHeaders: Headers
@@ -306,7 +307,7 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
             // the cached response
             if (conditionalResponse != null && response.code == StatusCode.NOT_MODIFIED.code) {
                 // drain the body to allow socket reuse.
-                response.body?.drain()
+                response.body?.siphon()
                 return conditionalResponse
             }
 
@@ -351,7 +352,7 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
             }
             buffer.putUtf8String(varyHeaders.toString())
             buffer.putUtf8String(response.toMessageString())
-            entry::write.drain(buffer)
+            entry.drain(buffer as ReadableBuffers)
         }
         catch (throwable: Throwable) {
             entry.close()
@@ -360,7 +361,7 @@ class CacheExecutor(override val next: AsyncHttpClientExecutor, val asyncStore: 
 
         val body = response.body!!
         var error: Throwable? = null
-        val newBody = body.tee(entry::write) {
+        val newBody = body.tee(entry) {
             if (it != null) {
                 // ignore any errors, but bail on the caching.
                 error = it

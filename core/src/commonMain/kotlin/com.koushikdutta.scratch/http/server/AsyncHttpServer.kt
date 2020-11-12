@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http.server
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.filters.ChunkedOutputPipe
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
@@ -38,7 +39,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         .awaitClose()
     }
 
-    private suspend fun acceptLoop(socket: AsyncSocket, reader: AsyncReader = AsyncReader({ socket.read(it) })) {
+    private suspend fun acceptLoop(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)) {
         while (true) {
             val socketStatus = acceptInternal(socket, reader)
             if (socketStatus == HttpServerSocketStatus.KeepAlive)
@@ -49,9 +50,9 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         }
     }
 
-    suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader({socket.read(it)})) = acceptLoop(socket, reader)
+    suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)) = acceptLoop(socket, reader)
 
-    private suspend fun acceptInternal(socket: AsyncSocket, reader: AsyncReader = AsyncReader({ socket.read(it) })): HttpServerSocketStatus {
+    private suspend fun acceptInternal(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)): HttpServerSocketStatus {
         val requestLine = reader.readScanUtf8String("\r\n")
         if (requestLine.isEmpty())
             return HttpServerSocketStatus.Close
@@ -89,7 +90,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
 
         try {
             // make sure the entire request body has been read before sending the response.
-            requestBody.drain()
+            requestBody.siphon()
 
             require(response.headers.transferEncoding == null) { "Not allowed to set Transfer-Encoding header" }
 
@@ -110,11 +111,11 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
                 val statusCode = StatusCode.values().find { it.code == response.code }
                 if (response.headers.contentLength == null && statusCode?.hasBody != false)
                     response.headers.contentLength = 0
-                responseBody = { false }
+                responseBody = AsyncRead { false }
             }
 
             sendHeaders(socket, response)
-            responseBody.copy(socket::write)
+            responseBody.copy(socket)
 
             response.close(null)
 
@@ -130,7 +131,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
 
     override fun listen(server: AsyncServerSocket<*>) = server.acceptAsync {
         try {
-            acceptLoop(this, AsyncReader(this::read))
+            acceptLoop(this, AsyncReader(this))
         }
         catch (throwable: Throwable) {
             // can safely ignore these, as they are transport errors
@@ -146,7 +147,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         private suspend fun sendHeaders(socket: AsyncSocket, response:AsyncHttpResponse) {
             val buffer = ByteBufferList()
             buffer.putUtf8String(response.toMessageString())
-            socket::write.drain(buffer)
+            socket.drain(buffer as ReadableBuffers)
         }
     }
 }

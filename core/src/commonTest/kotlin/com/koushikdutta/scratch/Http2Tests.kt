@@ -33,7 +33,7 @@ class Http2Tests {
         async {
             val client = Http2Connection.upgradeHttp2Connection(pair.first, Http2ConnectionMode.Client)
             val connected = client.connect(Methods.GET("https://example.com/"))
-            data = readAllString({connected.read(it)})
+            data = readAllString(connected)
         }
 
         assertEquals(data, "Hello World")
@@ -132,7 +132,7 @@ class Http2Tests {
             val client = Http2Connection.upgradeHttp2Connection(pair.first, Http2ConnectionMode.Client)
             val connected =
                 client.connect(Methods.POST("https://example.com/", body = BinaryBody(read = body)))
-            val data = readAllString({connected.read(it)})
+            val data = readAllString(connected)
             assertEquals(data, "hello world")
         }
 
@@ -161,8 +161,8 @@ class Http2Tests {
             val client = Http2Connection.upgradeHttp2Connection(pair.first, Http2ConnectionMode.Client)
 
             for (i in 0 until 10) {
-                val connected = client.connect(Methods.POST("https://example.com/", body = BinaryBody(createUnboundRandomRead()::read)))
-                val data = readAllString({connected.read(it)})
+                val connected = client.connect(Methods.POST("https://example.com/", body = BinaryBody(createUnboundRandomRead())))
+                val data = readAllString(connected)
                 assertEquals(data, "hello world")
                 completed++
             }

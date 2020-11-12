@@ -17,7 +17,7 @@ class NioTests {
         // incuding the pipe ending, so writable will never be triggered.
         var data = ""
         async {
-            data = readAllString({pipe.read(it)})
+            data = readAllString(pipe)
         }
 
         val keepGoing = pipe.write(ByteBufferList().putUtf8String("Hello World"))
@@ -46,7 +46,7 @@ class NioTests {
         // start reading after end, to ensure data after read is still available.
         var data = ""
         async {
-            data = readAllString({pipe.read(it)})
+            data = readAllString(pipe)
         }
 
         assertEquals(data, "Hello WorldHello WorldHello World")
@@ -73,7 +73,7 @@ class NioTests {
 
         var data = ""
         async {
-            data = readAllString({pipe.read(it)})
+            data = readAllString(pipe)
         }
 
         assertEquals(data, "Hello WorldHello WorldHello World")
@@ -97,7 +97,7 @@ class NioTests {
 
         async {
             try {
-                readAllString(pipe::read)
+                readAllString(pipe)
             }
             catch (throwable: IOException) {
                 return@async
@@ -108,7 +108,7 @@ class NioTests {
         // reading again with another read in progress should succeed here, and cause the previous read to IOException
         var gotData = false
         async {
-            readAllString(pipe::read)
+            readAllString(pipe)
             gotData = true
         }
 

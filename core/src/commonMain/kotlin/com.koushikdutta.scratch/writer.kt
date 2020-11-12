@@ -10,10 +10,10 @@ fun asyncWriter(block: suspend AsyncPipeIteratorScope.() -> Unit): AsyncRead {
         block(scope)
     }
 
-    return read@{
+    return AsyncRead {
         buffer.takeReclaimedBuffers(it)
         if (!iterator.hasNext())
-            return@read false
+            return@AsyncRead false
         iterator.next()
         it.add(buffer)
         true

@@ -44,7 +44,7 @@ suspend fun AsyncHttpRequest.createSliceableResponse(totalLength: Long, headers:
 
     return if (method == Methods.GET) {
         val asyncInput = slice(start, end - start + 1)
-        val body = BinaryBody(asyncInput::read, contentLength = totalLength)
+        val body = BinaryBody(asyncInput, contentLength = totalLength)
 
         status(headers, body) {
             asyncInput.close()

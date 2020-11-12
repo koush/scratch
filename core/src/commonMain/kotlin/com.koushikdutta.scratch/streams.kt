@@ -14,14 +14,25 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
  * invalid implementation:
  * This makes read looping clunky, as false while returning data results in truthy behavior.
  */
-typealias AsyncRead = suspend (buffer: WritableBuffers) -> Boolean
+interface AsyncRead {
+    suspend fun read(buffer: WritableBuffers): Boolean
+    suspend operator fun invoke(buffer: WritableBuffers) = read(buffer)
+}
+fun AsyncRead(block: suspend(buffer: WritableBuffers) -> Boolean): AsyncRead = object : AsyncRead {
+    override suspend fun read(buffer: WritableBuffers) = block(buffer)
+}
 
 /**
  * Write from a buffer.
  * This function may return without fully writing the entire buffer.
  */
-typealias AsyncWrite = suspend (buffer: ReadableBuffers) -> Unit
-
+interface AsyncWrite {
+    suspend fun write(buffer: ReadableBuffers)
+    suspend operator fun invoke(buffer: ReadableBuffers) = write(buffer)
+}
+fun AsyncWrite(block: suspend(buffer: ReadableBuffers) -> Unit): AsyncWrite = object : AsyncWrite {
+    override suspend fun write(buffer: ReadableBuffers) = block(buffer)
+}
 
 /**
  * A pipe: Given a read, return a read.
@@ -56,25 +67,8 @@ interface AsyncResource {
     suspend fun close()
 }
 
-interface AsyncInput : AsyncResource {
-    /**
-     * Read into a buffer.
-     * Returns true if more data can be read.
-     * Returns false if nothing was read, and no further data can be read.
-     * Writing data into the buffer, and returning false to indicate end of stream is an
-     * invalid implementation:
-     * This makes read looping clunky, as false while returning data results in truthy behavior.
-     */
-    suspend fun read(buffer: WritableBuffers): Boolean
-}
-
-interface AsyncOutput : AsyncResource {
-    /**
-     * Write from a buffer.
-     * This function may return without fully writing the entire buffer.
-     */
-    suspend fun write(buffer: ReadableBuffers)
-}
+interface AsyncInput : AsyncRead, AsyncResource
+interface AsyncOutput : AsyncWrite, AsyncResource
 
 /**
  * AsyncSocket provides an AsyncRead and AsyncWrite.
@@ -101,15 +95,15 @@ internal fun <T> genericPipe(read: T, pipe: GenericAsyncPipe<T>): AsyncRead {
         pipe(scope, read)
     }
 
-    return read@{
+    return AsyncRead {
         buffer.takeReclaimedBuffers(it)
         while (true) {
             try {
                 if (!iterator.hasNext())
-                    return@read false
+                    return@AsyncRead false
                 iterator.next()
                 buffer.read(it)
-                return@read true
+                return@AsyncRead true
             }
             catch (iteratorException: AsyncIteratorConcurrentException) {
                 if (iteratorException.resumed)
@@ -132,9 +126,9 @@ fun AsyncRead.pipe(pipe: AsyncPipe): AsyncRead {
 
 suspend fun AsyncSocket.stream(peer: AsyncSocket) {
     val other = async {
-        peer::read.copy(::write)
+        peer.copy(this)
     }
-    ::read.copy(peer::write)
+    copy(peer)
     other.await()
 }
 
@@ -166,13 +160,11 @@ fun AsyncRead.tee(asyncWrite: AsyncWrite, callback: suspend (throwable: Throwabl
     }
 }
 
-fun ReadableBuffers.createReader(): AsyncRead {
-    return read@{
-        if (isEmpty)
-            return@read false
-        this.read(it)
-        true
-    }
+fun ReadableBuffers.createReader() = AsyncRead {
+    if (isEmpty)
+        return@AsyncRead false
+    this.read(it)
+    true
 }
 
 suspend fun AsyncWrite.drain(buffer: ReadableBuffers) {
@@ -181,14 +173,14 @@ suspend fun AsyncWrite.drain(buffer: ReadableBuffers) {
     }
 }
 
-suspend fun AsyncRead.drain() {
+suspend fun AsyncRead.siphon() {
     val temp = ByteBufferList()
     while (this(temp)) {
         temp.free()
     }
 }
 
-suspend fun AsyncRead.drain(buffer: WritableBuffers) {
+suspend fun AsyncRead.siphon(buffer: WritableBuffers) {
     while (this(buffer)) {
         // prevent ide complaining about empty body
     }
@@ -200,19 +192,17 @@ suspend fun AsyncRead.copy(asyncWrite: AsyncWrite, buffer: ByteBufferList = Byte
     }
 }
 
-operator fun AsyncRead.plus(other: AsyncRead): AsyncRead {
-    return {
-        this(it) || other(it)
-    }
+operator fun AsyncRead.plus(other: AsyncRead) = AsyncRead {
+    this(it) || other(it)
 }
 
 
 fun AsyncIterator<AsyncRead>.join(): AsyncRead {
     var read: AsyncRead? = null
-    return read@{
+    return AsyncRead {
         if (read == null) {
             if (!hasNext())
-                return@read false
+                return@AsyncRead false
             read = next()
         }
 
@@ -223,20 +213,16 @@ fun AsyncIterator<AsyncRead>.join(): AsyncRead {
     }
 }
 
-fun AsyncIterator<ByteBuffer>.createAsyncReadFromByteBuffers(): AsyncRead {
-    return read@{
-        if (!hasNext())
-            return@read false
-        it.add(next())
-        true
-    }
+fun AsyncIterator<ByteBuffer>.createAsyncReadFromByteBuffers() = AsyncRead {
+    if (!hasNext())
+        return@AsyncRead false
+    it.add(next())
+    true
 }
 
-fun AsyncIterator<ByteBufferList>.createAsyncReadFromByteBufferLists(): AsyncRead {
-    return read@{
-        if (!hasNext())
-            return@read false
-        it.add(next())
-        true
-    }
+fun AsyncIterator<ByteBufferList>.createAsyncReadFromByteBufferLists() = AsyncRead {
+    if (!hasNext())
+        return@AsyncRead false
+    it.add(next())
+    true
 }

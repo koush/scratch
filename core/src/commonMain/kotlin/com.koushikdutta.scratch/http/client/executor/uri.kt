@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.http.client.executor
 
 import com.koushikdutta.scratch.*
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.InetSocketAddress
@@ -79,8 +80,8 @@ abstract class HostExecutor<T: AsyncSocket>(override val affinity: AsyncAffinity
 
                     for (socket in candidates) {
                         val connectBuffer = "CONNECT ${host}:$port HTTP/1.1\r\n\r\n".createByteBufferList()
-                        socket::write.drain(connectBuffer)
-                        val reader = AsyncReader(socket::read)
+                        socket.drain(connectBuffer as ReadableBuffers)
+                        val reader = AsyncReader(socket)
                         val statusLine = reader.readHttpHeaderLine().trim()
                         val headers = reader.readHeaderBlock()
                         val responseLine = ResponseLine(statusLine)

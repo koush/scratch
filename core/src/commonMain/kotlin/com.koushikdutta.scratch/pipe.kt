@@ -79,7 +79,7 @@ fun createAsyncPipeSocketPair() : Pair<PairedPipeSocket, PairedPipeSocket> {
         p2.close()
     }
 
-    return Pair(PairedPipeSocket({p1.read(it)}, {p2.write(it)}, close), PairedPipeSocket({p2.read(it)}, {p1.write(it)}, close))
+    return Pair(PairedPipeSocket(p1, p2, close), PairedPipeSocket(p2, p1, close))
 }
 
 class PairedPipeSocket(val input: AsyncRead, val output: AsyncWrite, val outputClose: suspend() -> Unit) : AsyncSocket, AsyncAffinity by NO_AFFINITY {

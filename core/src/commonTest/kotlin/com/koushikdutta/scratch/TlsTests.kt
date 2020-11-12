@@ -46,7 +46,7 @@ class TlsTests {
             engine.useClientMode = true
 
             val client = tlsHandshake(pair.second, engine)
-            data = readAllString({client.read(it)})
+            data = readAllString(client)
         }
 
         assertEquals(data, "Hello World")
@@ -80,7 +80,7 @@ class TlsTests {
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                readAllString(client::read)
+                readAllString(client)
             }
 
             result1.getCompleted()
@@ -119,7 +119,7 @@ class TlsTests {
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                readAllString(client::read)
+                readAllString(client)
             }
 
             result2.getCompleted()
@@ -141,7 +141,7 @@ class TlsTests {
 
         var data = ""
         tlsServer.acceptAsync {
-            data += readAllString({read(it)})
+            data += readAllString(this)
         }
 
         for (i in 1..2) {
@@ -245,7 +245,7 @@ class TlsTests {
 
         var data = ""
         tlsServer.acceptAsync {
-            data += readAllString({read(it)})
+            data += readAllString(this)
         }
 
         launch {

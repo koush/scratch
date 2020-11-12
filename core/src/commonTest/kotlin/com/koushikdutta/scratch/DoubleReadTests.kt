@@ -27,17 +27,17 @@ class DoubleReadTests {
     fun testPipeDoubleRead() {
         val pipe = PipeSocket()
 
-        testDoubleRead(pipe::read)
+        testDoubleRead(pipe)
     }
 
     @Test
     fun testInterruptDoubleRead() {
         val pipe = PipeSocket()
 
-        val i1 = InterruptibleRead(pipe::read)
-        val i2 = InterruptibleRead(pipe::read)
+        val i1 = InterruptibleRead(pipe)
+        val i2 = InterruptibleRead(pipe)
 
-        testDoubleRead(i1::read, i2::read)
+        testDoubleRead(i1, i2)
     }
 
 
@@ -45,14 +45,14 @@ class DoubleReadTests {
     fun testInterruptDoubleRead2() {
         val pipe = PipeSocket()
 
-        val i1 = InterruptibleRead(pipe::read)
-        testDoubleRead(i1::read)
+        val i1 = InterruptibleRead(pipe)
+        testDoubleRead(i1)
     }
 
     @Test
     fun testPipedDoubleRead() {
         val pipe = PipeSocket()
-        val piped = pipe::read.pipe {
+        val piped = pipe.pipe {
             while (it(buffer))
                 flush()
         }

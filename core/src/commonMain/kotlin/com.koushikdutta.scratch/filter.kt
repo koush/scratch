@@ -10,7 +10,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
  * The interrupted read will return true to indicate more data is present,
  * and the WritableBuffers will be unchanged.
  */
-class InterruptibleRead(private val input: AsyncRead) {
+class InterruptibleRead(private val input: AsyncRead): AsyncRead {
     private val pipe = PipeSocket()
     private val baton = Baton<Unit>()
 
@@ -32,7 +32,7 @@ class InterruptibleRead(private val input: AsyncRead) {
         }
     }
 
-    suspend fun read(buffer: WritableBuffers): Boolean {
+    override suspend fun read(buffer: WritableBuffers): Boolean {
         baton.toss(Unit)
         return pipe.read(buffer)
     }

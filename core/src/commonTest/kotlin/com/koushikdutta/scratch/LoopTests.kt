@@ -4,6 +4,8 @@ import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.event.*
 import com.koushikdutta.scratch.http.AsyncHttpRequest
@@ -117,7 +119,7 @@ class LoopTests {
         }
         val client = connect("127.0.0.1", server.localPort)
         client.write(ByteBufferList().putUtf8String("hello!"))
-        val reader = AsyncReader({client.read(it)})
+        val reader = AsyncReader(client)
         assertEquals(reader.readUtf8String(6), "hello!")
     }
 
@@ -130,7 +132,7 @@ class LoopTests {
         val client = connect("127.0.0.1", server.localPort)
         try {
             client.write(ByteBufferList().putUtf8String("hello!"))
-            val reader = AsyncReader({client.read(it)})
+            val reader = AsyncReader(client)
             reader.readUtf8String(1)
         }
         catch (exception: IOException) {
@@ -150,7 +152,7 @@ class LoopTests {
         val client = connect("127.0.0.1", server.localPort)
         try {
             client.write(ByteBufferList().putUtf8String("hello!"))
-            val reader = AsyncReader({client.read(it)})
+            val reader = AsyncReader(client)
                 reader.readUtf8String(1)
         }
         catch (exception: IOException) {
@@ -167,7 +169,7 @@ class LoopTests {
             val buffer = ByteBufferList()
             val random = TestUtils.createRandomRead(1000000)
             while (random(buffer)) {
-                ::write.drain(buffer)
+                drain(buffer)
                 assertTrue(buffer.isEmpty)
             }
             close()
@@ -194,7 +196,7 @@ class LoopTests {
         val server = listen(0)
 
         server.acceptAsync {
-            TestUtils.createRandomRead(10000000).copy(::write)
+            TestUtils.createRandomRead(10000000).copy(this)
             close()
         }
 
@@ -305,12 +307,12 @@ class LoopTests {
                 while (true) {
                     try {
                         sleep(abs(random.nextLong()) % 5000)
-                        val body = AsyncReader {
+                        val body = AsyncReader(AsyncRead {
                             it.putAllocatedBytes(10000) { bytes, bytesOffset ->
                                 random.nextBytes(bytes, bytesOffset, bytesOffset + 10000)
                             }
                             true
-                        }.pipe(createContentLengthPipe(postLength.toLong()))
+                        }).pipe(createContentLengthPipe(postLength.toLong()))
 
                         val request =
                                 AsyncHttpRequest(URI.create("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
@@ -376,10 +378,10 @@ class LoopTests {
         websocket.ping("ping!")
         assertEquals("ping!", websocket.readMessage().text)
 
-        websocket::write.drain("hello".createByteBufferList())
-        websocket::write.drain("world".createByteBufferList())
+        websocket.drain("hello".createByteBufferList())
+        websocket.drain("world".createByteBufferList())
         websocket.close()
-        val data = readAllString(websocket::read)
+        val data = readAllString(websocket)
         assertEquals("helloworld", data)
     }
 

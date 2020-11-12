@@ -1,5 +1,6 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.collections.LruCache
 import kotlin.test.Test
@@ -12,7 +13,7 @@ class LruCacheTests {
         val lru = LruCache(BufferStore(), 35)
 
         val entry = lru.openWrite("test")
-        entry::write.drain("hello world".createByteBufferList())
+        entry.drain("hello world".createByteBufferList())
         entry.close()
 
         lru.currentSize
@@ -23,15 +24,15 @@ class LruCacheTests {
         val lru = LruCache(BufferStore(), 30)
 
         val entry = lru.openWrite("test")
-        entry::write.drain("hello world".createByteBufferList())
+        entry.drain("hello world".createByteBufferList())
         entry.close()
 
         val entry2 = lru.openWrite("test2")
-        entry2::write.drain("hello world".createByteBufferList())
+        entry2.drain("hello world".createByteBufferList())
         entry2.close()
 
         val entry3 = lru.openWrite("test3")
-        entry3::write.drain("hello world".createByteBufferList())
+        entry3.drain("hello world".createByteBufferList())
         entry3.close()
 
         val keys = lru.getKeys()
@@ -48,17 +49,17 @@ class LruCacheTests {
         val lru = LruCache(BufferStore(), 30)
 
         val entry = lru.openWrite("test")
-        entry::write.drain("hello world".createByteBufferList())
+        entry.drain("hello world".createByteBufferList())
         entry.close()
 
         val entry2 = lru.openWrite("test2")
-        entry2::write.drain("hello world".createByteBufferList())
+        entry2.drain("hello world".createByteBufferList())
         entry2.close()
 
         lru.openRead("test")!!.close()
 
         val entry3 = lru.openWrite("test3")
-        entry3::write.drain("hello world".createByteBufferList())
+        entry3.drain("hello world".createByteBufferList())
         entry3.close()
 
         val keys = lru.getKeys()

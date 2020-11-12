@@ -26,7 +26,7 @@ fun createContentLengthPipe(contentLength: Long): AsyncReaderPipe {
 }
 
 fun createEndWatcher(read: AsyncRead, complete: suspend () -> Unit): AsyncRead {
-    return {
+    return AsyncRead {
         val ret = read(it)
         if (!ret)
             complete()
@@ -56,12 +56,12 @@ fun getHttpBodyOrNull(headers: Headers, reader: AsyncReader, server: Boolean): A
     else {
         // handling server response:
         // no meaningful headers means server will write data and close the connection.
-        read = { reader.read(it) }
+        read = AsyncRead(reader::read)
     }
 
     return read
 }
 
 fun getHttpBody(headers: Headers, reader: AsyncReader, server: Boolean): AsyncRead {
-    return getHttpBodyOrNull(headers, reader, server) ?: { false }
+    return getHttpBodyOrNull(headers, reader, server) ?: AsyncRead { false }
 }

@@ -9,7 +9,8 @@ import kotlin.math.min
  * Create an AsyncReader that provides advanced reading operations
  * on an AsyncRead stream.
  */
-class AsyncReader(val input: AsyncRead) {
+class AsyncReader(val input: AsyncRead): AsyncRead {
+    constructor(block: suspend(buffer: WritableBuffers) -> Boolean): this(AsyncRead(block))
     private val pending = ByteBufferList()
     val buffered: Int
         get() = pending.remaining()
@@ -29,7 +30,7 @@ class AsyncReader(val input: AsyncRead) {
     /**
      * Read the underlying input.
      */
-    suspend fun read(buffer: WritableBuffers): Boolean {
+    override suspend fun read(buffer: WritableBuffers): Boolean {
         if (pending.hasRemaining()) {
             pending.read(buffer)
             return true

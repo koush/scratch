@@ -68,7 +68,6 @@ expect abstract class Buffer {
     abstract fun array(): Any
     abstract fun arrayOffset(): Int
     abstract fun isDirect(): Boolean
-    abstract fun duplicate(): Buffer
 }
 
 expect abstract class ByteBuffer : Buffer {
@@ -93,5 +92,5 @@ expect abstract class ByteBuffer : Buffer {
     abstract fun putLong(value: Long): ByteBuffer
 
     final override fun array(): ByteArray
-    abstract override fun duplicate(): ByteBuffer
+    abstract fun duplicate(): ByteBuffer
 }

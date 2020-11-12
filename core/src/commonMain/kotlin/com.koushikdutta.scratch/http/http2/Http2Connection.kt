@@ -151,7 +151,7 @@ class Http2Socket internal constructor(val connection: Http2Connection, val stre
     }
 }
 
-class Http2Connection private constructor(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket::read)): AsyncResource by socket, AsyncAffinity by socket, AsyncServerSocket<Http2Socket> {
+class Http2Connection private constructor(val socket: AsyncSocket, val client: Boolean, socketReader: AsyncReader = AsyncReader(socket)): AsyncResource by socket, AsyncAffinity by socket, AsyncServerSocket<Http2Socket> {
     private val pushPromises = mutableMapOf<String, Http2Socket>()
     private val incomingSockets = AsyncQueue<Http2Socket>()
     internal val handler = AsyncHandler(socket)
@@ -184,7 +184,7 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
         // spin loops of zero length writes.
         if (writeBytesAvailable <= 0)
             return@BlockingWritePipe
-        socket::write.drain(it)
+        socket.drain(it as ReadableBuffers)
     }
     internal val reader = Http2Reader(socket, socketReader)
     private val readerHandler = object : Http2Reader.Handler {
@@ -387,7 +387,7 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
             return key
         }
 
-        suspend fun upgradeHttp2Connection(socket: AsyncSocket, mode: Http2ConnectionMode, socketReader: AsyncReader = AsyncReader {socket.read(it)}): Http2Connection {
+        suspend fun upgradeHttp2Connection(socket: AsyncSocket, mode: Http2ConnectionMode, socketReader: AsyncReader = AsyncReader(socket)): Http2Connection {
             val client = mode == Http2ConnectionMode.Client
             val readConnectionPreface = mode == Http2ConnectionMode.Server
             val connection = Http2Connection(socket, client, socketReader)
@@ -449,7 +449,7 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
 
     internal suspend fun flush() {
         try {
-            socket::write.drain(sink)
+            socket.drain(sink as ReadableBuffers)
         }
         catch (throwable: Throwable) {
             // close will also attempt to flush a connection shutdown, but it only
@@ -469,7 +469,7 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
     }
 
     internal suspend fun flushData() {
-        output::write.drain(sink)
+        output.drain(sink)
     }
 
     private fun acknowledgeData() {
@@ -532,7 +532,7 @@ suspend fun Http2Connection.connect(request: AsyncHttpRequest): Http2Socket {
     val socket = connect(request.createHttp2ConnectionHeader(), requestBody == null)
     if (requestBody != null) {
         try {
-            requestBody.copy(socket::write)
+            requestBody.copy(socket)
             socket.closeOutput()
         }
         catch (e: Http2ResetException) {
@@ -545,7 +545,7 @@ suspend fun Http2Connection.connect(request: AsyncHttpRequest): Http2Socket {
 
 suspend fun Http2Socket.createHttp2Request(): AsyncHttpRequest {
     val headers = readHeaders()
-    return Http2ExchangeCodec.createRequest(headers, ::read)
+    return Http2ExchangeCodec.createRequest(headers, this)
 }
 
 fun AsyncHttpRequest.createHttp2ConnectionHeader(): Headers {
@@ -568,7 +568,7 @@ fun Http2Connection.acceptHttpAsync(executor: AsyncHttpExecutor) = acceptAsync {
     val responseBody = response.body
     writeHeaders(response.createHttp2ConnectionHeader(), responseBody == null)
     if (responseBody != null) {
-        responseBody.copy(::write)
+        responseBody.copy(this)
         closeOutput()
     }
 

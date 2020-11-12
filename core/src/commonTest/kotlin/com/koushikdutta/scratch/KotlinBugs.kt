@@ -4,6 +4,7 @@ import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.event.connect
 import kotlin.test.Test
@@ -20,7 +21,7 @@ class KotlinBugs {
             val buffer = ByteBufferList()
             val random = TestUtils.createRandomRead(1000000)
             while (random(buffer)) {
-                ::write.drain(buffer)
+                drain(buffer)
                 assertTrue(buffer.isEmpty)
             }
             close()

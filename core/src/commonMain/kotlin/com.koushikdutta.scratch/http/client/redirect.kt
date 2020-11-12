@@ -1,6 +1,6 @@
 package com.koushikdutta.scratch.http.client
 
-import com.koushikdutta.scratch.drain
+import com.koushikdutta.scratch.siphon
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Methods
@@ -22,7 +22,7 @@ private class RedirectExecutor(override val next: AsyncHttpClientExecutor, val m
         if (newRequest == null)
             return response
 
-        response.body?.drain()
+        response.body?.siphon()
 
         if (redirects <= 0)
             throw Exception("Too many redirects")

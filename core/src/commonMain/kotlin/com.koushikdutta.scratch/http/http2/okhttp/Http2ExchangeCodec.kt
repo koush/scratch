@@ -55,7 +55,7 @@ internal class Http2ExchangeCodec {
             }
             if (statusLine == null) throw Exception("Expected ':status' header not present")
 
-            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, socket::read) {
+            return AsyncHttpResponse(ResponseLine(statusLine), outHeaders, socket) {
                 socket.close()
             }
         }

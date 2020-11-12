@@ -65,7 +65,7 @@ interface AsyncHttpMessageBody {
 
 suspend fun AsyncRandomAccessInput.createHttpMessageBody(contentType: String? = null): AsyncHttpMessageBody {
     val size = size()
-    val read = this::read
+    val read = this
     return object : AsyncHttpMessageBody {
         override val contentType = contentType
         override val contentLength = size

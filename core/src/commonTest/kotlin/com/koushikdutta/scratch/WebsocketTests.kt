@@ -1,5 +1,7 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.buffers.ReadableBuffers
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
@@ -18,15 +20,15 @@ class WebsocketTests {
         val pipe = createAsyncPipeSocketPair()
         val clientSocket = pipe.first
         val serverSocket = pipe.second
-        val client = HybiParser(AsyncReader(clientSocket::read), true)
-        val server = HybiParser(AsyncReader(serverSocket::read), false)
+        val client = HybiParser(AsyncReader(clientSocket), true)
+        val server = HybiParser(AsyncReader(serverSocket), false)
 
         val testData = Random.Default.nextBytes(length)
         val digest = CrappyDigest.getInstance().update(testData).digest().createByteBufferList().readLong()
 
         var done = 0
         async {
-            serverSocket::write.drain(server.frame(testData.createByteBufferList()))
+            serverSocket.drain(server.frame(testData.createByteBufferList()))
             val message = server.parse()
             val check = CrappyDigest.getInstance().update(readAllBuffer(message.read).readBytes()).digest().createByteBufferList().readLong()
             assertEquals(check, digest)
@@ -38,7 +40,7 @@ class WebsocketTests {
             val testDataCopy = readAllBuffer(message.read).readBytes()
             val check = CrappyDigest.getInstance().update(testDataCopy).digest().createByteBufferList().readLong()
             assertEquals(check, digest)
-            clientSocket::write.drain(client.frame(testDataCopy.createByteBufferList()))
+            clientSocket.drain(client.frame(testDataCopy.createByteBufferList()))
             done++
         }
         assertEquals(done, 2)
@@ -64,12 +66,12 @@ class WebsocketTests {
         val pipe = createAsyncPipeSocketPair()
         val clientSocket = pipe.first
         val serverSocket = pipe.second
-        val client = HybiParser(AsyncReader(clientSocket::read), true)
-        val server = HybiParser(AsyncReader(serverSocket::read), false)
+        val client = HybiParser(AsyncReader(clientSocket), true)
+        val server = HybiParser(AsyncReader(serverSocket), false)
 
         var done = 0
         async {
-            serverSocket::write.drain(server.pingFrame("hello"))
+            serverSocket.drain(server.pingFrame("hello"))
             val message = server.parse()
             assertEquals(HybiParser.OP_PONG, message.opcode)
             val check = readAllString(message.read)
@@ -82,7 +84,7 @@ class WebsocketTests {
             val check = readAllString(message.read)
             assertEquals(HybiParser.OP_PING, message.opcode)
             assertEquals(check, "hello")
-            clientSocket::write.drain(client.pongFrame("hello"))
+            clientSocket.drain(client.pongFrame("hello"))
             done++
         }
         assertEquals(done, 2)
@@ -93,17 +95,17 @@ class WebsocketTests {
         val pipe = createAsyncPipeSocketPair()
         val clientSocket = pipe.first
         val serverSocket = pipe.second
-        val client = HybiParser(AsyncReader(clientSocket::read), true)
-        val server = HybiParser(AsyncReader(serverSocket::read), false)
+        val client = HybiParser(AsyncReader(clientSocket), true)
+        val server = HybiParser(AsyncReader(serverSocket), false)
 
         var done = 0
         async {
-            serverSocket::write.drain(server.pingFrame("hello"))
+            serverSocket.drain(server.pingFrame("hello"))
             val message = server.parse()
             assertEquals(HybiParser.OP_PONG, message.opcode)
             val check = readAllString(message.read)
             assertEquals(check, "hello")
-            serverSocket::write.drain(server.closeFrame(55, "dead"))
+            serverSocket.drain(server.closeFrame(55, "dead"))
             done++
         }
 
@@ -111,7 +113,7 @@ class WebsocketTests {
             val message = client.parse()
             assertEquals(HybiParser.OP_PING, message.opcode)
             assertEquals(readAllString(message.read), "hello")
-            clientSocket::write.drain(client.pongFrame("hello"))
+            clientSocket.drain(client.pongFrame("hello"))
 
             val message2 = client.parse()
             assertEquals(message2.closeCode, 55)
@@ -130,13 +132,13 @@ class WebsocketTests {
 
         var data: String? = null
         async {
-            clientSocket::write.drain("hello".createByteBufferList())
-            clientSocket::write.drain("world".createByteBufferList())
+            clientSocket.drain("hello".createByteBufferList())
+            clientSocket.drain("world".createByteBufferList())
             clientSocket.close()
         }
 
         async {
-            data = readAllString(serverSocket::read)
+            data = readAllString(serverSocket)
         }
 
         assertEquals("helloworld", data)
@@ -150,14 +152,14 @@ class WebsocketTests {
         val webSocketServer = router.webSocket("/websocket")
         var data: String? = null
         webSocketServer.acceptAsync {
-            data = readAllString(this::read)
+            data = readAllString(this)
         }
 
         val httpClient = httpServer.createFallbackClient()
         async {
             val clientSocket = httpClient.connectWebSocket("/websocket")
-            clientSocket::write.drain("hello".createByteBufferList())
-            clientSocket::write.drain("world".createByteBufferList())
+            clientSocket.drain("hello".createByteBufferList())
+            clientSocket.drain("world".createByteBufferList())
             clientSocket.close()
         }
 

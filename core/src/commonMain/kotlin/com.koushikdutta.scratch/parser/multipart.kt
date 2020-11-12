@@ -34,12 +34,11 @@ class Multipart : AsyncHttpMessageBody {
     override val contentType: String
 
     var partRead: AsyncRead? = null
-    override val read: AsyncRead
-        get() = read@{
-            if (partRead == null)
-                partRead = createPartBoundaries(boundary, iterator).join()
-            partRead!!(it)
-        }
+    override val read = AsyncRead {
+        if (partRead == null)
+            partRead = createPartBoundaries(boundary, iterator).join()
+        partRead!!(it)
+    }
 
     override val contentLength: Long? = null
 
@@ -120,9 +119,9 @@ class Multipart : AsyncHttpMessageBody {
                     val headers = reader.readHeaderBlock()
 
                     var partEnd = false
-                    val partRead: AsyncRead = read@{
+                    val partRead = AsyncRead {
                         if (partEnd)
-                            return@read false
+                            return@AsyncRead false
 
                         val scan = reader.readScanChunk(partBuffer, boundaryBreakBytes)
                         if (scan == false)

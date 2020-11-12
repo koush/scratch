@@ -8,9 +8,9 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 
 class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket, AsyncAffinity by socket {
     private var finishedHandshake = false
-    private val socketRead = InterruptibleRead(socket::read)
+    private val socketRead = InterruptibleRead(socket)
     private val decryptAllocator = AllocationTracker()
-    private val decryptedRead = (socketRead::read as AsyncRead).pipe {
+    private val decryptedRead = socketRead.pipe {
         val unfiltered = ByteBufferList();
         while (true) {
             val awaitingHandshake = !finishedHandshake
@@ -53,12 +53,12 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
     private val unencryptedWriteBuffer = ByteBufferList()
     private val encryptedWriteBuffer = ByteBufferList()
     private val encryptAllocator = AllocationTracker()
-    private val encryptedWrite: AsyncWrite = write@{ buffer ->
+    private val encryptedWrite = AsyncWrite { buffer ->
         await()
 
         if (encryptedWriteBuffer.hasRemaining()) {
             socket.write(encryptedWriteBuffer)
-            return@write
+            return@AsyncWrite
         }
 
         // move the unencrypted data from upstream into a working buffer.
@@ -79,7 +79,7 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
                 if (!awaitingHandshake)
                     socket.write(encryptedWriteBuffer)
                 else
-                    socket::write.drain(encryptedWriteBuffer)
+                    socket.drain(encryptedWriteBuffer as ReadableBuffers)
             }
 
             if (result.status == SSLEngineStatus.BUFFER_UNDERFLOW) {
@@ -163,7 +163,7 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
 
     internal suspend fun awaitHandshake() {
         val handshakeBuffer = ByteBufferList()
-        reader = {
+        reader = AsyncRead {
             reader = decryptedRead
             handshakeBuffer.read(it)
             true

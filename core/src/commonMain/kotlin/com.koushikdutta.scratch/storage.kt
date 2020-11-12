@@ -28,9 +28,9 @@ suspend fun AsyncRandomAccessInput.seekRead(position: Long, length: Long): Async
 
     var total = 0L
     val buffer = ByteBufferList()
-    return read@{
+    return AsyncRead {
         if (total >= length)
-            return@read false
+            return@AsyncRead false
 
         buffer.takeReclaimedBuffers(it)
         val ret = readPosition(position + total, length - total, buffer)
@@ -49,7 +49,7 @@ suspend fun AsyncRandomAccessInput.seekInput(position: Long, length: Long): Asyn
 
 fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
     var read = 0L
-    return {
+    return AsyncRead {
         val start = it.remaining()
         val eos = readPosition(position + read, length - read, it)
         read += it.remaining() - start
@@ -68,7 +68,7 @@ fun AsyncRandomAccessInput.slice(position: Long, length: Long): AsyncRead {
 interface AsyncRandomAccessStorage : AsyncOutput, AsyncRandomAccessInput {
     suspend fun writePosition(position: Long, buffer: ReadableBuffers) {
         seekPosition(position)
-        this::write.drain(buffer)
+        drain(buffer)
     }
     suspend fun truncate(size: Long)
 }

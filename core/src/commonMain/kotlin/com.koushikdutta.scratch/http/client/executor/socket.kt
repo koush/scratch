@@ -3,6 +3,7 @@ package com.koushikdutta.scratch.http.client.executor
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.async.launch
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseCommaDelimited
 import com.koushikdutta.scratch.event.milliTime
@@ -15,7 +16,7 @@ import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 
 class AsyncHttpClientSwitchingProtocols(val responseHeaders: Headers, val socket: AsyncSocket): Exception()
 
-class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader = AsyncReader(socket::read)): AsyncHttpClientExecutor {
+class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader = AsyncReader(socket)): AsyncHttpClientExecutor {
     override val affinity = socket
     private val buffer = ByteBufferList()
     private var timeout = Long.MAX_VALUE
@@ -60,12 +61,12 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
             }
         }
         else {
-            requestBody = { false }
+            requestBody = AsyncRead { false }
         }
 
         buffer.putUtf8String(request.toMessageString())
-        socket::write.drain(buffer)
-        requestBody.copy(socket::write, buffer)
+        socket.drain(buffer as ReadableBuffers)
+        requestBody.copy(socket, buffer)
         request.close()
 
         val statusLine = reader.readHttpHeaderLine().trim()

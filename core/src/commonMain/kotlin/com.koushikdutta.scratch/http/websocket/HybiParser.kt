@@ -104,7 +104,7 @@ class HybiParser(private val reader: AsyncReader, private val masking: Boolean) 
 
         isEnded = true
         val reader = AsyncReader(read)
-        return HybiFrame(opcode, final, reader::read, ).run {
+        return HybiFrame(opcode, final, reader).run {
             closeCode = reader.readShort().toInt()
             this
         }

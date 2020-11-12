@@ -15,7 +15,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
  * The pipe write will always fully succeed, and always take any available data written,
  * even if the write returns false. Ignoring the high water mark may result in out of memory errors.
  */
-class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val writable: suspend NonBlockingWritePipe.() -> Unit) {
+class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val writable: suspend NonBlockingWritePipe.() -> Unit): AsyncRead {
     // baton data is true for a write, false for read to verify read is not called erroneously.
     private val baton = Baton<Boolean>()
     private val pending = FreezableBuffers()
@@ -79,7 +79,7 @@ class NonBlockingWritePipe(private val highWaterMark: Int = 65536, private val w
         }
     }
 
-    suspend fun read(buffer: WritableBuffers): Boolean {
+    override suspend fun read(buffer: WritableBuffers): Boolean {
         val result = pending.read(buffer)
         // if the read failed, the pipe is closing.
         if (result == null) {
@@ -128,7 +128,7 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
     val pipe = NonBlockingWritePipe(highWaterMark) { writable() }
     writable(pipe)
 
-    return pipe::read
+    return pipe
 }
 
 /**
@@ -138,7 +138,7 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
  * Upon returning unsent data, the transport is responsible for calling writable
  * when it is ready to resume sending data.
  */
-open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buffer: Buffers) -> Unit) {
+open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buffer: Buffers) -> Unit): AsyncWrite {
     private val baton = Baton<Unit>()
     private val pending = ByteBufferList()
     private val writeLock = AtomicThrowingLock {
@@ -160,7 +160,7 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
         }
     }
 
-    suspend fun write(buffer: ReadableBuffers) {
+    override suspend fun write(buffer: ReadableBuffers) {
         writeLock {
             try {
                 baton.rethrow()

@@ -20,17 +20,17 @@ class StorageTests {
         val storage = BufferStorage(bb)
 
         async {
-            assertEquals("hello world", readAllString(storage::read))
-            assertEquals("", readAllString(storage::read))
+            assertEquals("hello world", readAllString(storage))
+            assertEquals("", readAllString(storage))
 
             storage.seekPosition(1)
-            assertEquals("ello world", readAllString(storage::read))
-            assertEquals("", readAllString(storage::read))
+            assertEquals("ello world", readAllString(storage))
+            assertEquals("", readAllString(storage))
 
             val buffer = ByteBufferList()
             storage.readPosition(1, 4, buffer)
             assertEquals("ello", buffer.readUtf8String())
-            assertEquals(" world", readAllString(storage::read))
+            assertEquals(" world", readAllString(storage))
         }
     }
 
@@ -41,25 +41,25 @@ class StorageTests {
 
         async {
             storage.seekPosition(storage.size())
-            storage::write.drain("fizzbuzz".createByteBufferList())
+            storage.drain("fizzbuzz".createByteBufferList())
 
             storage.seekPosition(0)
-            assertEquals("hello worldfizzbuzz", readAllString(storage::read))
+            assertEquals("hello worldfizzbuzz", readAllString(storage))
 
             storage.seekPosition(0)
-            storage::write.drain("fizzy".createByteBufferList())
+            storage.drain("fizzy".createByteBufferList())
             storage.seekPosition(0)
-            assertEquals("fizzy worldfizzbuzz", readAllString(storage::read))
-
-            storage.seekPosition(1)
-            storage::write.drain("u".createByteBufferList())
-            storage.seekPosition(0)
-            assertEquals("fuzzy worldfizzbuzz", readAllString(storage::read))
+            assertEquals("fizzy worldfizzbuzz", readAllString(storage))
 
             storage.seekPosition(1)
-            storage::write.drain("o".createByteBufferList())
+            storage.drain("u".createByteBufferList())
+            storage.seekPosition(0)
+            assertEquals("fuzzy worldfizzbuzz", readAllString(storage))
+
             storage.seekPosition(1)
-            assertEquals("ozzy worldfizzbuzz", readAllString(storage::read))
+            storage.drain("o".createByteBufferList())
+            storage.seekPosition(1)
+            assertEquals("ozzy worldfizzbuzz", readAllString(storage))
         }
     }
 
@@ -86,17 +86,17 @@ class StorageTests {
 
             val storage = httpClient.randomAccess("http://example")
 
-            assertEquals("hello world", readAllString(storage::read))
-            assertEquals("", readAllString(storage::read))
+            assertEquals("hello world", readAllString(storage))
+            assertEquals("", readAllString(storage))
 
             storage.seekPosition(1)
-            assertEquals("ello world", readAllString(storage::read))
-            assertEquals("", readAllString(storage::read))
+            assertEquals("ello world", readAllString(storage))
+            assertEquals("", readAllString(storage))
 
             val buffer = ByteBufferList()
             storage.readPosition(1, 4, buffer)
             assertEquals("ello", buffer.readUtf8String())
-            assertEquals(" world", readAllString(storage::read))
+            assertEquals(" world", readAllString(storage))
             done = true
         }
 

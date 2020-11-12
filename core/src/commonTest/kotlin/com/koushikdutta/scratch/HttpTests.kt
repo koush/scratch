@@ -240,7 +240,7 @@ class HttpTests {
                         body = Utf8StringBody("hello world")
                     )
                 )
-            data = readAllString(stream::read)
+            data = readAllString(stream)
         }
 
         assertEquals(data, "hello world")
@@ -346,7 +346,7 @@ class HttpTests {
         var gotClose = false
         val pipeServer = createAsyncPipeServerSocket()
         val httpServer = AsyncHttpServer {
-            StatusCode.OK(body = BinaryBody(createUnboundRandomRead()::read)) {
+            StatusCode.OK(body = BinaryBody(createUnboundRandomRead())) {
                 gotClose = it != null
             }
         }

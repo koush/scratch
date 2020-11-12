@@ -15,8 +15,7 @@ class PipeTests {
 
         var data = ""
         server.acceptAsync {
-            val readRef: AsyncRead = {read(it)}
-            data = readAllString(readRef)
+            data = readAllString(this)
         }
 
         async {

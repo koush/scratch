@@ -44,7 +44,7 @@ interface WebSocketMessage {
 
 class WebSocketCloseMessage(val code: Int, val reason: String)
 
-class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket::read), val protocol: String? = null, server: Boolean = false, val requestHeaders: Headers = Headers(), val responseHeaders: Headers = Headers()): AsyncSocket, AsyncAffinity by socket {
+class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket), val protocol: String? = null, server: Boolean = false, val requestHeaders: Headers = Headers(), val responseHeaders: Headers = Headers()): AsyncSocket, AsyncAffinity by socket {
     private val parser = HybiParser(reader, server)
 
     val isClosed
@@ -103,7 +103,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
                 }
             }
 
-            message.read.drain(payload)
+            message.read.siphon(payload)
 
             if (message.final) {
                 if (opcode == HybiParser.OP_TEXT) {
@@ -125,19 +125,19 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
     }
 
     fun send(text: String) = writeHandler.post {
-        socket::write.drain(parser.frame(text))
+        socket.drain(parser.frame(text))
     }
 
     fun send(binary: ByteBufferList) = writeHandler.post {
-        socket::write.drain(parser.frame(binary))
+        socket.drain(parser.frame(binary))
     }
 
     fun ping(text: String) = writeHandler.post {
-        socket::write.drain(parser.pingFrame(text))
+        socket.drain(parser.pingFrame(text))
     }
 
     fun pong(text: String) = writeHandler.post {
-        socket::write.drain(parser.pongFrame(text))
+        socket.drain(parser.pongFrame(text))
     }
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
@@ -172,7 +172,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
     fun close(code: Int, reason: String) {
         writeHandler.post {
             val frame = parser.closeFrame(code, reason)
-            socket::write.drain(frame)
+            socket.drain(frame)
         }
     }
 
@@ -185,7 +185,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
         writeHandler.run {
             // todo: fragment the packet if its too big?
             val frame = parser.frame(buffer)
-            socket::write.drain(frame)
+            socket.drain(frame)
         }
     }
 }
