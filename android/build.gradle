@@ -16,7 +16,7 @@ android {
         consumerProguardFiles 'consumer-rules.pro'
 
         sourceSets.androidTest.java.srcDirs += "../core/src/commonTest/kotlin"
-//        sourceSets.androidTest.java.srcDirs += "../core/src/jvmTest/kotlin"
+        sourceSets.androidTest.java.srcDirs += "../core/src/jvmTest/kotlin"
     }
 
     buildTypes {
@@ -58,6 +58,10 @@ dependencies {
     testImplementation "org.jetbrains.kotlin:kotlin-test:$kotlin_version"
     testImplementation "org.jetbrains.kotlin:kotlin-test-annotations-common:$kotlin_version"
     testImplementation "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
+
+    androidTestImplementation group: 'org.conscrypt', name: 'conscrypt-android', version: '2.5.0'
+    androidTestImplementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
+    androidTestImplementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
 
     api project(':scratch:core')
     api project(':scratch:buffer')

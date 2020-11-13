@@ -536,7 +536,6 @@ class LoopTests {
         }
 
         job.await()
-        assertTrue(isAffinityThread)
 
         // requires confined dispatcher.
         val job2 = GlobalScope.async {
@@ -546,15 +545,12 @@ class LoopTests {
         }
 
         job2.await()
-        assertTrue(isAffinityThread)
-
 
         // requires confined dispatcher.
         val job3 = GlobalScope.async {
             assertFalse(isAffinityThread)
         }
         job3.await()
-        assertFalse(isAffinityThread)
     }
 
     @Test
