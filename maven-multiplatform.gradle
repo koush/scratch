@@ -1,0 +1,13 @@
+apply plugin: 'maven-publish'
+
+kotlin {
+    configure([targets["metadata"], jvm()]) {
+        mavenPublication { targetPublication ->
+            tasks.withType(AbstractPublishToMaven)
+                    .matching { it.publication == targetPublication }
+                    .all { onlyIf { findProperty("isMainHost") == "true" } }
+        }
+    }
+}
+
+apply from: "../maven.gradle"

@@ -1,4 +1,0 @@
-rootProject.name = 'atomic'
-
-
-enableFeaturePreview('GRADLE_METADATA')

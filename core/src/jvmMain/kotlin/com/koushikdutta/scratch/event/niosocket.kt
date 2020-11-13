@@ -4,6 +4,7 @@ package com.koushikdutta.scratch.event
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.*
+import com.koushikdutta.scratch.stream.closeQuietly
 import java.io.IOException
 import java.nio.channels.*
 import kotlin.coroutines.Continuation
@@ -23,7 +24,7 @@ actual class AsyncNetworkServerSocket internal constructor(val server: AsyncEven
     }
 
     private fun closeInternal() {
-        closeQuietly(channel)
+        channel.closeQuietly()
         try {
             key.cancel()
         }
@@ -61,7 +62,7 @@ actual class AsyncNetworkServerSocket internal constructor(val server: AsyncEven
             queue.add(socket)
         }
         catch (e: IOException) {
-            closeQuietly(sc)
+            sc?.closeQuietly()
         }
     }
 }
@@ -178,7 +179,7 @@ actual class AsyncDatagramSocket internal constructor(val server: AsyncEventLoop
     }
 
     private fun closeInternal() {
-        closeQuietly(channel)
+        channel.closeQuietly()
         try {
             key.cancel()
         }
@@ -207,7 +208,7 @@ actual class AsyncDatagramSocket internal constructor(val server: AsyncEventLoop
     }
 }
 
-actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncSocket, NIOChannel, AsyncAffinity by loop {
+actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEventLoop, private val channel: SocketChannel, private val key: SelectionKey) : AsyncRead, AsyncWrite, AsyncSocket, NIOChannel, AsyncAffinity by loop {
     val socket = channel.socket()
     actual val localPort = channel.socket().localPort
     val localAddress = channel.socket().localAddress
@@ -235,7 +236,7 @@ actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEvent
     }
 
     private fun closeInternal(t: Throwable?) {
-        closeQuietly(channel)
+        channel.closeQuietly()
         try {
             key.cancel()
         }

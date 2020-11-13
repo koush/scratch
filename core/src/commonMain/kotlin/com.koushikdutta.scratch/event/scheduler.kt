@@ -53,7 +53,7 @@ internal class PriorityQueue {
 
 
     companion object {
-        private val SORTER = object : Comparator<Scheduled> {
+        private val SORTER: Comparator<Scheduled> = object : Comparator<Scheduled> {
             override fun compare(s1: Scheduled, s2: Scheduled): Int {
                 // keep the smaller ones at the head, so they get tossed out quicker
                 if (s1.time == s2.time)

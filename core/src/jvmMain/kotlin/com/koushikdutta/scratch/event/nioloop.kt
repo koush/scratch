@@ -6,6 +6,7 @@ package com.koushikdutta.scratch.event
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.NamedThreadFactory.Companion.newSynchronousWorkers
+import com.koushikdutta.scratch.stream.closeQuietly
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -24,22 +25,8 @@ actual typealias Inet4Address = java.net.Inet4Address
 actual typealias Inet6Address = java.net.Inet6Address
 actual typealias InetSocketAddress = java.net.InetSocketAddress
 
-internal actual fun milliTime(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
-internal actual fun nanoTime(): Long = System.nanoTime()
-
-internal fun closeQuietly(vararg closeables: Closeable?) {
-    for (closeable in closeables) {
-        try {
-            closeable?.close()
-        } catch (e: Exception) {
-            // http://stackoverflow.com/a/156525/9636
-
-            // also, catch all exceptions because some implementations throw random crap
-            // like ArrayStoreException
-        }
-
-    }
-}
+actual fun milliTime(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
+actual fun nanoTime(): Long = System.nanoTime()
 
 actual open class AsyncEventLoop: AsyncScheduler<AsyncEventLoop>() {
     internal lateinit var selector: SelectorWrapper
@@ -102,7 +89,7 @@ actual open class AsyncEventLoop: AsyncScheduler<AsyncEventLoop>() {
         }
     }
 
-    suspend fun AsyncServer.listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5) =
+    actual suspend fun AsyncServer.listen(port: Int, address: InetAddress?, backlog: Int) =
         listen(this@AsyncEventLoop.listen(port, address, backlog))
 
     actual suspend fun createDatagram(port: Int, address: InetAddress?, reuseAddress: Boolean): AsyncDatagramSocket {

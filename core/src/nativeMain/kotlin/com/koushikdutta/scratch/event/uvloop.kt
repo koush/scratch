@@ -142,7 +142,7 @@ class UvSocket internal constructor(val loop: UvEventLoop, internal val socket: 
             connect.free()
         }
 
-        post()
+        loop.post()
         startReading()
     }
 }

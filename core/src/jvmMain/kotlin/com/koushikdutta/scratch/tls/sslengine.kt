@@ -3,7 +3,6 @@ package com.koushikdutta.scratch.tls
 import com.koushikdutta.scratch.buffers.AllocationTracker
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.WritableBuffers
-import com.koushikdutta.scratch.external.OkHostnameVerifier
 
 actual typealias DefaultHostnameVerifier = OkHostnameVerifier
 

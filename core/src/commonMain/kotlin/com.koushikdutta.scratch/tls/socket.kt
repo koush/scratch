@@ -6,7 +6,7 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 
-class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncWrappingSocket, AsyncAffinity by socket {
+class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, private val options: AsyncTlsOptions?) : AsyncSocket, AsyncWrappingSocket, AsyncAffinity by socket {
     private var finishedHandshake = false
     private val socketRead = InterruptibleRead(socket)
     private val decryptAllocator = AllocationTracker()
