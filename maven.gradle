@@ -1,11 +1,13 @@
-publishing {
-    repositories {
-        maven {
-            // change to point to your repo, e.g. http://my.org/repo
-            url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-            credentials {
-                username = sonatypeUsername
-                password = sonatypePassword
+if (hasProperty('sonatypeUsername') && hasProperty('sonatypePassword')) {
+    publishing {
+        repositories {
+            maven {
+                // change to point to your repo, e.g. http://my.org/repo
+                url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+                credentials {
+                    username = sonatypeUsername
+                    password = sonatypePassword
+                }
             }
         }
     }
