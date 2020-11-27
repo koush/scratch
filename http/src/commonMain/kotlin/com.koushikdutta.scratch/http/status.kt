@@ -14,6 +14,8 @@ fun AsyncHttpResponse.Companion.SWITCHING_PROTOCOLS(headers: Headers = Headers()
 enum class StatusCode(val code: Int, val message: String, val hasBody: Boolean = true) {
     SWITCHING_PROTOCOLS(101, "Switching Protocols", false),
     OK(200, "OK"),
+    NO_CONTENT(204, "No Content", false),
+    MULTI_STATUS(207, "Multi-Status"),
     PARTIAL_CONTENT(206, "Partial Content"),
     FOUND(302, "Found"),
     BAD_REQUEST(400, "Bad Request"),

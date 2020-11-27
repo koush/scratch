@@ -217,3 +217,6 @@ open class AsyncHttpResponse : AsyncHttpMessage {
     // need this for extension methods
     companion object
 }
+
+val AsyncHttpResponse.statusCode: StatusCode?
+    get() = StatusCode.values().find { code == it.code }

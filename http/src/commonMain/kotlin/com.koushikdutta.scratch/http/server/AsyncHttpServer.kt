@@ -28,9 +28,10 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
             val response = try {
                 executor(it)
             }
-            catch (exception: Exception) {
+            catch (throwable: Throwable) {
                 println("internal server error")
-                println(exception)
+                println(throwable)
+                throwable.printStackTrace()
                 StatusCode.INTERNAL_SERVER_ERROR()
             }
 
@@ -74,6 +75,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         catch (throwable: Throwable) {
             println("internal server error")
             println(throwable)
+            throwable.printStackTrace()
             val headers = Headers()
             headers["Connection"] = "close"
             StatusCode.INTERNAL_SERVER_ERROR(headers = headers)
@@ -97,6 +99,9 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
             var responseBody: AsyncRead
 
             if (response.body != null) {
+                if (response.statusCode?.hasBody == false)
+                    throw IllegalArgumentException("status code ${response.code} must not have a body")
+
                 responseBody = response.body!!
 
                 if (response.headers.contentLength == null) {
@@ -125,6 +130,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         }
         catch (throwable: Throwable) {
             response.close(throwable)
+            throwable.printStackTrace()
             throw throwable
         }
     }
