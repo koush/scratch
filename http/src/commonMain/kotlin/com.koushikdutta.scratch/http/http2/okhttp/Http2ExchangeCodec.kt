@@ -105,7 +105,7 @@ internal class Http2ExchangeCodec {
             headers.remove(Header.TARGET_AUTHORITY_UTF8)
             headers.remove(Header.TARGET_SCHEME_UTF8)
 
-            return AsyncHttpRequest(URI.create(path), method!!, headers = headers, body = body)
+            return AsyncHttpRequest(URI(path), method!!, headers = headers, body = body)
         }
     }
 }

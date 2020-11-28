@@ -315,7 +315,7 @@ class LoopTests {
                         }).pipe(createContentLengthPipe(postLength.toLong()))
 
                         val request =
-                                AsyncHttpRequest(URI.create("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
+                                AsyncHttpRequest(URI("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
                         val data = httpClient.execute(request) { readAllString(it.body!!) }
                         assertEquals(data, "hello world")
                         requestsCompleted++

@@ -471,7 +471,7 @@ class URISyntaxException(val input: String, val reason: String, val p: Int? = nu
  * Resource Identifiers
 *](http://www.ietf.org/rfc/rfc2396.txt) */
 
-class URI : Comparable<URI> {
+actual class URI : Comparable<URI> {
 
 
     // -- Properties and components of this instance --
@@ -884,7 +884,7 @@ class URI : Comparable<URI> {
      * If the given string violates RFC&nbsp;2396, as augmented
      * by the above deviations
      */
-    constructor(str: String) {
+    actual constructor(str: String) {
         Parser(str).parse(false)
     }
 
@@ -1344,7 +1344,7 @@ class URI : Comparable<URI> {
      * @throws  NullPointerException
      * If `uri` is `null`
      */
-    fun resolve(uri: URI): URI {
+    actual fun resolve(uri: URI): URI {
         return resolve(this, uri)
     }
 
@@ -1365,7 +1365,7 @@ class URI : Comparable<URI> {
      * @throws  IllegalArgumentException
      * If the given string violates RFC&nbsp;2396
      */
-    fun resolve(str: String): URI {
+    actual fun resolve(str: String): URI {
         return resolve(create(str))
     }
 
@@ -2641,7 +2641,6 @@ class URI : Comparable<URI> {
             } catch (x: URISyntaxException) {
                 throw IllegalArgumentException(x.message, x)
             }
-
         }
 
 
@@ -3535,3 +3534,18 @@ class URI : Comparable<URI> {
         }
     }
 }
+
+actual val URI.query
+    get() = query
+
+actual val URI.scheme
+    get() = scheme
+
+actual val URI.rawPath
+    get() = rawPath
+
+actual val URI.rawQuery
+    get() = rawPath
+
+actual val URI.fragment
+    get() = fragment

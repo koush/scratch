@@ -76,7 +76,7 @@ package com.koushikdutta.scratch.uri
  * @since   1.2
  */
 
-object URLDecoder {
+actual object URLDecoder {
     /**
      * Decodes a `application/x-www-form-urlencoded` string using a specific
      * encoding scheme.
@@ -101,7 +101,7 @@ object URLDecoder {
      * @see URLEncoder.encode
      * @since 1.4
      */
-    fun decode(s: String): String {
+    actual fun decode(s: String): String {
 
         var needToChange = false
         val numChars = s.length

@@ -32,7 +32,7 @@ class CookieExecutor(override val next: AsyncHttpClientExecutor, val store: Asyn
                 val reader = AsyncReader(this)
                 val headers = reader.readHeaderBlock()
                 for (header in headers) {
-                    manager.put(URI.create(key), headers.toStringMultimap())
+                    manager.put(URI(key), headers.toStringMultimap())
                 }
             }
             entry.close()
@@ -43,7 +43,7 @@ class CookieExecutor(override val next: AsyncHttpClientExecutor, val store: Asyn
         ensureInitialized()
 
         val uri = try {
-            val uri = URI.create(
+            val uri = URI(
                     request.uri.toString())
             val cookies = manager!!.get(uri, request.headers.toStringMultimap())
             addCookies(cookies, request.headers)

@@ -21,7 +21,7 @@ class SanityTests {
 
     @Test
     fun testWeirdUri() {
-        val uri = URI.create("/testbar")
+        val uri = URI("/testbar")
         println(uri)
     }
 
@@ -41,14 +41,14 @@ class SanityTests {
     @Test
     fun testCookieManager() {
         val manager = CookieManager(null, null)
-        val uri = URI.create("http://example.com/")
+        val uri = URI("http://example.com/")
         val headers = Headers()
         headers["Set-Cookie"] = "foo=bar"
         manager.put(uri, headers.toStringMultimap())
 
         verifyCookies(manager.cookieStore.get(uri), Pair("foo", "bar"))
 
-        val uri2 = URI.create("http://example.com/path")
+        val uri2 = URI("http://example.com/path")
         val headers2 = Headers()
         headers2["Set-Cookie"] = "foo2=bar2; path=/path"
         manager.put(uri2, headers2.toStringMultimap())

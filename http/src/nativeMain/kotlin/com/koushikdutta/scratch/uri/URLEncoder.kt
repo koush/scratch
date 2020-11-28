@@ -98,7 +98,7 @@ private class Character {
  * @author  Herb Jellinek
  * @since   JDK1.0
  */
-object URLEncoder {
+actual object URLEncoder {
     internal var dontNeedEncoding: BooleanArray
     internal val caseDiff = 'a' - 'A'
     internal var dfltEncName: String? = null
@@ -188,7 +188,7 @@ object URLEncoder {
      * @see URLDecoder.decode
      * @since 1.4
      */
-    fun encode(s: String): String {
+    actual fun encode(s: String): String {
 
         var needToChange = false
         val out = StringBuffer(s.length)

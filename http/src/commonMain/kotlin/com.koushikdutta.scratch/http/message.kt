@@ -7,6 +7,8 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.collections.StringMultimap
 import com.koushikdutta.scratch.uri.URI
 import com.koushikdutta.scratch.uri.parseQuery
+import com.koushikdutta.scratch.uri.rawPath
+import com.koushikdutta.scratch.uri.rawQuery
 
 typealias AsyncHttpMessageCompletion = suspend(throwable: Throwable?) -> Unit
 
@@ -87,7 +89,7 @@ class RequestLine {
     constructor(method: String, message: String, protocol: String) {
         this.message = message
         this.uri = try {
-             URI.create(message)
+             URI(message)
         }
         catch (_: Throwable) {
             null
@@ -103,7 +105,7 @@ class RequestLine {
         method = parts[0]
         this.message = parts[1]
         this.uri = try {
-            URI.create(message)
+            URI(message)
         }
         catch (_: Throwable) {
             null
@@ -132,8 +134,7 @@ open class AsyncHttpRequest : AsyncHttpMessage {
 
     // allow the error to be rethrown by parsing again
     val uri: URI
-        get() = requestLine.uri ?: URI.create(requestLine.message)
-
+        get() = requestLine.uri ?: URI(requestLine.message)
 
     override val protocol: String
         get() = requestLine.protocol

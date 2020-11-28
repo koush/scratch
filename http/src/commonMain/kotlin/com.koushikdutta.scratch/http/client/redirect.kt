@@ -7,6 +7,7 @@ import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientWrappingExecutor
 import com.koushikdutta.scratch.uri.URI
+import com.koushikdutta.scratch.uri.scheme
 
 private fun copyHeader(from: AsyncHttpRequest, to: AsyncHttpRequest, header: String) {
     val value = from.headers[header]
@@ -49,7 +50,7 @@ private class RedirectExecutor(override val next: AsyncHttpClientExecutor, val m
                 redirect = request.uri.resolve(location)
 
             val method = if (request.method == Methods.HEAD.toString()) Methods.HEAD else Methods.GET
-            val newRequest = AsyncHttpRequest(URI.create(redirect.toString()), method.toString())
+            val newRequest = AsyncHttpRequest(URI(redirect.toString()), method.toString())
             copyHeader(request, newRequest, "User-Agent")
             copyHeader(request, newRequest, "Range")
 

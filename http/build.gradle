@@ -100,6 +100,9 @@ kotlin {
 //            }
 //        }
         nativeMain {
+            dependencies {
+                api project(':scratch:buffer')
+            }
         }
         nativeTest {
         }

@@ -292,7 +292,7 @@ class TlsTests {
 
             for (i in 1..3) {
                 val request =
-                    AsyncHttpRequest(URI.create("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
+                    AsyncHttpRequest(URI("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
                 val data = httpClient.execute(request) { readAllString(it.body!!) }
                 assertEquals(data, "hello world")
                 requestsCompleted++

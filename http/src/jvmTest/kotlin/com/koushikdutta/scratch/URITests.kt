@@ -7,13 +7,13 @@ import kotlin.test.*
 class URITests {
     fun testBoth(uri: String): URI? {
         val s1 = try {
-            URI.create(uri)
+            URI(uri)
         }
         catch (throwable: Throwable) {
             null
         }
         val s2 = try {
-            java.net.URI.create(uri)
+            java.net.URI(uri)
         }
         catch (throwable: Throwable) {
             null
