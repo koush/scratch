@@ -36,11 +36,15 @@ enum class StatusCode(val code: Int, val message: String, val hasBody: Boolean =
     internal fun redirect(headers: Headers, body: AsyncRead?, sent: AsyncHttpMessageCompletion?): AsyncHttpResponse {
         if (!headers.contains("Location"))
             throw IllegalArgumentException("The Location header is missing. Use StatusCode.movedPermanently or StatusCode.found or specify one in the headers argument.")
-        return invoke(headers, body, sent)
+        return invokeInternal(headers, body, sent)
+    }
+
+    private fun invokeInternal(headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
+        return AsyncHttpResponse(ResponseLine(code, message), headers, body, sent)
     }
 
     open operator fun invoke(headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
-        return AsyncHttpResponse(ResponseLine(code, message), headers, body, sent)
+        return invokeInternal(headers, body, sent)
     }
 
     open operator fun invoke(headers: Headers = Headers(), body: AsyncHttpMessageContent, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
