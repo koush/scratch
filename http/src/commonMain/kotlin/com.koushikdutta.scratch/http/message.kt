@@ -1,7 +1,6 @@
 package com.koushikdutta.scratch.http
 
 import com.koushikdutta.scratch.AsyncInput
-import com.koushikdutta.scratch.AsyncRandomAccessInput
 import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.collections.StringMultimap
@@ -26,18 +25,6 @@ abstract class AsyncHttpMessage: AsyncInput {
         this.sent = sent
     }
 
-    constructor(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null) {
-        this.headers = headers
-        if (body != null) {
-            this.body = body.read
-            headers.contentLength = body.contentLength
-        }
-        this.sent = {
-            body?.sent(it)
-            sent?.invoke(it)
-        }
-    }
-
     fun toMessageString(): String {
         return headers.toHeaderString(messageLine)
     }
@@ -52,25 +39,6 @@ abstract class AsyncHttpMessage: AsyncInput {
 
     override suspend fun close() = close(null)
     override suspend fun read(buffer: WritableBuffers) = body?.invoke(buffer) ?: false
-}
-
-
-interface AsyncHttpMessageBody {
-    val contentType: String?
-    val contentLength: Long?
-    val read: AsyncRead
-    suspend fun sent(throwable: Throwable?) {
-    }
-}
-
-suspend fun AsyncRandomAccessInput.createHttpMessageBody(contentType: String? = null): AsyncHttpMessageBody {
-    val size = size()
-    val read = this
-    return object : AsyncHttpMessageBody {
-        override val contentType = contentType
-        override val contentLength = size
-        override val read: AsyncRead = read
-    }
 }
 
 class RequestLine {
@@ -119,12 +87,7 @@ open class AsyncHttpRequest : AsyncHttpMessage {
     constructor(requestLine: RequestLine, headers: Headers, body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
         this.requestLine = requestLine
     }
-    constructor(requestLine: RequestLine, headers: Headers, body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
-        this.requestLine = requestLine
-    }
     constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, uri, protocol), headers, body, sent)
-    constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, uri, protocol), headers, body, sent)
-    constructor(message: String, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, message, protocol), headers, body, sent)
 
     override val messageLine: String
         get() = if (requestLine.uri != null) "$method $requestLinePathAndQuery $protocol" else "$method ${requestLine.message} $protocol"
@@ -194,14 +157,7 @@ class ResponseLine {
     }
 }
 
-open class AsyncHttpResponse : AsyncHttpMessage {
-    val responseLine: ResponseLine
-    constructor (responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
-        this.responseLine = responseLine
-    }
-    constructor(responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
-        this.responseLine = responseLine
-    }
+open class AsyncHttpResponse(val responseLine: ResponseLine, headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : AsyncHttpMessage(headers, body, sent) {
 
     override val messageLine: String
         get() = responseLine.toString()

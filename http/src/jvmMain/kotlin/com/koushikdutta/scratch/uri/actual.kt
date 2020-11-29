@@ -16,6 +16,10 @@ actual val URI.rawQuery
     get() = rawQuery
 actual val URI.fragment
     get() = fragment
+actual val URI.host
+    get() = host
+actual val URI.path
+    get() = path
 
 actual object URLDecoder {
     actual fun decode(s: String) = URLDecoder.decode(s)

@@ -25,19 +25,23 @@ enum class StatusCode(val code: Int, val message: String, val hasBody: Boolean =
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
     NOT_MODIFIED(304, "Not Modified", false),
     MOVED_PERMANENTLY(301, "Moved Permanently") {
-        override fun invoke(headers: Headers, body: AsyncHttpMessageBody?, sent: AsyncHttpMessageCompletion?): AsyncHttpResponse {
+        override fun invoke(headers: Headers, body: AsyncRead?, sent: AsyncHttpMessageCompletion?): AsyncHttpResponse {
             if (!headers.contains("Location"))
                 throw IllegalArgumentException("The Location header is missing. Use StatusCode.movedPermanently or specify one in the headers argument.")
             return super.invoke(headers, body, sent)
         }
     };
 
-    open operator fun invoke(headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
+    open operator fun invoke(headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
         return AsyncHttpResponse(ResponseLine(code, message), headers, body, sent)
     }
 
+    open operator fun invoke(headers: Headers = Headers(), body: AsyncHttpMessageContent, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
+        return AsyncHttpResponse(ResponseLine(code, message), headers, body, AsyncHttpMessageContent.prepare(headers, body, sent))
+    }
+
     companion object {
-        fun movedPermanently(location: String, headers: Headers = Headers(), body: AsyncHttpMessageBody? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
+        fun movedPermanently(location: String, headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
             headers["Location"] = location
             return MOVED_PERMANENTLY(headers, body, sent)
         }

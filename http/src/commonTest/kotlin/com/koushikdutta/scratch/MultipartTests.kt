@@ -59,7 +59,7 @@ class MultipartTests {
         var combined = ""
         async {
             val multipartParsed =
-                Multipart.parseMultipart(multipart.boundary, AsyncReader(multipart.read))
+                Multipart.parseMultipart(multipart.boundary, AsyncReader(multipart))
 
             for (part in multipartParsed) {
                 val found = readAllString(part.body)

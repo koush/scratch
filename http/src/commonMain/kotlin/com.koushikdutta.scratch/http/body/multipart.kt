@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.http.body
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.ByteBufferList
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.collections.StringMultimap
 import com.koushikdutta.scratch.collections.getFirst
 import com.koushikdutta.scratch.collections.parseSemicolonDelimited
@@ -30,14 +31,17 @@ private fun createPartBoundaries(boundary: String, parts: AsyncIterator<Part>): 
  * Each part is valid for reading until iterator.next() (or hasNext) is called for the next part,
  * at which point all unread part data will be skipped.
  */
-class Multipart : AsyncHttpMessageBody {
+class Multipart : AsyncHttpMessageContent {
     override val contentType: String
 
     var partRead: AsyncRead? = null
-    override val read = AsyncRead {
+    override suspend fun read(buffer: WritableBuffers): Boolean {
         if (partRead == null)
             partRead = createPartBoundaries(boundary, iterator).join()
-        partRead!!(it)
+        return partRead!!(buffer)
+    }
+
+    override suspend fun close() {
     }
 
     override val contentLength: Long? = null
@@ -158,8 +162,10 @@ class Multipart : AsyncHttpMessageBody {
 }
 
 class Part(val headers: Headers = Headers(), val body: AsyncRead) {
-    constructor(headers: Headers = Headers(), body: AsyncHttpMessageBody) : this(headers, body.read) {
+    constructor(headers: Headers = Headers(), body: AsyncHttpMessageContent) : this(headers, body as AsyncRead) {
         headers.contentLength = body.contentLength
+        if (headers.contentType == null)
+            headers.contentType = body.contentType
     }
 
     val contentType: String?

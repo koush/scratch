@@ -1,12 +1,11 @@
 package com.koushikdutta.scratch.http.client
 
-import com.koushikdutta.scratch.AsyncReader
-import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.event.AsyncEventLoop
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.AsyncHttpResponse
 import com.koushikdutta.scratch.http.Headers
 import com.koushikdutta.scratch.http.client.executor.*
+import com.koushikdutta.scratch.uri.host
 
 typealias AsyncHttpResponseHandler<R> = suspend (response: AsyncHttpResponse) -> R
 

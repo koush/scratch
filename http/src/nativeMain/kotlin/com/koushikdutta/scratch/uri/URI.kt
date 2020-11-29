@@ -3549,3 +3549,9 @@ actual val URI.rawQuery
 
 actual val URI.fragment
     get() = fragment
+
+actual val URI.host
+    get() = host
+
+actual val URI.path
+    get() = path

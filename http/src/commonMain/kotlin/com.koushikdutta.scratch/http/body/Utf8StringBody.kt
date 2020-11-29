@@ -1,15 +1,18 @@
 package com.koushikdutta.scratch.http.body
 
-import com.koushikdutta.scratch.AsyncRead
+import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.http.AsyncHttpMessageBody
 import com.koushikdutta.scratch.createReader
+import com.koushikdutta.scratch.http.AsyncHttpMessageContent
 
-class Utf8StringBody(string: String) : AsyncHttpMessageBody {
+class Utf8StringBody(string: String) : AsyncHttpMessageContent {
     private val buffer = string.createByteBufferList()
     private val input = buffer.createReader()
 
+    override suspend fun read(buffer: WritableBuffers) = input.read(buffer)
+    override suspend fun close() {
+    }
+
     override val contentType: String? = "text/plain"
     override val contentLength: Long? = buffer.remaining().toLong()
-    override val read: AsyncRead = input
 }

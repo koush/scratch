@@ -49,6 +49,8 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
         isResponseEnded = true
         isAlive = true
 
+        request.headers.transferEncoding = null
+
         var requestBody: AsyncRead
         if (request.body != null) {
             requestBody = request.body!!

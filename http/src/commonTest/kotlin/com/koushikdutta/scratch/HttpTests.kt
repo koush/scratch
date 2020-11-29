@@ -19,6 +19,7 @@ import kotlin.test.assertTrue
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
 import com.koushikdutta.scratch.http.http2.connect
+import com.koushikdutta.scratch.uri.path
 
 
 class HttpTests {

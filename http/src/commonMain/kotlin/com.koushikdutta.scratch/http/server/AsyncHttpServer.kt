@@ -12,7 +12,6 @@ import com.koushikdutta.scratch.http.client.getHttpBody
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
 import com.koushikdutta.scratch.http.http2.acceptHttpAsync
-import com.koushikdutta.scratch.http.Parser
 
 enum class HttpServerSocketStatus {
     KeepAlive,
@@ -80,6 +79,8 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
             headers["Connection"] = "close"
             StatusCode.INTERNAL_SERVER_ERROR(headers = headers)
         }
+
+        response.headers.transferEncoding = null
 
         if (response is AsyncHttpResponseSwitchingProtocols) {
             sendHeaders(socket, response)
