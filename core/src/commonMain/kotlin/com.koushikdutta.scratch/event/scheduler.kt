@@ -11,9 +11,10 @@ import kotlin.coroutines.resume
 import kotlin.math.max
 import kotlin.math.min
 
-fun interface AsyncServerRunnable {
-    operator fun invoke()
+expect fun interface AsyncServerRunnable {
+    fun run()
 }
+operator fun AsyncServerRunnable.invoke() = run()
 
 internal class PriorityQueue {
     private var sorted = true
