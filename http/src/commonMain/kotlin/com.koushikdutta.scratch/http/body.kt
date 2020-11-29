@@ -16,9 +16,13 @@ interface AsyncHttpMessageContent : AsyncInput {
             headers.contentLength = body.contentLength
 
             return {
-                body.close()
+                body.close(it)
                 sent?.invoke(it)
             }
         }
+    }
+
+    suspend fun close(throwable: Throwable?) {
+        close()
     }
 }
