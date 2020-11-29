@@ -11,19 +11,11 @@ import com.koushikdutta.scratch.uri.rawQuery
 
 typealias AsyncHttpMessageCompletion = suspend(throwable: Throwable?) -> Unit
 
-abstract class AsyncHttpMessage: AsyncInput {
-    val headers: Headers
+abstract class AsyncHttpMessage(val headers: Headers, body: AsyncRead?, private val sent: AsyncHttpMessageCompletion? = null) : AsyncInput {
     protected abstract val messageLine: String
-    var body: AsyncRead? = null
+    var body: AsyncRead? = body
         internal set
     abstract val protocol: String
-    private val sent: AsyncHttpMessageCompletion?
-
-    constructor(headers: Headers, body: AsyncRead?, sent: AsyncHttpMessageCompletion? = null) {
-        this.headers = headers
-        this.body = body
-        this.sent = sent
-    }
 
     fun toMessageString(): String {
         return headers.toHeaderString(messageLine)
@@ -82,11 +74,7 @@ class RequestLine {
     }
 }
 
-open class AsyncHttpRequest : AsyncHttpMessage {
-    val requestLine: RequestLine
-    constructor(requestLine: RequestLine, headers: Headers, body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : super(headers, body, sent) {
-        this.requestLine = requestLine
-    }
+open class AsyncHttpRequest(val requestLine: RequestLine, headers: Headers, body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : AsyncHttpMessage(headers, body, sent) {
     constructor(uri: URI, method: String = "GET", protocol: String = "HTTP/1.1", headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null) : this(RequestLine(method, uri, protocol), headers, body, sent)
 
     override val messageLine: String
