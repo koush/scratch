@@ -92,5 +92,6 @@ expect abstract class ByteBuffer : Buffer {
     abstract fun putLong(value: Long): ByteBuffer
 
     final override fun array(): ByteArray
-    abstract fun duplicate(): ByteBuffer
 }
+
+expect fun ByteBuffer.duplicate(): ByteBuffer

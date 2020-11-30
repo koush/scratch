@@ -226,6 +226,7 @@ actual fun ByteBuffer.order(order: ByteOrder): ByteBuffer {
     this.order = order
     return this
 }
+actual fun ByteBuffer.duplicate() = duplicate()
 
 actual fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuffer {
     return ByteBufferCommon(array, offset, length)

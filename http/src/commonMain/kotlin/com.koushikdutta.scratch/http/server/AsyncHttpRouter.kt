@@ -5,6 +5,7 @@ import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.websocket.WebSocketServerSocket
 import com.koushikdutta.scratch.http.websocket.upgradeWebsocket
+import com.koushikdutta.scratch.uri.path
 
 open class AsyncHttpRouteHandlerScope(val match: MatchResult)
 class AsyncHttpRouterResultHandlerScope(val headers: Headers, match: MatchResult): AsyncHttpRouteHandlerScope(match)
