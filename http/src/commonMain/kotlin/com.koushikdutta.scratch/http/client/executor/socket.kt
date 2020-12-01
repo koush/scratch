@@ -40,6 +40,8 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
         internal set
 
     override suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse {
+        affinity.await()
+
         if (!isAlive)
             throw IOException("The previous response closed the socket")
 
@@ -97,10 +99,25 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
 
         val response = AsyncHttpResponse(ResponseLine(statusLine), headers, responseBody)
         isAlive = isKeepAlive(request, response)
-        val keepAlive = parseCommaDelimited(headers["Connection"] ?: "")
-        // use a default keepalive timeout of 5 seconds.
-        val timeout = keepAlive.getFirst("timeout")?.toInt() ?: 5
-        this.timeout = milliTime() + timeout * 1000
+        if (isAlive) {
+            val keepAlive = parseCommaDelimited(headers["Connection"] ?: "")
+            // use a default keepalive timeout of 5 seconds.
+            val timeout = keepAlive.getFirst("timeout")?.toInt() ?: 5
+            this.timeout = milliTime() + timeout * 1000
+
+            affinity.launch {
+                try {
+                    reader.readBuffer()
+                    isAlive = false
+                }
+                catch (doubleRead: AsyncDoubleReadException) {
+                    // double read can be ignored. it will occur if the keepalive socket is reused.
+                }
+                catch (throwable: Throwable) {
+                    isAlive = false
+                }
+            }
+        }
         return response
     }
 

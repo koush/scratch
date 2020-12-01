@@ -19,7 +19,7 @@ class CookieExecutor(override val next: AsyncHttpClientExecutor, val store: Asyn
     suspend fun ensureInitialized() {
         affinity.await()
 
-        if (manager == null)
+        if (manager != null)
             return
 
         val manager = CookieManager(null, policy)
