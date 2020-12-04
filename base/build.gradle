@@ -43,7 +43,7 @@ kotlin {
                 implementation kotlin('stdlib-common')
                 api project(':scratch:atomic')
                 api project(':scratch:buffer')
-                api 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1'
+                api "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2"
             }
             languageSettings {
                 useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name

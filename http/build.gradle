@@ -52,14 +52,12 @@ kotlin {
                 api project(':scratch:atomic')
                 api project(':scratch:buffer')
                 api project(':scratch:core')
-                api 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1'
             }
         }
         commonTest {
             dependencies {
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
-                implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1'
             }
         }
         jvmMain {

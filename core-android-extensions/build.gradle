@@ -56,9 +56,7 @@ dependencies {
     androidTestImplementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
     androidTestImplementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
 
-    implementation project(':scratch:core')
-    implementation project(':scratch:buffer')
-    implementation project(':scratch:atomic')
+    api project(':scratch:core')
 }
 
 //afterEvaluate {
