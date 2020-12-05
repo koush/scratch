@@ -25,6 +25,11 @@ android {
             "-Xuse-experimental=kotlin.ExperimentalUnsignedTypes",
             "-Xuse-experimental=kotlin.ExperimentalStdlibApi"
     ]
+
+
+    sourceSets {
+        androidTest.java.srcDirs += '../http/src/commonTest/kotlin'
+    }
 }
 
 repositories {
@@ -57,6 +62,7 @@ dependencies {
     androidTestImplementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
 
     api project(':scratch:core')
+    androidTestImplementation project(':scratch:http')
 }
 
 //afterEvaluate {

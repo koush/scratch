@@ -10,26 +10,41 @@ import com.koushikdutta.scratch.uri.path
 open class AsyncHttpRouteHandlerScope(val match: MatchResult)
 class AsyncHttpRouterResultHandlerScope(val headers: Headers, match: MatchResult): AsyncHttpRouteHandlerScope(match)
 
-typealias AsyncRouterResponseHandler = suspend AsyncHttpRouteHandlerScope.(request: AsyncHttpRequest) -> AsyncHttpResponse
+typealias AsyncRouterResponseHandler = suspend AsyncHttpRouteHandlerScope.(request: AsyncHttpRequest) -> AsyncHttpResponse?
 
 interface AsyncHttpRouteHandler {
     suspend operator fun AsyncHttpRouteHandlerScope.invoke(request: AsyncHttpRequest): AsyncHttpResponse?
 }
 
-class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest) -> Unit = {}) : AsyncHttpRouteHandler {
+open class AsyncHttpRouter(private val onRequest: suspend (request: AsyncHttpRequest) -> Unit = {}) : AsyncHttpRouteHandler {
     override suspend operator fun AsyncHttpRouteHandlerScope.invoke(request: AsyncHttpRequest): AsyncHttpResponse? = invoke(request)
 
-    suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse? {
-        onRequest(request)
+    class RouteMatch(val match: MatchResult, val handler: AsyncRouterResponseHandler)
+
+    fun match(method: String, path: String): List<RouteMatch> {
+        val ret = mutableListOf<RouteMatch>()
 
         for (entry in routes) {
             val route = entry.key
             val handler = entry.value
-            if (route.method != null && route.method != request.method)
+            if (route.method != null && route.method != method)
                 continue
-            val match = route.pathRegex.matchEntire(request.uri.path ?: "")
+            val match = route.pathRegex.matchEntire(path ?: "")
             if (match != null)
-                return handler(AsyncHttpRouteHandlerScope(match), request)
+                ret.add(RouteMatch(match, handler))
+        }
+
+        return ret
+    }
+
+    suspend operator fun invoke(request: AsyncHttpRequest): AsyncHttpResponse? {
+        onRequest(request)
+
+        val matches = match(request.method, request.uri.path ?: "")
+        for (match in matches) {
+            val response = match.handler(AsyncHttpRouteHandlerScope(match.match), request)
+            if (response != null)
+                return response
         }
 
         return null

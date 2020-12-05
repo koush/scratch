@@ -260,7 +260,7 @@ class WebSocketUpgradeException(message: String): Exception(message)
 
 fun AsyncHttpRequest.upgradeWebsocket(protocol: String? = null, block: suspend (webSocket: WebSocket) -> Unit): AsyncHttpResponse {
     if (method.toUpperCase() != Methods.GET.toString())
-        throw WebSocketUpgradeException("Expected GET method for WebScoket Upgrade")
+        throw WebSocketUpgradeException("Expected GET method for WebSocket Upgrade")
 
     val requestHeaders = headers
     val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"])["Upgrade"] != null

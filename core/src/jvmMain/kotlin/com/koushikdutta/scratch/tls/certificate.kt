@@ -64,6 +64,15 @@ private fun createSelfSignedCertificate(keyPair: KeyPair, subjectDN: String): X5
     return JcaX509CertificateConverter().setProvider(bcProvider).getCertificate(certBuilder.build(contentSigner))
 }
 
+fun createSelfSignedCertificatePair(subjectName: String): Pair<KeyPair, X509Certificate> {
+    val keyGen = KeyPairGenerator.getInstance("RSA")
+    keyGen.initialize(2048)
+    val pair = keyGen.generateKeyPair()
+    val cert = createSelfSignedCertificate(pair, subjectName)
+
+    return Pair(pair, cert)
+}
+
 actual fun createSelfSignedCertificate(subjectName: String): Pair<RSAPrivateKey, X509Certificate> {
     val keyGen = KeyPairGenerator.getInstance("RSA")
     keyGen.initialize(2048)

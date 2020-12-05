@@ -121,7 +121,9 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
             }
 
             sendHeaders(socket, response)
+            println("start ${request.uri}")
             responseBody.copy(socket)
+            println("finish ${request.uri}")
 
             response.close(null)
 

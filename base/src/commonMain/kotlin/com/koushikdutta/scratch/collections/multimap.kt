@@ -27,6 +27,16 @@ fun <K, V> Multimap<K, V>.getFirst(key: K): V? {
     return list.get(0)
 }
 
+fun <K, V> Multimap<K, V>.toSingleMap(): Map<K, V> {
+    val ret = mutableMapOf<K, V>()
+    for (entry in entries) {
+        for (value in entry.value) {
+            ret[entry.key] = value
+            break
+        }
+    }
+    return ret
+}
 
 typealias StringDecoder = (s: String) -> String;
 

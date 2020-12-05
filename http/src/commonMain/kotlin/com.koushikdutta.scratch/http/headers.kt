@@ -25,6 +25,9 @@ data class Header(val name: String, val value: String)
 class Headers : Iterable<Header> {
     private val headers = mutableListOf<Header>()
 
+    val keys
+        get() = headers.map { it.name }
+
     val size
         get() = headers.size
 

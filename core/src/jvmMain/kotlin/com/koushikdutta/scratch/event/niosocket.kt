@@ -228,6 +228,7 @@ actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEvent
             channel.write(buffers)
             it.addAll(*buffers)
             val after = it.remaining()
+            println("before/after $before $after")
             if (before == after) {
                 key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
                 break

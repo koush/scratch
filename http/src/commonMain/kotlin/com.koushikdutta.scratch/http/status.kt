@@ -52,6 +52,10 @@ enum class StatusCode(val code: Int, val message: String, val hasBody: Boolean =
     }
 
     companion object {
+        fun fromCode(code: Int): StatusCode? {
+            return StatusCode.values().find { it.code == code }
+        }
+
         fun movedPermanently(location: String, headers: Headers = Headers(), body: AsyncRead? = null, sent: AsyncHttpMessageCompletion? = null): AsyncHttpResponse {
             headers["Location"] = location
             return MOVED_PERMANENTLY(headers, body, sent)

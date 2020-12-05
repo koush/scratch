@@ -18,6 +18,8 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
             while (true) {
                 val result = engine.unwrap(unfiltered, buffer, decryptAllocator)
 
+                if (result.status == SSLEngineStatus.CLOSED)
+                    throw IOException("SSLEngine Closed")
                 if (result.status == SSLEngineStatus.BUFFER_UNDERFLOW) {
                     // need more data, so just break and wait for another read to come in to
                     // trigger the read again.
@@ -82,6 +84,8 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
                     socket.drain(encryptedWriteBuffer as ReadableBuffers)
             }
 
+            if (result.status == SSLEngineStatus.CLOSED)
+                throw IOException("SSLEngine Closed")
             if (result.status == SSLEngineStatus.BUFFER_UNDERFLOW) {
                 // this should never happen, as it is not possible to underflow
                 // with application data
