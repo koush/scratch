@@ -1,5 +1,7 @@
 package com.koushikdutta.scratch.buffers
 
+typealias BuffersBuffersReader<T> = (buffers: Array<ByteBuffer>) -> T
+
 interface ReadableBuffers : AllocatingBuffers {
     val isEmpty: Boolean
         get() = remaining() == 0
@@ -36,6 +38,8 @@ interface ReadableBuffers : AllocatingBuffers {
     fun read(bytes: ByteArray)
     fun read(bytes: ByteArray, offset: Int, length: Int)
     fun read(into: WritableBuffers, length: Int)
+
+    fun <T> readBuffers(block: BuffersBuffersReader<T>): T
 
     /**
      * Read the buffer. Returns false if nothing was read due to the buffer being empty.

@@ -81,9 +81,7 @@ actual class AsyncDatagramSocket internal constructor(val server: AsyncEventLoop
     private val output = BlockingWritePipe {
         while (it.hasRemaining()) {
             val before = it.remaining()
-            val buffers = it.readAll()
-            channel.write(buffers)
-            it.addAll(*buffers)
+            it.readBuffers(channel::write)
             it.takeReclaimedBuffers(pending)
             val after = it.remaining()
             if (before == after) {
@@ -224,11 +222,8 @@ actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEvent
         await()
         while (it.hasRemaining()) {
             val before = it.remaining()
-            val buffers = it.readAll()
-            channel.write(buffers)
-            it.addAll(*buffers)
+            it.readBuffers(channel::write)
             val after = it.remaining()
-            println("before/after $before $after")
             if (before == after) {
                 key.interestOps(SelectionKey.OP_WRITE or key.interestOps())
                 break

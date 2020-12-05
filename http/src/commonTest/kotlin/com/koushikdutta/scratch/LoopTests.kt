@@ -3,10 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.TestUtils.Companion.networkContextTest
 import com.koushikdutta.scratch.async.async
-import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.ReadableBuffers
-import com.koushikdutta.scratch.buffers.WritableBuffers
-import com.koushikdutta.scratch.buffers.createByteBufferList
+import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.event.*
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.Methods
@@ -609,5 +606,18 @@ class LoopTests {
         catch (throwable: CancellationException) {
             throw ExpectedException()
         }
+    }
+
+    @Test
+    fun testBigBuffer() = networkContextTest {
+        val server = listen()
+        server.acceptAsync {
+            val buffer = ByteBuffer.allocate(10000000)
+            drain(ByteBufferList(buffer))
+            close()
+        }
+        val s2 = connect(InetSocketAddress("localhost", server.localPort))
+        val len = s2.countBytes()
+        assertEquals(10000000, len)
     }
 }

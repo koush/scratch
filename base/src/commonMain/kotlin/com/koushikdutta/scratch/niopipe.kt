@@ -2,7 +2,6 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.async.startSafeCoroutine
 import com.koushikdutta.scratch.atomic.*
-import com.koushikdutta.scratch.buffers.Buffers
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
@@ -138,9 +137,9 @@ fun AsyncRead.buffer(highWaterMark: Int): AsyncRead {
  * Upon returning unsent data, the transport is responsible for calling writable
  * when it is ready to resume sending data.
  */
-open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buffer: Buffers) -> Unit): AsyncWrite {
+open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buffer: ReadableBuffers) -> Unit): AsyncWrite {
     private val baton = Baton<Unit>()
-    private val pending = ByteBufferList()
+//    private val pending = ByteBufferList()
     private val writeLock = AtomicThrowingLock {
         AsyncDoubleWriteException()
     }
@@ -164,14 +163,11 @@ open class BlockingWritePipe(private val writer: suspend BlockingWritePipe.(buff
         writeLock {
             try {
                 baton.rethrow()
-                if (!pending.hasRemaining())
-                    buffer.read(pending)
-                if (pending.hasRemaining()) {
-                    writer(pending)
-                    if (pending.hasRemaining())
+                if (buffer.hasRemaining()) {
+                    writer(buffer)
+                    if (buffer.hasRemaining())
                         baton.pass(Unit)
                 }
-                buffer.takeReclaimedBuffers(pending)
             }
             catch (throwable: Throwable) {
                 close(throwable)

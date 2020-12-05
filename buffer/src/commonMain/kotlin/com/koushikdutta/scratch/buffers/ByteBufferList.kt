@@ -518,6 +518,16 @@ class ByteBufferList : Buffers {
         }
     }
 
+    override fun <T> readBuffers(block: BuffersBuffersReader<T>): T {
+        val buffers = readAll()
+        try {
+            return block(buffers)
+        }
+        finally {
+            addAll(*buffers)
+        }
+    }
+
     override fun putUtf8String(s: String): ByteBufferList {
         add(s.encodeToByteArray())
         return this
