@@ -140,6 +140,8 @@ actual open class AsyncEventLoop: AsyncScheduler<AsyncEventLoop>() {
         constructor(filename: String): this(File(filename))
         constructor(parent: String, child: String): this(File(parent, child))
 
+        val loop = this@AsyncEventLoop
+
         override suspend fun size() = file.length()
 
         override suspend fun slice(position: Long, length: Long): AsyncInput {

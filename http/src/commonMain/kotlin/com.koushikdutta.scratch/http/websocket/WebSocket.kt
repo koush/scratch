@@ -111,6 +111,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
                         override val isText = true
                         override val text = payload.readUtf8String()
                         override val isData = true
+                        override fun toString() = text
                     }
                 }
                 else {

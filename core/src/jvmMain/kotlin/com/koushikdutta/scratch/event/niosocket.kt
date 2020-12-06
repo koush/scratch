@@ -235,7 +235,6 @@ actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEvent
     }
 
     private fun closeInternal(t: Throwable?) {
-        println(Throwable().printStackTrace())
         channel.closeQuietly()
         try {
             key.cancel()

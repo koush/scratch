@@ -18,8 +18,10 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
             while (true) {
                 val result = engine.unwrap(unfiltered, buffer, decryptAllocator)
 
-                if (result.status == SSLEngineStatus.CLOSED)
+                if (result.status == SSLEngineStatus.CLOSED) {
+                    flush()
                     return@pipe
+                }
                 if (result.status == SSLEngineStatus.BUFFER_UNDERFLOW) {
                     // need more data, so just break and wait for another read to come in to
                     // trigger the read again.
