@@ -45,7 +45,7 @@ interface WebSocketMessage {
 class WebSocketCloseMessage(val code: Int, val reason: String)
 
 class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket), val protocol: String? = null, server: Boolean = false, val requestHeaders: Headers = Headers(), val responseHeaders: Headers = Headers()): AsyncSocket, AsyncAffinity by socket {
-    private val parser = HybiParser(reader, server)
+    private val parser = HybiParser(reader, !server)
 
     val isClosed
         get() = parser.isClosed

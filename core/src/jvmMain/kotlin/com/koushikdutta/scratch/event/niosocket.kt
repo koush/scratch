@@ -6,7 +6,10 @@ import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.*
 import com.koushikdutta.scratch.stream.closeQuietly
 import java.io.IOException
-import java.nio.channels.*
+import java.nio.channels.DatagramChannel
+import java.nio.channels.SelectionKey
+import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
@@ -232,6 +235,7 @@ actual class AsyncNetworkSocket internal constructor(actual val loop: AsyncEvent
     }
 
     private fun closeInternal(t: Throwable?) {
+        println(Throwable().printStackTrace())
         channel.closeQuietly()
         try {
             key.cancel()

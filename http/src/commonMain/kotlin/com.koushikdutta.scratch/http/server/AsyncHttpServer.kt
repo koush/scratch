@@ -39,7 +39,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         .awaitClose()
     }
 
-    private suspend fun acceptLoop(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)) {
+    suspend fun acceptLoop(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)) {
         while (true) {
             val socketStatus = acceptInternal(socket, reader)
             if (socketStatus == HttpServerSocketStatus.KeepAlive)
@@ -52,7 +52,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
 
     suspend fun accept(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)) = acceptLoop(socket, reader)
 
-    private suspend fun acceptInternal(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)): HttpServerSocketStatus {
+    suspend fun acceptInternal(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)): HttpServerSocketStatus {
         val requestLine = reader.readScanUtf8String("\r\n")
         if (requestLine.isEmpty())
             return HttpServerSocketStatus.Close

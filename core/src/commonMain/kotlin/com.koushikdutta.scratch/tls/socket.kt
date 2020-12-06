@@ -19,7 +19,7 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
                 val result = engine.unwrap(unfiltered, buffer, decryptAllocator)
 
                 if (result.status == SSLEngineStatus.CLOSED)
-                    throw IOException("SSLEngine Closed")
+                    return@pipe
                 if (result.status == SSLEngineStatus.BUFFER_UNDERFLOW) {
                     // need more data, so just break and wait for another read to come in to
                     // trigger the read again.
@@ -34,10 +34,8 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
 
                 handleHandshakeStatus(result.handshakeStatus)
                 // flush possibly empty buffer on handshake status change to trigger handshake completion
-                if (awaitingHandshake && finishedHandshake) {
+                if (awaitingHandshake && finishedHandshake)
                     flush()
-                    break
-                }
 
                 // if there's no handshake, and also no data left, just bail.
                 if (finishedHandshake && unfiltered.isEmpty)
