@@ -74,18 +74,16 @@ actual fun SSLEngine.unwrap(src: ByteBufferList, dst: WritableBuffers, tracker: 
 actual fun SSLEngine.wrap(src: ByteBufferList, dst: WritableBuffers, tracker: AllocationTracker): SSLEngineResult {
     tracker.finishTracking()
     while (true) {
-        val unencrypted = src.readAll()
         val result = dst.putAllocatedBuffer(tracker.requestNextAllocation()) {
             val before = it.remaining()
-            val ret = wrap(unencrypted, it)
+            val ret = src.readBuffers { unencrypted ->
+                wrap(unencrypted, it)
+            }
             val bytesProduced = before - it.remaining()
             // track the allocation to estimate future allocation needs
             tracker.trackDataUsed(bytesProduced)
             ret
         }
-
-        // add unused unencrypted data back to the wrap buffer
-        src.addAll(*unencrypted)
 
         if (result.status == javax.net.ssl.SSLEngineResult.Status.BUFFER_OVERFLOW) {
             // allow the loop to continue
