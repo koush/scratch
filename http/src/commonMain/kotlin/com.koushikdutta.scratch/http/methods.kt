@@ -18,4 +18,9 @@ enum class Methods(val responseHasBody: Boolean = true) {
     operator fun invoke(uri: String, headers: Headers = Headers(), body: AsyncHttpMessageContent, sent: AsyncHttpMessageCompletion? = null): AsyncHttpRequest {
         return AsyncHttpRequest(URI(uri), toString(), headers = headers, body = body, sent = AsyncHttpMessageContent.prepare(headers, body, sent))
     }
+
+
+    fun createResponse(uri: String, headers: Headers = Headers(), body: AsyncHttpMessageContent, sent: AsyncHttpMessageCompletion? = null): AsyncHttpRequest {
+        return AsyncHttpRequest(URI(uri), toString(), headers = headers, body = body, sent = AsyncHttpMessageContent.prepare(headers, body, sent))
+    }
 }

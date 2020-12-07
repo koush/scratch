@@ -264,7 +264,7 @@ fun AsyncHttpRequest.upgradeWebsocket(protocol: String? = null, block: suspend (
         throw WebSocketUpgradeException("Expected GET method for WebSocket Upgrade")
 
     val requestHeaders = headers
-    val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"])["Upgrade"] != null
+    val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"], String::toLowerCase)["upgrade"] != null
     val protocols = parseCommaDelimited(requestHeaders["Sec-WebSocket-Protocol"])
     if (!hasConnectionUpgrade)
         throw WebSocketUpgradeException("Connection Upgrade expected")

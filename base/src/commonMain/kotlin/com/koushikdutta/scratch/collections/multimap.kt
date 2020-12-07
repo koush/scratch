@@ -74,7 +74,7 @@ fun parseSemicolonDelimited(header: String?): StringMultimap {
     return parseStringMultimap(header, ";", true, null)
 }
 
-fun parseCommaDelimited(header: String?): StringMultimap {
+fun parseCommaDelimited(header: String?, decoder: StringDecoder? = null): StringMultimap {
     return parseStringMultimap(header, ",", true, null)
 }
 
