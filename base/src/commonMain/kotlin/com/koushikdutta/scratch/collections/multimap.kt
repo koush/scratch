@@ -60,9 +60,10 @@ fun parseStringMultimap(value: String?, delimiter: String, assigner: String, unq
             v = pair[1]
         if (unquote && v != null && v.endsWith("\"") && v.startsWith("\""))
             v = v.substring(1, v.length - 1)
-        if (decoder != null && v != null) {
+        if (decoder != null) {
             key = decoder(key)
-            v = decoder(v)
+            if (v != null)
+                v = decoder(v)
         }
         map.add(key, v)
     }
@@ -75,7 +76,7 @@ fun parseSemicolonDelimited(header: String?): StringMultimap {
 }
 
 fun parseCommaDelimited(header: String?, decoder: StringDecoder? = null): StringMultimap {
-    return parseStringMultimap(header, ",", true, null)
+    return parseStringMultimap(header, ",", true, decoder)
 }
 
 fun StringMultimap.toString(keyDelimiter: String = "\n", valuesDelimiter: String = ", ", quote: Boolean = true): String {
