@@ -66,7 +66,7 @@ class AsyncHttpConnectSocketExecutor(override val affinity: AsyncAffinity = Asyn
             }
         }
         else {
-            // no body means it can be immediatley reused.
+            // no body means it can be immediately reused.
             reuse()
             null
         }

@@ -48,7 +48,7 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
         if (!isResponseEnded)
             throw IOException("The previous response body was not fully read")
 
-        isResponseEnded = true
+        isResponseEnded = false
         isAlive = true
 
         request.headers.transferEncoding = null
@@ -80,6 +80,9 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
         if (responseLine.code == StatusCode.SWITCHING_PROTOCOLS.code)
             throw AsyncHttpClientSwitchingProtocols(headers, socket)
 
+        val parsedResponseLine = ResponseLine(statusLine)
+        isAlive = isKeepAlive(request, parsedResponseLine.protocol, headers)
+
         val statusCode = StatusCode.values().find { it.code == responseLine.code }
         val body = if (statusCode?.hasBody == false)
             null
@@ -88,42 +91,51 @@ class AsyncHttpSocketExecutor(val socket: AsyncSocket, val reader: AsyncReader =
         }
 
         val responseBody = if (body != null) {
-            isResponseEnded = false
             createEndWatcher(body) {
                 isResponseEnded = true
+
+                if (isAlive)
+                    observeKeepAlive()
             }
         }
         else {
+            isResponseEnded = true
+            if (isAlive)
+                observeKeepAlive()
             null
         }
 
-        val response = AsyncHttpResponse(ResponseLine(statusLine), headers, responseBody)
-        isAlive = isKeepAlive(request, response)
+        val response = AsyncHttpResponse(parsedResponseLine, headers, responseBody)
         if (isAlive) {
             val keepAlive = parseCommaDelimited(headers["Connection"] ?: "")
             // use a default keepalive timeout of 5 seconds.
             val timeout = keepAlive.getFirst("timeout")?.toInt() ?: 5
             this.timeout = milliTime() + timeout * 1000
-
-            affinity.launch {
-                try {
-                    reader.readBuffer()
-                    isAlive = false
-                }
-                catch (doubleRead: AsyncDoubleReadException) {
-                    // double read can be ignored. it will occur if the keepalive socket is reused.
-                }
-                catch (throwable: Throwable) {
-                    isAlive = false
-                }
-            }
         }
         return response
     }
 
+    private fun observeKeepAlive() = affinity.launch {
+        // this coroutine may launch after the socket is immediately reused.
+        // watch for this happening and bail on the keepalive observation.
+        if (!isResponseEnded)
+            return@launch
+
+        try {
+            reader.readBuffer()
+            isAlive = false
+        }
+        catch (doubleRead: AsyncDoubleReadException) {
+            // double read can be ignored. it will occur if the keepalive socket is reused.
+        }
+        catch (throwable: Throwable) {
+            isAlive = false
+        }
+    }
+
     companion object {
-        fun isKeepAlive(request: AsyncHttpRequest, response: AsyncHttpResponse): Boolean {
-            return isKeepAlive(response.protocol, response.headers) && isKeepAlive(request.protocol, request.headers)
+        fun isKeepAlive(request: AsyncHttpRequest, responseProtocol: String, responseHeaders: Headers): Boolean {
+            return isKeepAlive(responseProtocol, responseHeaders) && isKeepAlive(request.protocol, request.headers)
         }
 
         fun isKeepAlive(protocol: String, headers: Headers): Boolean {
