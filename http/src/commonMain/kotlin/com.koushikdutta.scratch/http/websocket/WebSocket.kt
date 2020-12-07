@@ -257,30 +257,44 @@ class WebSocketServerSocket: AsyncServerSocket<WebSocket>, AsyncAffinity by Asyn
     }
 }
 
-class WebSocketUpgradeException(message: String): Exception(message)
+open class WebSocketUpgradeException(message: String): Exception(message)
+class WebSocketUpgradeProtocolException(message: String): WebSocketUpgradeException(message)
 
-fun AsyncHttpRequest.upgradeWebsocket(protocol: String? = null, block: suspend (webSocket: WebSocket) -> Unit): AsyncHttpResponse {
-    if (method.toUpperCase() != Methods.GET.toString())
-        throw WebSocketUpgradeException("Expected GET method for WebSocket Upgrade")
-
+fun AsyncHttpRequest.checkWebsocketUpgrade(vararg subprotocols: String, block: suspend (webSocket: WebSocket) -> Unit): AsyncHttpResponse? {
     val requestHeaders = headers
     val hasConnectionUpgrade = parseCommaDelimited(requestHeaders["Connection"], String::toLowerCase).containsKey("upgrade")
     val protocols = parseCommaDelimited(requestHeaders["Sec-WebSocket-Protocol"])
     if (!hasConnectionUpgrade)
-        throw WebSocketUpgradeException("Connection Upgrade expected")
+        return null
     if (!"WebSocket".equals(requestHeaders["Upgrade"], true))
-        throw WebSocketUpgradeException("Upgrade to WebSocket expected")
-
-    if (protocol != null && !protocols.containsKey(protocol))
-        throw WebSocketUpgradeException("WebSocket Protocol Mismatch $protocol ${requestHeaders["Sec-WebSocket-Protocol"]}")
+        return null
+    if (method.toUpperCase() != Methods.GET.toString())
+        throw WebSocketUpgradeException("Expected GET method for WebSocket Upgrade")
 
     val key = requestHeaders["Sec-WebSocket-Key"]
     if (key == null)
         throw WebSocketUpgradeException("Missing header Sec-WebSocket-Key")
+
+    val headers = Headers()
+
+    // according to spec, the server does not have to agree on a subprotocol, and thus
+    // not specify any. the client may choose to disconnect.
+    var protocol: String? = null
+    if (!subprotocols.isEmpty()) {
+        for (subprotocol in protocols.keys) {
+            if (protocols.containsKey(subprotocol)) {
+                protocol = subprotocol
+                headers["Sec-WebSocket-Protocol"] = subprotocol
+                break
+            }
+        }
+        if (protocol == null)
+            throw WebSocketUpgradeProtocolException("no subprotocols in common ${requestHeaders["Sec-WebSocket-Protocol"]}")
+    }
+
     val concat = key + MAGIC
     val expected = concat.encodeToByteArray().hash().sha1().encode().base64()
 
-    val headers = Headers()
     headers["Connection"] = "Upgrade"
     headers["Upgrade"] = "WebSocket"
     headers["Sec-WebSocket-Accept"] = expected

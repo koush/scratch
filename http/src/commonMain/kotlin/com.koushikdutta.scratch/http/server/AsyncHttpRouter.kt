@@ -4,7 +4,7 @@ import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.websocket.WebSocketServerSocket
-import com.koushikdutta.scratch.http.websocket.upgradeWebsocket
+import com.koushikdutta.scratch.http.websocket.checkWebsocketUpgrade
 import com.koushikdutta.scratch.uri.path
 
 open class AsyncHttpRouteHandlerScope(val match: MatchResult)
@@ -119,10 +119,10 @@ fun AsyncHttpRouter.randomAccessInput(pathRegex: String, handler: suspend AsyncH
     }
 }
 
-fun AsyncHttpRouter.webSocket(pathRegex: String, protocol: String? = null): WebSocketServerSocket {
+fun AsyncHttpRouter.webSocket(pathRegex: String, vararg subprotocols: String): WebSocketServerSocket {
     val serverSocket = WebSocketServerSocket()
     get(pathRegex) {
-        it.upgradeWebsocket(protocol) {
+        it.checkWebsocketUpgrade(*subprotocols) {
             serverSocket.queue.add(it)
         }
     }
