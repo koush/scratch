@@ -2,6 +2,8 @@
 
 package com.koushikdutta.scratch.buffers
 
+import kotlin.jvm.JvmField
+import kotlin.jvm.JvmStatic
 import kotlin.math.max
 import kotlin.math.min
 
@@ -603,6 +605,7 @@ class ByteBufferList : Buffers {
         val EMPTY_BYTEBUFFER = createByteBuffer(ByteArray(0))
         const val MAX_ITEM_SIZE = 65536
         const val MIN_ITEM_SIZE = 1024
+
         private const val MAX_RECLAIMED_COUNT = 500
         val totalObtained: Long
             get() = totalObtained2
@@ -615,18 +618,28 @@ class ByteBufferList : Buffers {
             return allocateByteBuffer(max(8192, size))
         }
 
+        @JvmStatic
         fun deepCopyIfDirect(copyOf: ByteBuffer): ByteBuffer {
             return if (copyOf.isDirect()) deepCopy(
                 copyOf
             ) else copyOf
         }
 
+        @JvmStatic
         fun deepCopy(copyOf: ByteBuffer): ByteBuffer {
             return obtain(copyOf.remaining()).put(copyOf.duplicate()).flip() as ByteBuffer
         }
 
+        @JvmStatic
         fun deepCopyExactSize(copyOf: ByteBuffer): ByteBuffer {
             return allocateByteBuffer(copyOf.remaining()).put(copyOf.duplicate()).flip() as ByteBuffer
+        }
+
+        @JvmStatic
+        fun readByteArray(buffer: ByteBuffer): ByteArray {
+            val ret = ByteArray(buffer.remaining())
+            buffer.get(ret)
+            return ret;
         }
     }
 }

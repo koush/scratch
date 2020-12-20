@@ -12,6 +12,11 @@ fun <T> Promise<T>.get(): T = PromiseHelper.get(this)
 @Deprecated(warning)
 fun <T> Promise<T>.get(time: Long, timeUnit: TimeUnit): T = PromiseHelper.get(this, time, timeUnit)
 
+interface PromiseRunnable<T> {
+    @Throws(Throwable::class)
+    fun run(): T
+}
+
 class PromiseHelper {
     companion object {
         @JvmStatic
@@ -35,6 +40,20 @@ class PromiseHelper {
             if (!semaphore.tryAcquire(time, timeUnit))
                 throw TimeoutException()
             return promise.getOrThrow()
+        }
+
+        @JvmStatic
+        fun <T> thread(name: String = "PromiseThread", runnable: PromiseRunnable<T>): Promise<T> {
+            val deferred = Deferred<T>()
+            Thread {
+                try {
+                    deferred.resolve(runnable.run())
+                } catch (throwable: Throwable) {
+                    deferred.reject(throwable)
+                }
+            }.start()
+
+            return deferred.promise
         }
     }
 }

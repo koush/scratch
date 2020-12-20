@@ -34,6 +34,11 @@ fun interface PromiseErrorCallback {
     fun error(throwable: Throwable)
 }
 
+fun interface PromiseErrorNextCallback<T> {
+    @Throws(Throwable::class)
+    fun errorNext(throwable: Throwable): Promise<T>
+}
+
 class Deferred<T> {
     val deferred = CompletableDeferred<T>()
     val promise = Promise(deferred)
@@ -42,7 +47,7 @@ class Deferred<T> {
     fun resolve(result: Promise<T>) {
         GlobalScope.async(Dispatchers.Unconfined, start = result.start) {
             try {
-                resolve(promise.await())
+                resolve(result.await())
             }
             catch (throwable: Throwable) {
                 reject(throwable)
@@ -73,10 +78,19 @@ internal fun <T> suspendJob(block: suspend () -> T, start: CoroutineStart) = Glo
 
 fun <T> kotlinx.coroutines.Deferred<T>.asPromise(start: CoroutineStart = CoroutineStart.DEFAULT): Promise<T> = Promise(this, start)
 
+private fun <T> completeExceptionally(throwable: Throwable): CompletableDeferred<T> {
+    val ret = CompletableDeferred<T>()
+    ret.completeExceptionally(throwable)
+    return ret
+}
+
 open class Promise<T> internal constructor(val deferred: kotlinx.coroutines.Deferred<T>, internal val start: CoroutineStart) {
     constructor(block: suspend () -> T) : this(suspendJob(block, CoroutineStart.DEFAULT), CoroutineStart.DEFAULT)
     constructor(start: CoroutineStart, block: suspend () -> T) : this(suspendJob(block, start), start)
     constructor(deferred: kotlinx.coroutines.Deferred<T>): this(deferred, CoroutineStart.DEFAULT)
+    constructor(value: T): this(CompletableDeferred(value))
+    constructor(throwable: Throwable): this(completeExceptionally(throwable))
+    constructor(value: Promise<T>) : this(value.deferred)
 
     private val childStart = CompletableDeferred<Unit>()
 
@@ -117,6 +131,13 @@ open class Promise<T> internal constructor(val deferred: kotlinx.coroutines.Defe
         return deferred.getCompleted()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun getOrNull(): T? {
+        if (deferred.isCompleted && deferred.getCompletionExceptionOrNull() == null)
+            return deferred.getCompleted()
+        return null
+    }
+
     // just an alias that returns nothing.
     fun rethrow() {
         getOrThrow()
@@ -153,6 +174,11 @@ open class Promise<T> internal constructor(val deferred: kotlinx.coroutines.Defe
 
         suspend fun ensureActive() {
             getJob()?.ensureActive()
+        }
+
+        @JvmStatic
+        fun awaitAll(vararg promises: Promise<*>) = Promise<Unit> {
+            promises.map { it.deferred }.awaitAll()
         }
     }
 
@@ -209,7 +235,7 @@ open class Promise<T> internal constructor(val deferred: kotlinx.coroutines.Defe
         }
     }
 
-    fun complete(callback: PromiseCompleteCallback<T>) = Promise() {
+    fun complete(callback: PromiseCompleteCallback<T>) = Promise {
         val value = try {
             Result.success(await())
         }
@@ -229,6 +255,12 @@ open class Promise<T> internal constructor(val deferred: kotlinx.coroutines.Defe
     fun error(callback: PromiseErrorCallback): Promise<T> {
         return catch {
             callback.error(it)
+        }
+    }
+
+    fun errorNext(callback: PromiseErrorNextCallback<T>): Promise<T> {
+        return catchThen {
+            callback.errorNext(it).await()
         }
     }
 }
