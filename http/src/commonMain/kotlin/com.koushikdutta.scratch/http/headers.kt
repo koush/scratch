@@ -45,6 +45,12 @@ class Headers : Iterable<Header> {
         headers.add(header)
     }
 
+    fun addMap(map: Map<String, String>) {
+        for (entry in map.entries) {
+            add(entry.key, entry.value)
+        }
+    }
+
     fun addAll(name: String, vararg values: String) {
         for (value in values) {
             add(name, value)
