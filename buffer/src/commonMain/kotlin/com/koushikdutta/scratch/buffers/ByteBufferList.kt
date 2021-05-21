@@ -460,10 +460,9 @@ class ByteBufferList : Buffers {
         return put(c.toByte())
     }
 
-    override fun putAllocatedBytes(allocate: Int, writer: BuffersArrayWriter): ByteBufferList {
+    override fun <T> putAllocatedBytes(allocate: Int, writer: BuffersArrayWriter<T>): T {
         val buffer = grow(allocate, true)
-        writer(buffer.array(), buffer.arrayOffset() + buffer.position())
-        return this
+        return writer(buffer.array(), buffer.arrayOffset() + buffer.position())
     }
 
     private fun <T> putAllocatedBufferInternal(allocate: Int, requireArray: Boolean, writer: BuffersBufferWriter<T>): T {

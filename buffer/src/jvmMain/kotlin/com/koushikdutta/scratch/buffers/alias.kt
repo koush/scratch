@@ -14,6 +14,7 @@ private fun ByteOrder.toByteOrder(): java.nio.ByteOrder {
 actual fun ByteBuffer.order() = order().toByteOrder()
 actual fun ByteBuffer.order(order: ByteOrder) = order(order.toByteOrder())
 actual fun ByteBuffer.duplicate() = this.duplicate()
+actual fun ByteBuffer.byteOrder() = order().toByteOrder()
 
 actual fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuffer = ByteBuffer.wrap(array, offset, length)
 actual fun allocateByteBuffer(length: Int) = ByteBuffer.allocate(length)

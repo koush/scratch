@@ -15,6 +15,8 @@ class AsyncReader(val input: AsyncRead): AsyncRead {
     val buffered: Int
         get() = pending.remaining()
 
+    var order: ByteOrder = ByteOrder.BIG_ENDIAN
+
     /**
      * Read the data into the buffer.
      * The size of the buffer can be read from the buffered property.
@@ -208,19 +210,19 @@ class AsyncReader(val input: AsyncRead): AsyncRead {
         return pending.readByte()
     }
 
-    suspend fun readShort(order: ByteOrder = ByteOrder.BIG_ENDIAN): Short {
+    suspend fun readShort(order: ByteOrder = this.order): Short {
         ensureBuffered(2)
         pending.order(order)
         return pending.readShort()
     }
 
-    suspend fun readInt(order: ByteOrder = ByteOrder.BIG_ENDIAN): Int {
+    suspend fun readInt(order: ByteOrder = this.order): Int {
         ensureBuffered(4)
         pending.order(order)
         return pending.readInt()
     }
 
-    suspend fun readLong(order: ByteOrder = ByteOrder.BIG_ENDIAN): Long {
+    suspend fun readLong(order: ByteOrder = this.order): Long {
         ensureBuffered(8)
         pending.order(order)
         return pending.readLong()

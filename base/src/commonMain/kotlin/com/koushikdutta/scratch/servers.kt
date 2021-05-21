@@ -52,7 +52,7 @@ class AsyncAcceptObserver<T: AsyncSocket> internal constructor(private val serve
         }
     }
 
-    private val closePromise = serverSocket.async {
+    val closePromise = serverSocket.async {
         for (socket in serverSocket.accept()) {
             startSafeCoroutine socketCoroutine@{
                 try {

@@ -1,6 +1,6 @@
 package com.koushikdutta.scratch.buffers
 
-typealias BuffersArrayWriter = (array: ByteArray, startOffset: Int) -> Unit
+typealias BuffersArrayWriter<T> = (array: ByteArray, startOffset: Int) -> T
 typealias BuffersBufferWriter<T> = (buffer: ByteBuffer) -> T
 typealias BuffersBuffersWriter<T> = (buffers: Array<ByteBuffer>) -> T
 
@@ -27,10 +27,10 @@ interface WritableBuffers : AllocatingBuffers {
     fun putInt(i: Int): WritableBuffers
     fun putLong(l: Long): WritableBuffers
     fun putByteChar(c: Char): WritableBuffers
-    fun putAllocatedBytes(allocate: Int, writer: BuffersArrayWriter): WritableBuffers
+    fun <T> putAllocatedBytes(allocate: Int, writer: BuffersArrayWriter<T>): T
     fun <T> putAllocatedBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T
     fun <T> putAllocatedByteBuffer(allocate: Int, writer: BuffersBufferWriter<T>): T
-    fun <T> putAllocatedBuffers(allocate: Int, writer: BuffersBuffersWriter<T>):T
+    fun <T> putAllocatedBuffers(allocate: Int, writer: BuffersBuffersWriter<T>): T
     fun putUtf8String(s: String): WritableBuffers
 
     fun remaining(): Int
