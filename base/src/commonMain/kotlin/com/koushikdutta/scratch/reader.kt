@@ -236,7 +236,7 @@ class AsyncReader(val input: AsyncRead): AsyncRead {
 
 /**
  * Scan the read for a line string ending with newline character "\n".
- * Returns the line, without the newline character.
+ * Returns the string, without the newline character.
  * Throws [ReadScanException] if end of stream is reached before the newline is found.
  */
 suspend fun AsyncReader.readLine(): String {
