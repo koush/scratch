@@ -1,11 +1,13 @@
 plugins {
     id "org.jetbrains.kotlin.multiplatform"
 }
+
 repositories {
     mavenCentral()
 }
-group 'com.koushikdutta.scratch'
-version '0.0.1'
+
+group scratchGroup
+version scratchVersion
 
 apply plugin: 'maven-publish'
 

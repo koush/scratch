@@ -4,7 +4,8 @@ plugins {
 repositories {
     mavenCentral()
 }
-group 'com.koushikdutta.scratch'
+
+group scratchGroup
 version scratchVersion
 
 apply plugin: 'maven-publish'

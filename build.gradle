@@ -11,4 +11,5 @@ buildscript {
     }
 
     ext.scratchVersion = '0.0.1'
+    ext.scratchGroup = 'com.koushikdutta.scratch'
 }
