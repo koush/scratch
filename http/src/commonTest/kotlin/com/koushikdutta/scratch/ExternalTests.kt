@@ -8,7 +8,7 @@ import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.executor.useHttpsAlpnExecutor
 import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -20,7 +20,7 @@ class ExternalTests {
 
         // this will trigger push promise streams
         val html = client.get("https://http2.golang.org/serverpush") {
-            readAllString(it.body!!)
+            it.body!!.parse().readString()
         }
 
 //        golang uses cache busting links and scripts, so gotta parse them out

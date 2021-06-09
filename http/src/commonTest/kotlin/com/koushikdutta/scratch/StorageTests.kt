@@ -6,7 +6,7 @@ import com.koushikdutta.scratch.http.client.randomAccess
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.server.randomAccessInput
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -18,17 +18,17 @@ class StorageTests {
         val storage = BufferStorage(bb)
 
         async {
-            assertEquals("hello world", readAllString(storage))
-            assertEquals("", readAllString(storage))
+            assertEquals("hello world", storage.parse().readString())
+            assertEquals("", storage.parse().readString())
 
             storage.seekPosition(1)
-            assertEquals("ello world", readAllString(storage))
-            assertEquals("", readAllString(storage))
+            assertEquals("ello world", storage.parse().readString())
+            assertEquals("", storage.parse().readString())
 
             val buffer = ByteBufferList()
             storage.readPosition(1, 4, buffer)
             assertEquals("ello", buffer.readUtf8String())
-            assertEquals(" world", readAllString(storage))
+            assertEquals(" world", storage.parse().readString())
         }
     }
 
@@ -42,22 +42,22 @@ class StorageTests {
             storage.drain("fizzbuzz".createByteBufferList())
 
             storage.seekPosition(0)
-            assertEquals("hello worldfizzbuzz", readAllString(storage))
+            assertEquals("hello worldfizzbuzz", storage.parse().readString())
 
             storage.seekPosition(0)
             storage.drain("fizzy".createByteBufferList())
             storage.seekPosition(0)
-            assertEquals("fizzy worldfizzbuzz", readAllString(storage))
+            assertEquals("fizzy worldfizzbuzz", storage.parse().readString())
 
             storage.seekPosition(1)
             storage.drain("u".createByteBufferList())
             storage.seekPosition(0)
-            assertEquals("fuzzy worldfizzbuzz", readAllString(storage))
+            assertEquals("fuzzy worldfizzbuzz", storage.parse().readString())
 
             storage.seekPosition(1)
             storage.drain("o".createByteBufferList())
             storage.seekPosition(1)
-            assertEquals("ozzy worldfizzbuzz", readAllString(storage))
+            assertEquals("ozzy worldfizzbuzz", storage.parse().readString())
         }
     }
 
@@ -84,17 +84,17 @@ class StorageTests {
 
             val storage = httpClient.randomAccess("http://example")
 
-            assertEquals("hello world", readAllString(storage))
-            assertEquals("", readAllString(storage))
+            assertEquals("hello world", storage.parse().readString())
+            assertEquals("", storage.parse().readString())
 
             storage.seekPosition(1)
-            assertEquals("ello world", readAllString(storage))
-            assertEquals("", readAllString(storage))
+            assertEquals("ello world", storage.parse().readString())
+            assertEquals("", storage.parse().readString())
 
             val buffer = ByteBufferList()
             storage.readPosition(1, 4, buffer)
             assertEquals("ello", buffer.readUtf8String())
-            assertEquals(" world", readAllString(storage))
+            assertEquals(" world", storage.parse().readString())
             done = true
         }
 

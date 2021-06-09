@@ -6,9 +6,11 @@ import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.execute
-import com.koushikdutta.scratch.http.client.executor.*
+import com.koushikdutta.scratch.http.client.executor.SchemeExecutor
+import com.koushikdutta.scratch.http.client.executor.useHttpsAlpnExecutor
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.parse
+import com.koushikdutta.scratch.parser.readString
 import com.koushikdutta.scratch.tls.*
 import org.conscrypt.Conscrypt
 import org.junit.Test
@@ -33,7 +35,7 @@ class ConscryptTests {
 
         var data = ""
         tlsServer.acceptAsync {
-            data += readAllString(this)
+            data += this.parse().readString()
         }
 
         for (i in 1..2) {
@@ -84,7 +86,7 @@ class ConscryptTests {
             engine.useClientMode = true
             Conscrypt.setApplicationProtocols(engine, arrayOf("foo"))
             val tlsSocket = tlsHandshake(socket, engine)
-            data = readAllString(tlsSocket)
+            data = tlsSocket.parse().readString()
         }
 
         assert(data == "hello world")
@@ -122,7 +124,7 @@ class ConscryptTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(it.body!!)
+            val data = it.body!!.parse().readString()
             assert(data == "hello world")
             StatusCode.OK(body = Utf8StringBody(data))
         }
@@ -131,10 +133,10 @@ class ConscryptTests {
 
         var data = ""
         async {
-            data = client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) { readAllString(it.body!!) }
+            data = client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) { it.body!!.parse().readString() }
             data += client.execute(Methods.POST("https://TestServer", body = Utf8StringBody("hello world"))) {
                 protocol = it.headers["X-Scratch-ALPN"]
-                readAllString(it.body!!)
+                it.body!!.parse().readString()
             }
         }
 

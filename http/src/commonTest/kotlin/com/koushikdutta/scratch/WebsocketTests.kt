@@ -1,7 +1,5 @@
 package com.koushikdutta.scratch
 
-import com.koushikdutta.scratch.buffers.ReadableBuffers
-import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
@@ -9,8 +7,7 @@ import com.koushikdutta.scratch.http.server.webSocket
 import com.koushikdutta.scratch.http.websocket.HybiParser
 import com.koushikdutta.scratch.http.websocket.WebSocket
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
-import com.koushikdutta.scratch.parser.readAllBuffer
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -30,14 +27,14 @@ class WebsocketTests {
         async {
             serverSocket.drain(server.frame(testData.createByteBufferList()))
             val message = server.parse()
-            val check = CrappyDigest.getInstance().update(readAllBuffer(message.read).readBytes()).digest().createByteBufferList().readLong()
+            val check = CrappyDigest.getInstance().update(message.read.parse().readBytes()).digest().createByteBufferList().readLong()
             assertEquals(check, digest)
             done++
         }
 
         async {
             val message = client.parse()
-            val testDataCopy = readAllBuffer(message.read).readBytes()
+            val testDataCopy = message.read.parse().readBytes()
             val check = CrappyDigest.getInstance().update(testDataCopy).digest().createByteBufferList().readLong()
             assertEquals(check, digest)
             clientSocket.drain(client.frame(testDataCopy.createByteBufferList()))
@@ -74,14 +71,14 @@ class WebsocketTests {
             serverSocket.drain(server.pingFrame("hello"))
             val message = server.parse()
             assertEquals(HybiParser.OP_PONG, message.opcode)
-            val check = readAllString(message.read)
+            val check = message.read.parse().readString()
             assertEquals(check, "hello")
             done++
         }
 
         async {
             val message = client.parse()
-            val check = readAllString(message.read)
+            val check = message.read.parse().readString()
             assertEquals(HybiParser.OP_PING, message.opcode)
             assertEquals(check, "hello")
             clientSocket.drain(client.pongFrame("hello"))
@@ -103,7 +100,7 @@ class WebsocketTests {
             serverSocket.drain(server.pingFrame("hello"))
             val message = server.parse()
             assertEquals(HybiParser.OP_PONG, message.opcode)
-            val check = readAllString(message.read)
+            val check = message.read.parse().readString()
             assertEquals(check, "hello")
             serverSocket.drain(server.closeFrame(55, "dead"))
             done++
@@ -112,13 +109,13 @@ class WebsocketTests {
         async {
             val message = client.parse()
             assertEquals(HybiParser.OP_PING, message.opcode)
-            assertEquals(readAllString(message.read), "hello")
+            assertEquals(message.read.parse().readString(), "hello")
             clientSocket.drain(client.pongFrame("hello"))
 
             val message2 = client.parse()
             assertEquals(message2.closeCode, 55)
             assertEquals(HybiParser.OP_CLOSE, message2.opcode)
-            assertEquals(readAllString(message2.read), "dead")
+            assertEquals(message2.read.parse().readString(), "dead")
             done++
         }
         assertEquals(done, 2)
@@ -138,7 +135,7 @@ class WebsocketTests {
         }
 
         async {
-            data = readAllString(serverSocket)
+            data = serverSocket.parse().readString()
         }
 
         assertEquals("helloworld", data)
@@ -152,7 +149,7 @@ class WebsocketTests {
         val webSocketServer = router.webSocket("/websocket")
         var data: String? = null
         webSocketServer.acceptAsync {
-            data = readAllString(this)
+            data = this.parse().readString()
         }
 
         val httpClient = httpServer.createFallbackClient()

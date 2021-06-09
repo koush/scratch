@@ -2,7 +2,7 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.TestUtils.Companion.createRandomRead
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.test.*
 
 class NioTests {
@@ -17,7 +17,7 @@ class NioTests {
         // incuding the pipe ending, so writable will never be triggered.
         var data = ""
         async {
-            data = readAllString(pipe)
+            data = pipe.parse().readString()
         }
 
         val keepGoing = pipe.write(ByteBufferList().putUtf8String("Hello World"))
@@ -46,7 +46,7 @@ class NioTests {
         // start reading after end, to ensure data after read is still available.
         var data = ""
         async {
-            data = readAllString(pipe)
+            data = pipe.parse().readString()
         }
 
         assertEquals(data, "Hello WorldHello WorldHello World")
@@ -73,7 +73,7 @@ class NioTests {
 
         var data = ""
         async {
-            data = readAllString(pipe)
+            data = pipe.parse().readString()
         }
 
         assertEquals(data, "Hello WorldHello WorldHello World")
@@ -97,7 +97,7 @@ class NioTests {
 
         async {
             try {
-                readAllString(pipe)
+                pipe.parse().readString()
             }
             catch (throwable: IOException) {
                 return@async
@@ -108,7 +108,7 @@ class NioTests {
         // reading again with another read in progress should succeed here, and cause the previous read to IOException
         var gotData = false
         async {
-            readAllString(pipe)
+            pipe.parse().readString()
             gotData = true
         }
 

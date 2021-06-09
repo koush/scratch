@@ -8,7 +8,7 @@ import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.http.http2.*
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,7 +29,7 @@ class Http2Tests {
         async {
             val client = Http2Connection.upgradeHttp2Connection(pair.first, Http2ConnectionMode.Client)
             val connected = client.connect(Methods.GET("https://example.com/"))
-            data = readAllString(connected)
+            data = connected.parse().readString()
         }
 
         assertEquals(data, "Hello World")
@@ -128,7 +128,7 @@ class Http2Tests {
             val client = Http2Connection.upgradeHttp2Connection(pair.first, Http2ConnectionMode.Client)
             val connected =
                 client.connect(Methods.POST("https://example.com/", body = BinaryBody(read = body)))
-            val data = readAllString(connected)
+            val data = connected.parse().readString()
             assertEquals(data, "hello world")
         }
 
@@ -158,7 +158,7 @@ class Http2Tests {
 
             for (i in 0 until 10) {
                 val connected = client.connect(Methods.POST("https://example.com/", body = BinaryBody(createUnboundRandomRead())))
-                val data = readAllString(connected)
+                val data = connected.parse().readString()
                 assertEquals(data, "hello world")
                 completed++
             }

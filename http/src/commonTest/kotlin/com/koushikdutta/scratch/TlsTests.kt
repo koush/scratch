@@ -8,7 +8,7 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.execute
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpConnectSocketExecutor
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import com.koushikdutta.scratch.tls.*
 import com.koushikdutta.scratch.uri.URI
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -46,7 +46,7 @@ class TlsTests {
             engine.useClientMode = true
 
             val client = tlsHandshake(pair.second, engine)
-            data = readAllString(client)
+            data = client.parse().readString()
         }
 
         assertEquals(data, "Hello World")
@@ -80,7 +80,7 @@ class TlsTests {
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                readAllString(client)
+                client.parse().readString()
             }
 
             result2.getCompleted()
@@ -117,7 +117,7 @@ class TlsTests {
                 engine.useClientMode = true
 
                 val client = tlsHandshake(pair.second, engine)
-                readAllString(client)
+                client.parse().readString()
             }
 
             result2.getCompleted()
@@ -139,7 +139,7 @@ class TlsTests {
 
         var data = ""
         tlsServer.acceptAsync {
-            data += readAllString(this)
+            data += this.parse().readString()
         }
 
         for (i in 1..2) {
@@ -243,7 +243,7 @@ class TlsTests {
 
         var data = ""
         tlsServer.acceptAsync {
-            data += readAllString(this)
+            data += this.parse().readString()
         }
 
         launch {
@@ -272,7 +272,7 @@ class TlsTests {
             // would be cool to pipe hte request right back to the response
             // without buffering, but the http spec does not work that way.
             // entire request must be received before sending a response.
-            val data = readAllString(it.body!!)
+            val data = it.body!!.parse().readString()
             assertEquals(data, "hello world")
             StatusCode.OK(body = Utf8StringBody(data))
         }
@@ -291,7 +291,7 @@ class TlsTests {
             for (i in 1..3) {
                 val request =
                     AsyncHttpRequest(URI("http://example/foo"), "POST", body = Utf8StringBody("hello world"))
-                val data = httpClient.execute(request) { readAllString(it.body!!) }
+                val data = httpClient.execute(request) { it.body!!.parse().readString() }
                 assertEquals(data, "hello world")
                 requestsCompleted++
             }

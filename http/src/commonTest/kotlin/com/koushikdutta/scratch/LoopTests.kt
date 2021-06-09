@@ -17,7 +17,7 @@ import com.koushikdutta.scratch.http.client.executor.*
 import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import com.koushikdutta.scratch.uri.URI
 import kotlinx.coroutines.*
 import kotlin.math.abs
@@ -311,7 +311,7 @@ class LoopTests {
 
                         val request =
                                 AsyncHttpRequest(URI("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
-                        val data = httpClient.execute(request) { readAllString(it.body!!) }
+                        val data = httpClient.execute(request) { it.body!!.parse().readString() }
                         assertEquals(data, "hello world")
                         requestsCompleted++
                         break
@@ -378,7 +378,7 @@ class LoopTests {
         websocket.drain("hello".createByteBufferList())
         websocket.drain("world".createByteBufferList())
         websocket.close()
-        val data = readAllString(websocket)
+        val data = websocket.parse().readString()
         assertEquals("helloworld", data)
     }
 
@@ -411,7 +411,7 @@ class LoopTests {
 
         try {
             httpClient.get("http://clockworkmod.com") {
-                readAllString(it.body!!)
+                it.body!!.parse().readString()
             }
             fail("expected failure")
         }
@@ -429,7 +429,7 @@ class LoopTests {
         }
 
         assertNotNull(httpClient.get("http://clockworkmod.com") {
-            readAllString(it.body!!)
+            it.body!!.parse().readString()
         })
         Unit
     }
@@ -576,7 +576,7 @@ class LoopTests {
         val request = Methods.GET("https://www.clockworkmod.com")
         request.setProxy("192.168.2.7", 8888)
         val httpClient = AsyncHttpClient(this)
-        val ret = readAllString(httpClient(request).body!!)
+        val ret = httpClient(request).body!!.parse().readString()
         println(ret)
     }
 

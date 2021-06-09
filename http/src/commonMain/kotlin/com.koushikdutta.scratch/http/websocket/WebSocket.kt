@@ -14,7 +14,8 @@ import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientSwitchingProtocols
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.parse
+import com.koushikdutta.scratch.parser.readString
 import kotlin.random.Random
 
 
@@ -81,7 +82,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
                 }
 
                 if (message.opcode == HybiParser.OP_CLOSE) {
-                    val reason = readAllString(message.read)
+                    val reason = message.read.parse().readString()
                     closeMessage = WebSocketCloseMessage(message.closeCode!!, reason)
                     yield(object : WebSocketMessage {
                         override val isClose = true
@@ -89,7 +90,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
                     return@createAsyncIterable
                 }
                 else if (message.opcode == HybiParser.OP_PING) {
-                    val ping = readAllString(message.read)
+                    val ping = message.read.parse().readString()
                     yield(object : WebSocketMessage {
                         override val isText = true
                         override val text = ping
@@ -98,7 +99,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
                     break
                 }
                 else if (message.opcode == HybiParser.OP_PONG) {
-                    val pong = readAllString(message.read)
+                    val pong = message.read.parse().readString()
                     yield(object : WebSocketMessage {
                         override val isText = true
                         override val text = pong

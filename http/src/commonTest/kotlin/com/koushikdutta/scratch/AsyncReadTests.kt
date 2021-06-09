@@ -1,11 +1,11 @@
 package com.koushikdutta.scratch
 
+import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.parse
+import com.koushikdutta.scratch.parser.readString
 import kotlin.test.Test
 import kotlin.test.assertEquals
-
-import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 
 class AsyncReadTests {
     @Test
@@ -16,7 +16,7 @@ class AsyncReadTests {
             val stream2 = ByteBufferList().putUtf8String("World").createReader()
 
             val stream3 = stream1 + stream2
-            result = readAllString(stream3)
+            result = stream3.parse().readString()
         }
 
         assertEquals(result, "HelloWorld")

@@ -3,7 +3,7 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.TestUtils.Companion.countBytes
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -15,7 +15,7 @@ class PipeTests {
 
         var data = ""
         server.acceptAsync {
-            data = readAllString(this)
+            data = this.parse().readString()
         }
 
         async {

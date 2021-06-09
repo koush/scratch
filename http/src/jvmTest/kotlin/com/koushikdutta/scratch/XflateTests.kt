@@ -3,7 +3,8 @@ package com.koushikdutta.scratch
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.filters.DeflatePipe
 import com.koushikdutta.scratch.filters.InflatePipe
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.parse
+import com.koushikdutta.scratch.parser.readString
 import org.junit.Test
 
 class XflateTests {
@@ -22,7 +23,7 @@ class XflateTests {
 
         var parsed = ""
         async {
-            parsed = readAllString(read)
+            parsed = read.parse().readString()
         }
 
         assert(parsed == finalText)

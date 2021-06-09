@@ -16,6 +16,10 @@ suspend fun AsyncParser.readBuffer(): ByteBufferList {
     return ret
 }
 
+suspend fun AsyncParser.readBytes(): ByteArray {
+    return readBuffer().readBytes()
+}
+
 suspend fun AsyncParser.readString(): String {
     return readBuffer().readUtf8String()
 }
