@@ -67,7 +67,7 @@ loop.async {
 }
 ```
 
-The above server has a problem: similar to POSIX accept loops, the example above is only handling one socket at a time. Typically every clent socket would get its own thread, but Scratch can put each incoming socket in its own coroutine:
+The above server has a problem: similar to POSIX accept loops, the example above is only handling one socket at a time. Typically every client socket would get its own thread, but Scratch can put each incoming socket in its own coroutine:
 
 ```kotlin
 val server = listen(5555)
@@ -98,6 +98,7 @@ And the HTTP client.
 
 ```kotlin
 val client = AsyncHttpClient()
-val response = client(Methods.GET("http://localhost:5555", body = Utf8StringBody("hello world")))
+val response = client(Methods.GET("http://localhost:5555",
+   body = Utf8StringBody("hello world")))
 println("from server: " + response.parse().readString())
 ```
