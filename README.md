@@ -73,7 +73,7 @@ loop.async {
 }
 ```
 
-The above server has a problem: similar to POSIX accept loops, the example above is only handling one socket at a time. Typically every client socket would get its own thread, but Scratch can put each incoming socket in its own coroutine:
+The above server has a problem: similar to POSIX accept loops, the example above is only handling one socket at a time. Typically every client socket would get its own thread, but Scratch can put each incoming socket in its own coroutine (all subsequent examples have removed the loop boilerplate):
 
 ```kotlin
 val server = listen(5555)
@@ -147,12 +147,14 @@ Creating and using self-signed certificates is similar to the previous Socket Se
 ### TLS Server
 
 ```kotlin
-// socket server as seen in the socket example
+// Create an SSLContext
 val serverContext = createTLSContext()
-// helper to create a self signed certificate
+// helper to generate a self signed certificate
 val keypairCert = createSelfSignedCertificate("TestServer")
+// initialize the SSLContext with the private key and public certificate.
 serverContext.init(keypairCert.first, keypairCert.second)
-// the socket 
+// socket server as seen in the socket example, but the incoming
+// clients are upgraded to a TLS connection.
 val server = server.listenTls(5555, context = serverContext)
 
 for (socket in server.accept()) {
@@ -170,6 +172,7 @@ provided in the sample below (ie, keypairCert).
 
 ```kotlin
 val clientContext = createTLSContext()
+// initialize the SSLContext with ONLY the public certificate
 clientContext.init(keypairCert.second)
 
 val client = connectTls("localhost", 5555, context = clientContext)
