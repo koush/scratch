@@ -571,7 +571,7 @@ class LoopTests {
         assertEquals(count, 2)
     }
 
-    @Test
+//    @Test
     fun testHttpProxy() = networkContextTest {
         val request = Methods.GET("https://www.clockworkmod.com")
         request.setProxy("192.168.2.7", 8888)
