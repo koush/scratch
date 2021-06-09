@@ -148,9 +148,9 @@ Creating and using self-signed certificates is similar to the previous Socket Se
 
 ```kotlin
 // socket server as seen in the socket example
+val serverContext = createTLSContext()
 // helper to create a self signed certificate
 val keypairCert = createSelfSignedCertificate("TestServer")
-val serverContext = createTLSContext()
 serverContext.init(keypairCert.first, keypairCert.second)
 // the socket 
 val server = server.listenTls(5555, context = serverContext)
