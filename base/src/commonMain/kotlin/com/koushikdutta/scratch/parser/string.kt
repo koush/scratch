@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.parser
 
 import com.koushikdutta.scratch.AsyncRead
 
+@Deprecated("Use AsyncParser")
 suspend fun readAllString(read: AsyncRead): String {
-    return readAllBuffer(read).readUtf8String()
+    return read.parse().readString()
 }
