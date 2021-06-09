@@ -89,6 +89,7 @@ We can also create an echo server in HTTP.
 val server = AsyncHttpServer {
    // parse the raw request body bytes as a string
    val body = it.parse().readString()
+   // create and return the response.
    StatusCode.OK(body = Utf8StringBody(body))
 }
 server.listen(5555)
