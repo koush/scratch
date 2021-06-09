@@ -295,7 +295,7 @@ class UvEventLoop : AsyncScheduler<UvEventLoop>() {
     }
 
     suspend fun AsyncServer.listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5) =
-            listen(this@UvEventLoop.listen(port, address, backlog))
+        listenAsync(this@UvEventLoop.listen(port, address, backlog))
 
     private suspend fun listenInternal(port: Int = 0, address: InetAddress, backlog: Int): UvServerSocket {
         val socket = AllocedHandle<uv_tcp_t>(this, nativeHeap.alloc())

@@ -7,7 +7,6 @@ import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import com.koushikdutta.scratch.event.NamedThreadFactory.Companion.newSynchronousWorkers
 import com.koushikdutta.scratch.stream.closeQuietly
-import java.io.Closeable
 import java.io.File
 import java.io.IOException
 import java.net.NetworkInterface
@@ -95,7 +94,7 @@ actual open class AsyncEventLoop: AsyncScheduler<AsyncEventLoop>() {
     }
 
     actual suspend fun AsyncServer.listen(port: Int, address: InetAddress?, backlog: Int) =
-        listen(this@AsyncEventLoop.listen(port, address, backlog))
+        listenAsync(this@AsyncEventLoop.listen(port, address, backlog))
 
     actual suspend fun createDatagram(port: Int, address: InetAddress?, reuseAddress: Boolean): AsyncDatagramSocket {
         await()

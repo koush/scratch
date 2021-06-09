@@ -1,9 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
-import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import com.koushikdutta.scratch.event.AsyncNetworkSocket
 import com.koushikdutta.scratch.http.Methods
 import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.Utf8StringBody
@@ -129,7 +127,7 @@ class ConscryptTests {
             StatusCode.OK(body = Utf8StringBody(data))
         }
 
-        httpServer.listen(tlsServer)
+        httpServer.listenAsync(tlsServer)
 
         var data = ""
         async {

@@ -87,7 +87,7 @@ suspend fun Collection<Promise<*>>.awaitAll() {
 
 internal fun AsyncHttpServer.createFallbackClient(): AsyncHttpConnectSocketExecutor {
     val pipeServer = AsyncPipeServerSocket()
-    listen(pipeServer)
+    listenAsync(pipeServer)
     return AsyncHttpConnectSocketExecutor {
         pipeServer.connect()
     }

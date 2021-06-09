@@ -62,7 +62,7 @@ class HttpExecutorTests {
                 StatusCode.OK(body = Utf8StringBody("hello world"))
             }
 
-            server.listen(pipeServer)
+            server.listenAsync(pipeServer)
         }
 
         assertEquals(data, "hello world")

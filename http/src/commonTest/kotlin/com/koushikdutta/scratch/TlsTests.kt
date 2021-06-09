@@ -277,7 +277,7 @@ class TlsTests {
             StatusCode.OK(body = Utf8StringBody(data))
         }
 
-        httpServer.listen(tlsServer)
+        httpServer.listenAsync(tlsServer)
 
         var requestsCompleted = 0
         launch {

@@ -1,14 +1,12 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.*
-import com.koushikdutta.scratch.http.client.AsyncHttpClient
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpConnectSocketExecutor
 import com.koushikdutta.scratch.http.client.randomAccess
 import com.koushikdutta.scratch.http.server.AsyncHttpRouter
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.server.randomAccessInput
 import com.koushikdutta.scratch.parser.readAllString
-import kotlin.math.min
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -75,7 +73,7 @@ class StorageTests {
             }
 
             val httpServer = AsyncHttpServer(router::handle)
-            httpServer.listen(pipeServer)
+            httpServer.listenAsync(pipeServer)
         }
 
         var done = false

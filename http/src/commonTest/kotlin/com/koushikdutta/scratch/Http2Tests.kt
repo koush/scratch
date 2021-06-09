@@ -7,10 +7,7 @@ import com.koushikdutta.scratch.http.StatusCode
 import com.koushikdutta.scratch.http.body.BinaryBody
 import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.createContentLengthPipe
-import com.koushikdutta.scratch.http.http2.Http2Connection
-import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
-import com.koushikdutta.scratch.http.http2.acceptHttpAsync
-import com.koushikdutta.scratch.http.http2.connect
+import com.koushikdutta.scratch.http.http2.*
 import com.koushikdutta.scratch.parser.readAllString
 import kotlin.random.Random
 import kotlin.test.Test
@@ -23,10 +20,9 @@ class Http2Tests {
 
         async {
             Http2Connection.upgradeHttp2Connection(pair.second, Http2ConnectionMode.Server)
-            .acceptHttpAsync {
+            .acceptHttp {
                 StatusCode.OK(body = Utf8StringBody("Hello World"))
             }
-            .awaitClose()
         }
 
         var data = ""
@@ -76,7 +72,7 @@ class Http2Tests {
 
         launch {
             Http2Connection.upgradeHttp2Connection(pair.second, Http2ConnectionMode.Server)
-                    .acceptHttpAsync {
+                    .acceptHttp {
                         StatusCode.OK(body = BinaryBody(read = body))
                     }
         }
@@ -115,7 +111,7 @@ class Http2Tests {
         var received = 0
         async {
             Http2Connection.upgradeHttp2Connection(pair.second, Http2ConnectionMode.Server)
-                    .acceptHttpAsync {
+                    .acceptHttp {
                         val buffer = ByteBufferList()
                         // stream the data and digest it
                         while (it.body!!(buffer)) {
@@ -151,7 +147,7 @@ class Http2Tests {
 
         async {
             Http2Connection.upgradeHttp2Connection(pair.second, Http2ConnectionMode.Server)
-                    .acceptHttpAsync {
+                    .acceptHttp {
                         StatusCode.OK(body = Utf8StringBody("hello world"))
                     }
         }

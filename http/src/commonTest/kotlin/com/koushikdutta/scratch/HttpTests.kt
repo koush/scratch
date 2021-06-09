@@ -95,7 +95,7 @@ class HttpTests {
             StatusCode.OK(body = Utf8StringBody(data))
         }
 
-        httpServer.listen(server)
+        httpServer.listenAsync(server)
 
         var requestsCompleted = 0
         async {
@@ -135,7 +135,7 @@ class HttpTests {
             StatusCode.OK(body = BinaryBody(read = body))
         }
 
-        httpServer.listen(server)
+        httpServer.listenAsync(server)
 
         val clientDigest = CrappyDigest.getInstance()
         var received = 0
@@ -194,7 +194,7 @@ class HttpTests {
 
             StatusCode.OK(body = Utf8StringBody("hello world"))
         }
-        httpServer.listen(server)
+        httpServer.listenAsync(server)
 
         async {
             val client = AsyncHttpConnectSocketExecutor {
@@ -229,7 +229,7 @@ class HttpTests {
             StatusCode.OK(body = Utf8StringBody(data))
         }
 
-        httpServer.listen(server)
+        httpServer.listenAsync(server)
 
         var data = ""
         async {
@@ -265,7 +265,7 @@ class HttpTests {
             StatusCode.OK(body = Utf8StringBody("hello world"))
         }
 
-        httpServer.listen(server)
+        httpServer.listenAsync(server)
 
         var requestsCompleted = 0
         val httpClient = AsyncHttpConnectSocketExecutor {
@@ -328,7 +328,7 @@ class HttpTests {
                     StatusCode.OK(body = Utf8StringBody("hello world"))
             }
 
-            httpServer.listen(pipeServer)
+            httpServer.listenAsync(pipeServer)
         }
 
         var data = ""
@@ -352,7 +352,7 @@ class HttpTests {
             }
         }
 
-        httpServer.listen(pipeServer)
+        httpServer.listenAsync(pipeServer)
         launch {
             val httpClient = AsyncHttpConnectSocketExecutor {
                 pipeServer.connect()
@@ -373,7 +373,7 @@ class HttpTests {
             AsyncHttpResponse.SWITCHING_PROTOCOLS {
             }
         }
-        httpServer.listen(pipeServer)
+        httpServer.listenAsync(pipeServer)
 
         val httpClient = AsyncHttpConnectSocketExecutor {
             pipeServer.connect()

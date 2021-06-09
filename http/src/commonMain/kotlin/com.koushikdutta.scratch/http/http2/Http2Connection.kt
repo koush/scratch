@@ -556,7 +556,7 @@ fun AsyncHttpResponse.createHttp2ConnectionHeader(): Headers {
     return Http2ExchangeCodec.createResponseHeaders(this)
 }
 
-fun Http2Connection.acceptHttpAsync(executor: AsyncHttpExecutor) = acceptAsync {
+suspend fun Http2Connection.acceptHttp(executor: AsyncHttpExecutor) = accept {
     val request = createHttp2Request()
     val response = try {
         executor(request)

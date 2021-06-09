@@ -14,6 +14,5 @@ class HttpTestsJvm {
             it.createFileResponse(AsyncFile(cwd, it.uri.path!!))
         }
         .listen(3000)
-        .awaitClose()
     }
 }

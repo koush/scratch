@@ -135,16 +135,15 @@ class LoopTests {
             // the server error should trigger a client close
             // ignore and verify the server throws itself.
         }
-        observer.awaitClose()
+        observer.await()
     }
 
     @Test
     fun testServerNotCrash() = networkContextTest {
         val server = listen()
-        val observer = server.acceptAsync {
+        val observer = server.acceptAsync(ignoreErrors = true) {
             throw ExpectedException()
         }
-        .observeIgnoreErrors()
         val client = connect("127.0.0.1", server.localPort)
         try {
             client.write(ByteBufferList().putUtf8String("hello!"))
@@ -154,7 +153,7 @@ class LoopTests {
         catch (exception: IOException) {
         }
         server.close()
-        observer.awaitClose()
+        observer.await()
     }
 
     @Test
@@ -289,7 +288,7 @@ class LoopTests {
             StatusCode.OK(body = Utf8StringBody("hello world"))
         }
 
-        httpServer.listen(server)
+        httpServer.listenAsync(server)
 
         val numRequests = 1000
         var requestsCompleted = 0
