@@ -8,10 +8,10 @@ Scratch is a I/O library written in Kotlin (multiplatform). Scratch is non-block
    * Java: NIO
    * Native: libuv
  * Implements Clients and Servers
-   * TCP Sockets
-   * HTTP/1 and HTTP/2
-   * WebSockets
- * TLS
+   * [TCP](#socket-client-and-server)/UDP Sockets
+   * [HTTP/1](#http-client-and-server) and HTTP/2
+   * [WebSockets](#websocket-client-and-server)
+ * [TLS](#tls)
    * Java: SSLEngine
    * Native: openssl
 
