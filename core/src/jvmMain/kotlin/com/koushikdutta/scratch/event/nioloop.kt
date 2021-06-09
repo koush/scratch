@@ -25,6 +25,11 @@ actual typealias Inet4Address = java.net.Inet4Address
 actual typealias Inet6Address = java.net.Inet6Address
 actual typealias InetSocketAddress = java.net.InetSocketAddress
 
+actual fun getLoopbackAddress(): InetAddress {
+    return InetAddress.getLoopbackAddress()
+}
+
+
 actual fun milliTime(): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime())
 actual fun nanoTime(): Long = System.nanoTime()
 

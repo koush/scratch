@@ -25,7 +25,6 @@ import kotlin.random.Random
 import kotlin.test.*
 
 class LoopTests {
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testPostDelayed() {
         val networkContext = AsyncEventLoop()
@@ -612,11 +611,12 @@ class LoopTests {
     fun testBigBuffer() = networkContextTest {
         val server = listen()
         server.acceptAsync {
-            val buffer = ByteBuffer.allocate(10000000)
+            val buffer = allocateByteBuffer(10000000)
             drain(ByteBufferList(buffer))
             close()
         }
-        val s2 = connect(InetSocketAddress("localhost", server.localPort))
+
+        val s2 = connect(InetSocketAddress(getLoopbackAddress(), server.localPort))
         val len = s2.countBytes()
         assertEquals(10000000, len)
     }

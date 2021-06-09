@@ -5,9 +5,9 @@ repositories {
     google()
     jcenter()
     mavenCentral()
-    maven {
-        url  "https://dl.bintray.com/kotlin/kotlin-eap/"
-    }
+//    maven {
+//        url  "https://dl.bintray.com/kotlin/kotlin-eap/"
+//    }
 }
 group 'com.koushikdutta.scratch'
 version scratchVersion
@@ -56,6 +56,7 @@ kotlin {
         }
         commonTest {
             dependencies {
+                implementation kotlin('test')
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
             }

@@ -4,6 +4,7 @@ import com.koushikdutta.scratch.AsyncRead
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.http2.Http2Socket
 import com.koushikdutta.scratch.uri.URI
+import com.koushikdutta.scratch.uri.scheme
 
 internal class Http2ExchangeCodec {
     internal companion object {

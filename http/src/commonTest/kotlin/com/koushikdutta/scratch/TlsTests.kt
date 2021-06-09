@@ -93,7 +93,6 @@ class TlsTests {
     }
 
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testCertificateTrustFailure() {
         val keypairCert = createSelfSignedCertificate("TestServer")

@@ -1,7 +1,7 @@
 package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.createByteBufferList
-import org.junit.Test
+import kotlin.test.Test
 
 class ReaderTests {
     @Test

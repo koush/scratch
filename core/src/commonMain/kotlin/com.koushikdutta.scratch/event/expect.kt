@@ -16,6 +16,7 @@ expect class InetSocketAddress(addr: InetAddress, port: Int) {
     fun getPort(): Int
     fun getAddress(): InetAddress
 }
+expect fun getLoopbackAddress(): InetAddress
 
 expect fun nanoTime(): Long
 expect fun milliTime(): Long
