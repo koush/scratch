@@ -371,7 +371,9 @@ class LoopTests {
         val websocket = httpClient.connectWebSocket("wss://echo.websocket.org")
 
         websocket.ping("ping!")
-        assertEquals("ping!", websocket.readMessage().text)
+        assertEquals("ping!", websocket.messages.iterator().next().text)
+        websocket.ping("ping2!")
+        assertEquals("ping2!", websocket.messages.iterator().next().text)
 
         websocket.drain("hello".createByteBufferList())
         websocket.drain("world".createByteBufferList())

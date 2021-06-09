@@ -122,10 +122,9 @@ fun <T> createAsyncIterable(iterable: Iterable<T>): AsyncIterable<T> {
 }
 
 fun <T> createAsyncIterable(block: suspend AsyncIteratorScope<T>.() -> Unit): AsyncIterable<T> {
+    val iterator = asyncIterator(block)
     return object : AsyncIterable<T> {
-        override fun iterator(): AsyncIterator<T> {
-            return asyncIterator(block)
-        }
+        override fun iterator() = iterator
     }
 }
 

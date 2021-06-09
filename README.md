@@ -86,6 +86,8 @@ server.acceptAsync {
 We can also create an echo server in HTTP.
 
 ```kotlin
+// this http server will have no routing.
+// requests at any path will echo.
 val server = AsyncHttpServer {
    // parse the raw request body bytes as a string
    val body = it.parse().readString()
@@ -102,4 +104,33 @@ val client = AsyncHttpClient()
 val response = client(Methods.GET("http://localhost:5555",
    body = Utf8StringBody("hello world")))
 println("from server: " + response.parse().readString())
+```
+
+## WebSocket Example
+
+WebSocket echo servers can also be created.
+
+```kotlin
+val router = AsyncHttpRouter()
+// handle websocket requests at https://localhost:5555/websocket
+router.webSocket("/websocket").acceptAsync {
+   for (message in messages) {
+       if (message.isText)
+           send(message.text)
+   }
+}
+val server = AsyncHttpServer(router::handle)
+server.listen(5555).await()
+```
+
+And the corresponding client:
+
+
+```kotlin
+val client = AsyncHttpClient()
+val websocket = client.connectWebSocket("http://localhost:5555/websocket")
+while (true) {
+   websocket.send("hello")
+   sleep(1000)
+}
 ```
