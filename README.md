@@ -11,8 +11,11 @@ Scratch is a I/O library written in Kotlin (multiplatform). Scratch is non-block
    * TCP Sockets
    * HTTP/1 and HTTP/2
    * WebSockets
+ * TLS
+   * Java: SSLEngine
+   * Native: openssl
 
-## Basic Socket Usage
+## Socket Client and Server
 
 Usage will look similar to the blocking POSIX socket APIs, but blocking calls (read/write/accept) suspend rather than wait on a thread. An AsyncSocket is roughly:
 
@@ -25,6 +28,7 @@ interface AsyncSocket {
 }
 ```
 
+### Event Loop
 To get started, first, create your main event loop:
 
 ```kotlin
@@ -35,6 +39,7 @@ loop.startThread()
 // loop.run()
 ```
 
+### Socket Server
 Then use the loop to start a coroutine and create an echo server:
 
 ```kotlin
@@ -53,6 +58,7 @@ loop.async {
 }
 ```
 
+### Socket Client
 To connect with a client and send data every 1 second:
 
 ```kotlin
@@ -81,9 +87,9 @@ server.acceptAsync {
 }
 ```
 
-## HTTP Example
+## Http Client and Server
 
-We can also create an echo server in HTTP.
+### Http Server
 
 ```kotlin
 // this http server will have no routing.
@@ -97,7 +103,7 @@ val server = AsyncHttpServer {
 server.listen(5555)
 ```
 
-And the HTTP client.
+### Http Client
 
 ```kotlin
 val client = AsyncHttpClient()
@@ -106,9 +112,9 @@ val response = client(Methods.GET("http://localhost:5555",
 println("from server: " + response.parse().readString())
 ```
 
-## WebSocket Example
+## WebSocket Client and Server
 
-WebSocket echo servers can also be created.
+### WebSocket Server
 
 ```kotlin
 val router = AsyncHttpRouter()
@@ -123,14 +129,54 @@ val server = AsyncHttpServer(router::handle)
 server.listen(5555).await()
 ```
 
-And the corresponding client:
-
+### WebSocket Client
 
 ```kotlin
 val client = AsyncHttpClient()
 val websocket = client.connectWebSocket("http://localhost:5555/websocket")
 while (true) {
    websocket.send("hello")
+   sleep(1000)
+}
+```
+
+## TLS
+
+Creating and using self-signed certificates is similar to the previous Socket Server and Client example:
+
+### TLS Server
+
+```kotlin
+// socket server as seen in the socket example
+// helper to create a self signed certificate
+val keypairCert = createSelfSignedCertificate("TestServer")
+val serverContext = createTLSContext()
+serverContext.init(keypairCert.first, keypairCert.second)
+// the socket 
+val server = server.listenTls(5555, context = serverContext)
+
+for (socket in server.accept()) {
+   val buffer = ByteBufferList()
+   while (socket.read(buffer)) {
+       socket.write(buffer)
+   }
+}
+```
+
+### TLS Client
+
+The TLS client will need to use the same certificate as the server, and is assumed
+provided in the sample below (ie, keypairCert).
+
+```kotlin
+val clientContext = createTLSContext()
+clientContext.init(keypairCert.second)
+
+val client = connectTls("localhost", 5555, context = clientContext)
+while (true) {
+   val buffer = "hello".createByteBufferList()
+   client.drain(buffer)
+   // the loop provides a nonblocking sleep
    sleep(1000)
 }
 ```

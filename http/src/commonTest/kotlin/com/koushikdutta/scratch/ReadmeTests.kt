@@ -14,6 +14,7 @@ import com.koushikdutta.scratch.http.server.webSocket
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
 import com.koushikdutta.scratch.parser.parse
 import com.koushikdutta.scratch.parser.readString
+import com.koushikdutta.scratch.tls.*
 import kotlin.test.Test
 
 class ReadmeTests {
@@ -30,7 +31,27 @@ class ReadmeTests {
         }
     }
 
-//    @Test
+    //    @Test
+    fun testEchoTls() = networkContextTest {
+        val keypairCert = createSelfSignedCertificate("TestServer")
+        val serverContext = createTLSContext()
+        serverContext.init(keypairCert.first, keypairCert.second)
+        val tlsServer = listenTls(5555, context = serverContext)
+
+        for (socket in tlsServer.accept()) {
+            val buffer = ByteBufferList()
+            while (socket.read(buffer)) {
+                socket.write(buffer)
+            }
+        }
+
+        val clientContext = createTLSContext()
+        clientContext.init(keypairCert.second)
+
+        connectTls("localhost", 5555, context = clientContext)
+    }
+
+    //    @Test
     fun testHttpEcho() = networkContextTest {
         val server = AsyncHttpServer {
             val body = it.parse().readString()
