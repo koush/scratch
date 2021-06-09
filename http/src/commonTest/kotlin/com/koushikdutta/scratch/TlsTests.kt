@@ -25,7 +25,7 @@ class TlsTests {
 
         val pair = createAsyncPipeSocketPair()
 
-        launch {
+        val a = async {
             val serverContext = createTLSContext()
             serverContext.init(keypairCert.first, keypairCert.second)
 
@@ -38,7 +38,7 @@ class TlsTests {
         }
 
         var data = ""
-        launch {
+        val b = async {
             val clientContext = createTLSContext()
             clientContext.init(keypairCert.second)
 
@@ -60,7 +60,7 @@ class TlsTests {
         val pair = createAsyncPipeSocketPair()
 
         try {
-            val result1 = async {
+            async {
                 val serverContext = createTLSContext()
                 serverContext.init(keypairCert.first, keypairCert.second)
 
@@ -83,7 +83,6 @@ class TlsTests {
                 readAllString(client)
             }
 
-            result1.getCompleted()
             result2.getCompleted()
         } catch (exception: SSLException) {
             assertTrue(exception.message!!.toLowerCase().contains("hostname"))
