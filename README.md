@@ -142,7 +142,7 @@ while (true) {
 
 ## TLS
 
-Creating and using self-signed certificates is similar to the previous Socket Server and Client example:
+Creating and using self-signed certificates is similar to the [previous Socket Server and Client example](#socket-client-and-server):
 
 ### TLS Server
 
