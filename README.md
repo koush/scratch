@@ -157,10 +157,11 @@ serverContext.init(keypairCert.first, keypairCert.second)
 // clients are upgraded to a TLS connection.
 val server = server.listenTls(5555, context = serverContext)
 
-for (socket in server.accept()) {
+server.acceptAsync {
    val buffer = ByteBufferList()
-   while (socket.read(buffer)) {
-       socket.write(buffer)
+   // "this" is the AsyncTlsSocket. 
+   while (read(buffer)) {
+      drain(buffer)
    }
 }
 ```
@@ -174,12 +175,12 @@ provided in the sample below (ie, keypairCert).
 val clientContext = createTLSContext()
 // initialize the SSLContext with ONLY the public certificate
 clientContext.init(keypairCert.second)
-
+// connect to the TLS Server using the self-signed certificate context
 val client = connectTls("localhost", 5555, context = clientContext)
+
 while (true) {
    val buffer = "hello".createByteBufferList()
    client.drain(buffer)
-   // the loop provides a nonblocking sleep
    sleep(1000)
 }
 ```
