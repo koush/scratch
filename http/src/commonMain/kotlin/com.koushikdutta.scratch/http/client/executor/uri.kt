@@ -10,6 +10,8 @@ import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.http.http2.okhttp.Protocol
 import com.koushikdutta.scratch.tls.*
+import com.koushikdutta.scratch.uri.host
+import com.koushikdutta.scratch.uri.port
 
 typealias ResolvedSocketConnect<T> = suspend() -> T
 typealias RequestSocketResolver = suspend (request:AsyncHttpRequest) -> AsyncIterable<AsyncSocket>

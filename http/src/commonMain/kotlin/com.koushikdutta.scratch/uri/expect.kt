@@ -12,6 +12,7 @@ expect val URI.scheme: String?
 expect val URI.fragment: String?
 expect val URI.host: String?
 expect val URI.path: String?
+expect val URI.port: Int
 
 expect object URLDecoder {
     fun decode(s: String): String

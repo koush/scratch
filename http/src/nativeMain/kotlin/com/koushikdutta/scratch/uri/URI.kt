@@ -3555,3 +3555,6 @@ actual val URI.host
 
 actual val URI.path
     get() = path
+
+actual val URI.port
+    get() = port
