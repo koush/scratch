@@ -142,7 +142,7 @@ while (true) {
 
 ## TLS
 
-Creating and using self-signed certificates is similar to the [previous Socket Server and Client example](#socket-client-and-server):
+Creating a TLS Server that uses a key/certificate pair is similar to the [previous Socket Server and Client example](#socket-client-and-server):
 
 ### TLS Server
 
@@ -172,6 +172,9 @@ The TLS client will need to use the same certificate as the server, and is assum
 provided in the sample below (ie, keypairCert).
 
 ```kotlin
+// since this is a self signed cert, the TLS client needs a custom SSLContext.
+// this is not necessary when connecting to publicly facing TLS servers
+// with valid certificate chains.
 val clientContext = createTLSContext()
 // initialize the SSLContext with ONLY the public certificate
 clientContext.init(keypairCert.second)

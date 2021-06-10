@@ -23,7 +23,7 @@ include ':scratch:buffer'
 project(":scratch:buffer").projectDir = new File("./buffer")
 include ':scratch:core'
 project(":scratch:core").projectDir = new File("./core")
-//include ':scratch:core-android-extensions'
-//project(":scratch:core-android-extensions").projectDir = new File("./core-android-extensions")
+include ':scratch:core-android-extensions'
+project(":scratch:core-android-extensions").projectDir = new File("./core-android-extensions")
 include ':scratch:http'
 project(":scratch:http").projectDir = new File("./http")

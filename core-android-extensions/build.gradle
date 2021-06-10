@@ -64,18 +64,18 @@ dependencies {
     androidTestImplementation project(':scratch:http')
 }
 
-//afterEvaluate {
-//    publishing {
-//        publications {
-//            release(MavenPublication) {
-//                from components.release
-//
-//                groupId = 'com.koushikdutta.scratch'
-//                artifactId = 'core-android-extensions'
-//                version = scratchVersion
-//            }
-//        }
-//    }
-//}
-//
-//apply from: "../maven.gradle"
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+
+                groupId = scratchGroup
+                artifactId = 'core-android-extensions'
+                version = scratchVersion
+            }
+        }
+    }
+}
+
+apply from: "../maven.gradle"

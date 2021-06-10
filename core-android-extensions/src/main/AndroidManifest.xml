@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.koushikdutta.scratch">
+    package="com.koushikdutta.scratch.core.extensions">
     <uses-permission android:name="android.permission.INTERNET" />
 </manifest>
 

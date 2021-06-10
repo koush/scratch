@@ -449,7 +449,7 @@ class Http2Connection private constructor(val socket: AsyncSocket, val client: B
 
     internal suspend fun flush() {
         try {
-            socket.drain(sink as ReadableBuffers)
+            socket.drain(sink)
         }
         catch (throwable: Throwable) {
             // close will also attempt to flush a connection shutdown, but it only
