@@ -14,7 +14,7 @@ val URL_DECODER: StringDecoder = {
 }
 
 fun URI.parseQuery(): StringMultimap {
-    val ret = parseQuery(query)
+    val ret = parseQuery(rawQuery)
     return ret
 }
 
