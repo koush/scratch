@@ -16,7 +16,15 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
             val awaitingHandshake = !finishedHandshake
 
             while (true) {
-                val result = engine.unwrap(unfiltered, buffer, decryptAllocator)
+                // if handshake needs a wrap or a task, do not attempt to unwrap, and fall through
+                // to honor the handshake status first.
+                val result = when (engine.checkHandshakeStatus()) {
+                    SSLEngineHandshakeStatus.NEED_WRAP ->
+                        SSLEngineResult(SSLEngineStatus.OK, SSLEngineHandshakeStatus.NEED_WRAP)
+                    SSLEngineHandshakeStatus.NEED_TASK ->
+                        SSLEngineResult(SSLEngineStatus.OK, SSLEngineHandshakeStatus.NEED_TASK)
+                    else -> engine.unwrap(unfiltered, buffer, decryptAllocator)
+                }
 
                 if (result.status == SSLEngineStatus.CLOSED) {
                     flush()
@@ -71,7 +79,15 @@ class AsyncTlsSocket(override val socket: AsyncSocket, val engine: SSLEngine, pr
 
         val awaitingHandshake = !finishedHandshake
         while (true) {
-            val result = engine.wrap(unencryptedWriteBuffer, encryptedWriteBuffer, encryptAllocator)
+            // if handshake needs an unwrap or a task, do not attempt to wrap, and fall through
+            // to honor the handshake status first.
+            val result = when (engine.checkHandshakeStatus()) {
+                SSLEngineHandshakeStatus.NEED_UNWRAP ->
+                    SSLEngineResult(SSLEngineStatus.OK, SSLEngineHandshakeStatus.NEED_UNWRAP)
+                SSLEngineHandshakeStatus.NEED_TASK ->
+                    SSLEngineResult(SSLEngineStatus.OK, SSLEngineHandshakeStatus.NEED_TASK)
+                else -> engine.wrap(unencryptedWriteBuffer, encryptedWriteBuffer, encryptAllocator)
+            }
 
             if (encryptedWriteBuffer.hasRemaining()) {
                 // before the handshake is completed, ensure that all writes are fully written before

@@ -3238,7 +3238,7 @@ actual class URI : Comparable<URI> {
             maybeAddLeadingDot(path, segs)
 
             // Join the remaining segments and return the result
-            val s = String(path, 0, join(path, segs))
+            val s = path.concatToString(0, 0 + join(path, segs))
             return if (s == ps) {
                 // string was already normalized
                 ps
@@ -3555,3 +3555,6 @@ actual val URI.host
 
 actual val URI.path
     get() = path
+
+actual val URI.port
+    get() = port

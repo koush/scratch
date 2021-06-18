@@ -219,14 +219,13 @@ open class ByteBufferCommon(bytes: ByteArray? = null, arrayOffset: Int?, capacit
 actual typealias Buffer = BufferCommon
 actual typealias ByteBuffer = ByteBufferCommonBase
 
-actual fun ByteBuffer.order(): ByteOrder {
-    return order
-}
+actual fun ByteBuffer.order() = order
 actual fun ByteBuffer.order(order: ByteOrder): ByteBuffer {
     this.order = order
     return this
 }
 actual fun ByteBuffer.duplicate() = duplicate()
+actual fun ByteBuffer.byteOrder() = order
 
 actual fun createByteBuffer(array: ByteArray, offset: Int, length: Int): ByteBuffer {
     return ByteBufferCommon(array, offset, length)

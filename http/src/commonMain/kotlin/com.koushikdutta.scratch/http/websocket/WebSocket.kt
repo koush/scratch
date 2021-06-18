@@ -14,7 +14,8 @@ import com.koushikdutta.scratch.extensions.hash
 import com.koushikdutta.scratch.http.*
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientSwitchingProtocols
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.parse
+import com.koushikdutta.scratch.parser.readString
 import kotlin.random.Random
 
 
@@ -56,71 +57,78 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
     val isEnded
         get() = parser.isEnded
 
-    suspend fun readMessage(): WebSocketMessage {
-        val payload = ByteBufferList()
-        var opcode: Int? = null
+    val messages = createAsyncIterable<WebSocketMessage> {
         while (true) {
-            val message = try {
-                parser.parse()
-            }
-            catch (throwable: Throwable) {
-                socket.close()
-                throw throwable
-            }
-
-            // the parser will validate the protocol on a per frame basis,
-            // but across multiple frames, when continuation frames are in use.
-            if (opcode == null) {
-                if (message.opcode == HybiParser.OP_CONTINUATION)
-                    throw HybiProtocolError("did not receive data frame prior to continuation frame")
-                opcode = message.opcode
-            }
-            else if (opcode != HybiParser.OP_CONTINUATION) {
-                throw HybiProtocolError("expected continuation frame")
-            }
-
-            if (message.opcode == HybiParser.OP_CLOSE) {
-                val reason = readAllString(message.read)
-                closeMessage = WebSocketCloseMessage(message.closeCode!!, reason)
-                return object : WebSocketMessage {
-                    override val isClose = true
+            val payload = ByteBufferList()
+            var opcode: Int? = null
+            while (true) {
+                val message = try {
+                    parser.parse()
                 }
-            }
-            else if (message.opcode == HybiParser.OP_PING) {
-                val ping = readAllString(message.read)
-                return object : WebSocketMessage {
-                    override val isText = true
-                    override val text = ping
-                    override val isPing = true
+                catch (throwable: Throwable) {
+                    socket.close()
+                    throw throwable
                 }
-            }
-            else if (message.opcode == HybiParser.OP_PONG) {
-                val pong = readAllString(message.read)
-                return object : WebSocketMessage {
-                    override val isText = true
-                    override val text = pong
-                    override val isPong = true
+
+                // the parser will validate the protocol on a per frame basis,
+                // but across multiple frames, when continuation frames are in use.
+                if (opcode == null) {
+                    if (message.opcode == HybiParser.OP_CONTINUATION)
+                        throw HybiProtocolError("did not receive data frame prior to continuation frame")
+                    opcode = message.opcode
                 }
-            }
+                else if (opcode != HybiParser.OP_CONTINUATION) {
+                    throw HybiProtocolError("expected continuation frame")
+                }
 
-            message.read.siphon(payload)
+                if (message.opcode == HybiParser.OP_CLOSE) {
+                    val reason = message.read.parse().readString()
+                    closeMessage = WebSocketCloseMessage(message.closeCode!!, reason)
+                    yield(object : WebSocketMessage {
+                        override val isClose = true
+                    })
+                    return@createAsyncIterable
+                }
+                else if (message.opcode == HybiParser.OP_PING) {
+                    val ping = message.read.parse().readString()
+                    yield(object : WebSocketMessage {
+                        override val isText = true
+                        override val text = ping
+                        override val isPing = true
+                    })
+                    break
+                }
+                else if (message.opcode == HybiParser.OP_PONG) {
+                    val pong = message.read.parse().readString()
+                    yield(object : WebSocketMessage {
+                        override val isText = true
+                        override val text = pong
+                        override val isPong = true
+                    })
+                    break
+                }
 
-            if (message.final) {
+                message.read.siphon(payload)
+
+                if (!message.final)
+                    continue
+
                 if (opcode == HybiParser.OP_TEXT) {
-                    return object : WebSocketMessage {
+                    yield(object : WebSocketMessage {
                         override val isText = true
                         override val text = payload.readUtf8String()
                         override val isData = true
                         override fun toString() = text
-                    }
+                    })
                 }
                 else {
-                    return object : WebSocketMessage {
+                    yield(object : WebSocketMessage {
                         override val isText = false
                         override val binary = payload
                         override val isData = true
-                    }
+                    })
                 }
+                break
             }
         }
     }
@@ -143,7 +151,7 @@ class WebSocket(private val socket: AsyncSocket, reader: AsyncReader = AsyncRead
 
     override suspend fun read(buffer: WritableBuffers): Boolean {
         while (!isEnded) {
-            val message = readMessage()
+            val message = messages.iterator().next()
 
             if (message.isPing) {
                 pong(message.text)

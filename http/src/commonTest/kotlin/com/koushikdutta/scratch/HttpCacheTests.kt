@@ -13,7 +13,7 @@ import com.koushikdutta.scratch.http.client.buildUpon
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpClientExecutor
 import com.koushikdutta.scratch.http.client.executor.useMemoryCache
 import com.koushikdutta.scratch.http.client.get
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -34,11 +34,11 @@ open class HttpCacheTests {
 
         val result = loop.async {
             val get = Methods.GET("/")
-            val data = readAllString(client(get).body!!)
+            val data = client(get).body!!.parse().readString()
 
             val data2 = client.get("/") {
                 expecting(it)
-                readAllString(it.body!!)
+                it.body!!.parse().readString()
             }
 
             assertEquals(data, data2)

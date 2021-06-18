@@ -11,7 +11,7 @@ import com.koushikdutta.scratch.http.client.createContentLengthPipe
 import com.koushikdutta.scratch.http.client.getHttpBody
 import com.koushikdutta.scratch.http.http2.Http2Connection
 import com.koushikdutta.scratch.http.http2.Http2ConnectionMode
-import com.koushikdutta.scratch.http.http2.acceptHttpAsync
+import com.koushikdutta.scratch.http.http2.acceptHttp
 
 enum class HttpServerSocketStatus {
     KeepAlive,
@@ -23,7 +23,7 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
     private suspend fun acceptHttp2Connection(socket: AsyncSocket, reader: AsyncReader) {
         // connection preface has been negotiated
         Http2Connection.upgradeHttp2Connection(socket, Http2ConnectionMode.ServerSkipConnectionPreface, reader)
-        .acceptHttpAsync {
+        .acceptHttp {
             val response = try {
                 executor(it)
             }
@@ -36,7 +36,6 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
 
             response
         }
-        .awaitClose()
     }
 
     suspend fun acceptLoop(socket: AsyncSocket, reader: AsyncReader = AsyncReader(socket)) {
@@ -136,16 +135,17 @@ class AsyncHttpServer(private val executor: AsyncHttpExecutor): AsyncServer {
         }
     }
 
-    override fun <T : AsyncSocket> listen(server: AsyncServerSocket<T>) = server.acceptAsync {
-        try {
-            acceptLoop(this, AsyncReader(this))
-        }
-        catch (throwable: Throwable) {
-            // can safely ignore these, as they are transport errors
-            close()
+    override suspend fun <T : AsyncSocket> listen(server: AsyncServerSocket<T>) {
+        server.accept(ignoreErrors = true, leaveOpen = true) {
+            try {
+                acceptLoop(this, AsyncReader(this))
+            }
+            catch (throwable: Throwable) {
+                // can safely ignore these, as they are transport errors
+                close()
+            }
         }
     }
-    .observeIgnoreErrorsLeaveOpen()
 
     companion object {
         private const val HTTP2_INITIAL_CONNECTION_PREFACE = "PRI * HTTP/2.0\r\n"

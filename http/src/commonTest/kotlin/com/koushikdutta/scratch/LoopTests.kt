@@ -17,7 +17,7 @@ import com.koushikdutta.scratch.http.client.executor.*
 import com.koushikdutta.scratch.http.client.get
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
 import com.koushikdutta.scratch.http.websocket.connectWebSocket
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import com.koushikdutta.scratch.uri.URI
 import kotlinx.coroutines.*
 import kotlin.math.abs
@@ -25,7 +25,6 @@ import kotlin.random.Random
 import kotlin.test.*
 
 class LoopTests {
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun testPostDelayed() {
         val networkContext = AsyncEventLoop()
@@ -136,16 +135,15 @@ class LoopTests {
             // the server error should trigger a client close
             // ignore and verify the server throws itself.
         }
-        observer.awaitClose()
+        observer.await()
     }
 
     @Test
     fun testServerNotCrash() = networkContextTest {
         val server = listen()
-        val observer = server.acceptAsync {
+        val observer = server.acceptAsync(ignoreErrors = true) {
             throw ExpectedException()
         }
-        .observeIgnoreErrors()
         val client = connect("127.0.0.1", server.localPort)
         try {
             client.write(ByteBufferList().putUtf8String("hello!"))
@@ -155,7 +153,7 @@ class LoopTests {
         catch (exception: IOException) {
         }
         server.close()
-        observer.awaitClose()
+        observer.await()
     }
 
     @Test
@@ -290,7 +288,7 @@ class LoopTests {
             StatusCode.OK(body = Utf8StringBody("hello world"))
         }
 
-        httpServer.listen(server)
+        httpServer.listenAsync(server)
 
         val numRequests = 1000
         var requestsCompleted = 0
@@ -313,7 +311,7 @@ class LoopTests {
 
                         val request =
                                 AsyncHttpRequest(URI("http://127.0.0.1:${server.localPort}/"), "POST", body = BinaryBody(body, "application/binary"))
-                        val data = httpClient.execute(request) { readAllString(it.body!!) }
+                        val data = httpClient.execute(request) { it.body!!.parse().readString() }
                         assertEquals(data, "hello world")
                         requestsCompleted++
                         break
@@ -373,12 +371,14 @@ class LoopTests {
         val websocket = httpClient.connectWebSocket("wss://echo.websocket.org")
 
         websocket.ping("ping!")
-        assertEquals("ping!", websocket.readMessage().text)
+        assertEquals("ping!", websocket.messages.iterator().next().text)
+        websocket.ping("ping2!")
+        assertEquals("ping2!", websocket.messages.iterator().next().text)
 
         websocket.drain("hello".createByteBufferList())
         websocket.drain("world".createByteBufferList())
         websocket.close()
-        val data = readAllString(websocket)
+        val data = websocket.parse().readString()
         assertEquals("helloworld", data)
     }
 
@@ -411,7 +411,7 @@ class LoopTests {
 
         try {
             httpClient.get("http://clockworkmod.com") {
-                readAllString(it.body!!)
+                it.body!!.parse().readString()
             }
             fail("expected failure")
         }
@@ -429,7 +429,7 @@ class LoopTests {
         }
 
         assertNotNull(httpClient.get("http://clockworkmod.com") {
-            readAllString(it.body!!)
+            it.body!!.parse().readString()
         })
         Unit
     }
@@ -571,12 +571,12 @@ class LoopTests {
         assertEquals(count, 2)
     }
 
-    @Test
+//    @Test
     fun testHttpProxy() = networkContextTest {
         val request = Methods.GET("https://www.clockworkmod.com")
         request.setProxy("192.168.2.7", 8888)
         val httpClient = AsyncHttpClient(this)
-        val ret = readAllString(httpClient(request).body!!)
+        val ret = httpClient(request).body!!.parse().readString()
         println(ret)
     }
 
@@ -612,11 +612,12 @@ class LoopTests {
     fun testBigBuffer() = networkContextTest {
         val server = listen()
         server.acceptAsync {
-            val buffer = ByteBuffer.allocate(10000000)
+            val buffer = allocateByteBuffer(10000000)
             drain(ByteBufferList(buffer))
             close()
         }
-        val s2 = connect(InetSocketAddress("localhost", server.localPort))
+
+        val s2 = connect(InetSocketAddress(getLoopbackAddress(), server.localPort))
         val len = s2.countBytes()
         assertEquals(10000000, len)
     }

@@ -44,3 +44,7 @@ actual class InetSocketAddress actual constructor(private val addr: InetAddress,
         return addr
     }
 }
+
+actual fun getLoopbackAddress(): InetAddress {
+    return UvEventLoop.parseInet4Address("127.0.0.1")
+}

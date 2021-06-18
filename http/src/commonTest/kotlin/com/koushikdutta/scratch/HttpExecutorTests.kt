@@ -7,7 +7,7 @@ import com.koushikdutta.scratch.http.body.Utf8StringBody
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpConnectSocketExecutor
 import com.koushikdutta.scratch.http.client.executor.AsyncHttpSocketExecutor
 import com.koushikdutta.scratch.http.server.AsyncHttpServer
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -19,14 +19,14 @@ class HttpExecutorTests {
         var data = ""
         async {
             val executor = AsyncHttpSocketExecutor(pipe.first)
-            data = readAllString(executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!)
+            data = executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!.parse().readString()
             assertTrue(executor.isAlive)
             assertTrue(executor.isResponseEnded)
         }
 
         async {
             val server = AsyncHttpServer {
-                assertEquals("beep boop", readAllString(it.body!!))
+                assertEquals("beep boop", it.body!!.parse().readString())
                 StatusCode.OK(body = Utf8StringBody("hello world"))
             }
 
@@ -46,23 +46,23 @@ class HttpExecutorTests {
 
         var done = false
         async {
-            data = readAllString(executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!)
+            data = executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!.parse().readString()
             assertEquals(data, "hello world")
-            data = readAllString(executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!)
+            data = executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!.parse().readString()
             assertEquals(data, "hello world")
-            data = readAllString(executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!)
+            data = executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!.parse().readString()
             assertEquals(data, "hello world")
-            data = readAllString(executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!)
+            data = executor(Methods.GET("/", body = Utf8StringBody("beep boop"))).body!!.parse().readString()
             done = true
         }
 
         async {
             val server = AsyncHttpServer {
-                assertEquals("beep boop", readAllString(it.body!!))
+                assertEquals("beep boop", it.body!!.parse().readString())
                 StatusCode.OK(body = Utf8StringBody("hello world"))
             }
 
-            server.listen(pipeServer)
+            server.listenAsync(pipeServer)
         }
 
         assertEquals(data, "hello world")
@@ -75,7 +75,7 @@ class HttpExecutorTests {
             for (i in 0 until 5) {
                 val headers = Headers()
                 headers["Connection"] = "close"
-                data = readAllString(executor(Methods.GET("/", body = Utf8StringBody("beep boop"), headers = headers)).body!!)
+                data = executor(Methods.GET("/", body = Utf8StringBody("beep boop"), headers = headers)).body!!.parse().readString()
                 assertEquals(data, "hello world")
             }
         }

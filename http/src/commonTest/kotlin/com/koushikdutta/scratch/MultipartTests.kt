@@ -4,7 +4,7 @@ import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.http.body.Multipart
 import com.koushikdutta.scratch.http.body.Part
 import com.koushikdutta.scratch.http.body.Utf8StringBody
-import com.koushikdutta.scratch.parser.readAllString
+import com.koushikdutta.scratch.parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -42,7 +42,7 @@ class MultipartTests {
         async {
             val multipart = Multipart.parseMultipart("123", reader)
             for (part in multipart) {
-                val found = readAllString(part.body)
+                val found = part.body.parse().readString()
                 assertEquals(expectedStrings.removeAt(0), found)
                 partsFound++
             }
@@ -62,7 +62,7 @@ class MultipartTests {
                 Multipart.parseMultipart(multipart.boundary, AsyncReader(multipart))
 
             for (part in multipartParsed) {
-                val found = readAllString(part.body)
+                val found = part.body.parse().readString()
                 combined += found
             }
         }

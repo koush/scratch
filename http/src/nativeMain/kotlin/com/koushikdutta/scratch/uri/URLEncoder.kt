@@ -247,7 +247,7 @@ actual object URLEncoder {
                 } while (!dontNeedEncoding.get(c))
 
                 charArrayWriter.flush()
-                val str = String(charArrayWriter.toCharArray())
+                val str = charArrayWriter.toCharArray().concatToString()
                 val ba = str.toByteArray()
                 for (j in ba.indices) {
                     out.append('%')

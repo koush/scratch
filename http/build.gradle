@@ -1,15 +1,14 @@
 plugins {
     id "org.jetbrains.kotlin.multiplatform"
 }
+
 repositories {
     google()
     jcenter()
     mavenCentral()
-    maven {
-        url  "https://dl.bintray.com/kotlin/kotlin-eap/"
-    }
 }
-group 'com.koushikdutta.scratch'
+
+group scratchGroup
 version scratchVersion
 
 def conscryptVersion = '2.5.0'
@@ -56,6 +55,7 @@ kotlin {
         }
         commonTest {
             dependencies {
+                implementation kotlin('test')
                 implementation kotlin('test-common')
                 implementation kotlin('test-annotations-common')
             }

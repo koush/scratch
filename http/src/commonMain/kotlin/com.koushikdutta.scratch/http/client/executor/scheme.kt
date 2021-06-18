@@ -5,6 +5,7 @@ import com.koushikdutta.scratch.IOException
 import com.koushikdutta.scratch.http.AsyncHttpRequest
 import com.koushikdutta.scratch.http.client.AsyncHttpExecutor
 import com.koushikdutta.scratch.uri.URI
+import com.koushikdutta.scratch.uri.scheme
 
 class SchemeUnhandledException(uri: URI) : IOException("unable to find scheme handler for ${uri}")
 

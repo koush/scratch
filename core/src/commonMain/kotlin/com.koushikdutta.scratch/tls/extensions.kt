@@ -2,6 +2,7 @@ package com.koushikdutta.scratch.tls
 
 import com.koushikdutta.scratch.*
 import com.koushikdutta.scratch.event.AsyncEventLoop
+import com.koushikdutta.scratch.event.InetAddress
 import com.koushikdutta.scratch.event.connect
 
 suspend fun tlsHandshake(socket: AsyncSocket, engine: SSLEngine, options: AsyncTlsOptions? = null): AsyncTlsSocket {
@@ -74,3 +75,8 @@ fun AsyncServerSocket<*>.listenTls(context: SSLContext = getDefaultSSLContext())
 var SSLEngine.useClientMode: Boolean
     get() = getUseClientMode()
     set(value) = setUseClientMode(value)
+
+suspend fun AsyncEventLoop.listenTls(port: Int, address: InetAddress? = null, context: SSLContext = getDefaultSSLContext()): AsyncServerSocket<AsyncTlsSocket> {
+    val server = listen(port, address)
+    return server.listenTls(context)
+}

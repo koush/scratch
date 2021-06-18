@@ -2,8 +2,11 @@ package com.koushikdutta.scratch
 
 import com.koushikdutta.scratch.buffers.ByteBufferList
 import com.koushikdutta.scratch.buffers.ByteOrder
+import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
 import kotlin.math.min
+
+class ReadScanException(val finalData: ReadableBuffers): IOException("Stream ended before new line was received.")
 
 /**
  * Create an AsyncReader that provides advanced reading operations
@@ -14,6 +17,8 @@ class AsyncReader(val input: AsyncRead): AsyncRead {
     private val pending = ByteBufferList()
     val buffered: Int
         get() = pending.remaining()
+
+    var order: ByteOrder = ByteOrder.BIG_ENDIAN
 
     /**
      * Read the data into the buffer.
@@ -86,11 +91,13 @@ class AsyncReader(val input: AsyncRead): AsyncRead {
 
     /**
      * Scan the read for a specified string sequence.
-     * Returns the string data up to and including the string sequence, or the end of stream.
+     * Returns the string data up to and including the string sequence.
+     * Throws [ReadScanException] if end of stream is reached before the scan string is found.
      */
     suspend fun readScanUtf8String(scanString: String): String {
         val buffer = ByteBufferList()
-        readScanUtf8String(buffer, scanString)
+        if (!readScanUtf8String(buffer, scanString))
+            throw ReadScanException(buffer)
         val scanned = buffer.readUtf8String()
         pending.takeReclaimedBuffers(buffer)
         return scanned
@@ -208,25 +215,30 @@ class AsyncReader(val input: AsyncRead): AsyncRead {
         return pending.readByte()
     }
 
-    suspend fun readShort(order: ByteOrder = ByteOrder.BIG_ENDIAN): Short {
+    suspend fun readShort(order: ByteOrder = this.order): Short {
         ensureBuffered(2)
         pending.order(order)
         return pending.readShort()
     }
 
-    suspend fun readInt(order: ByteOrder = ByteOrder.BIG_ENDIAN): Int {
+    suspend fun readInt(order: ByteOrder = this.order): Int {
         ensureBuffered(4)
         pending.order(order)
         return pending.readInt()
     }
 
-    suspend fun readLong(order: ByteOrder = ByteOrder.BIG_ENDIAN): Long {
+    suspend fun readLong(order: ByteOrder = this.order): Long {
         ensureBuffered(8)
         pending.order(order)
         return pending.readLong()
     }
 }
 
+/**
+ * Scan the read for a line string ending with newline character "\n".
+ * Returns the string, without the newline character.
+ * Throws [ReadScanException] if end of stream is reached before the newline is found.
+ */
 suspend fun AsyncReader.readLine(): String {
     return readScanUtf8String("\n").trimEnd('\n')
 }

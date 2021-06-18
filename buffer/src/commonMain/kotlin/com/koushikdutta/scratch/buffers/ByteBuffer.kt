@@ -1,6 +1,7 @@
 package com.koushikdutta.scratch.buffers
 
 expect fun ByteBuffer.order(): ByteOrder
+expect fun ByteBuffer.byteOrder(): ByteOrder
 expect fun ByteBuffer.order(order: ByteOrder): ByteBuffer
 fun createByteBuffer(array: ByteArray): ByteBuffer {
     return createByteBuffer(array, 0, array.size)

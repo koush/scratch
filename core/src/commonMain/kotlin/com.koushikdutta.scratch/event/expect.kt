@@ -1,11 +1,11 @@
 package com.koushikdutta.scratch.event
 
-import com.koushikdutta.scratch.AsyncAcceptObserver
 import com.koushikdutta.scratch.AsyncServer
 import com.koushikdutta.scratch.AsyncServerSocket
 import com.koushikdutta.scratch.AsyncSocket
 import com.koushikdutta.scratch.buffers.ReadableBuffers
 import com.koushikdutta.scratch.buffers.WritableBuffers
+import kotlinx.coroutines.Deferred
 
 expect open class InetAddress
 expect class Inet4Address : InetAddress
@@ -16,6 +16,7 @@ expect class InetSocketAddress(addr: InetAddress, port: Int) {
     fun getPort(): Int
     fun getAddress(): InetAddress
 }
+expect fun getLoopbackAddress(): InetAddress
 
 expect fun nanoTime(): Long
 expect fun milliTime(): Long
@@ -26,7 +27,7 @@ expect class AsyncEventLoop(): AsyncScheduler<AsyncEventLoop> {
     suspend fun createSocket(): AsyncNetworkSocket
     suspend fun createDatagram(port: Int = 0, address: InetAddress? = null, reuseAddress: Boolean = false): AsyncDatagramSocket
     suspend fun listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncNetworkServerSocket
-    suspend fun AsyncServer.listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): AsyncAcceptObserver<AsyncNetworkSocket>
+    suspend fun AsyncServer.listen(port: Int = 0, address: InetAddress? = null, backlog: Int = 5): Deferred<Unit>
 
     // todo: should be suspend
     fun stop(wait: Boolean)

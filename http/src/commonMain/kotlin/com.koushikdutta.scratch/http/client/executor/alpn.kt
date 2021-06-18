@@ -50,11 +50,9 @@ class AsyncHttpAlpnExecutor(override val affinity: AsyncAffinity = AsyncAffinity
             // do not accept incoming connections (but push promises are accepted)
             affinity.launch {
                 try {
-                    connection.acceptAsync {
+                    connection.accept(ignoreErrors = true) {
                         close()
                     }
-                    .observeIgnoreErrors()
-                    .awaitClose()
                 }
                 catch (t: Throwable) {
                     // ignore dirty transport close, etc.
