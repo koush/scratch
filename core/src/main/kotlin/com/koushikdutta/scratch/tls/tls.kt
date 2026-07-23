@@ -1,0 +1,92 @@
+package com.koushikdutta.scratch.tls
+
+import org.conscrypt.Conscrypt
+import java.security.KeyStore
+import java.security.Provider
+import java.security.SecureRandom
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.TrustManagerFactory
+
+typealias SSLEngine = javax.net.ssl.SSLEngine
+typealias SSLContext = javax.net.ssl.SSLContext
+typealias SSLException = javax.net.ssl.SSLException
+typealias SSLHandshakeException = SSLHandshakeException
+
+fun createTLSContext(): SSLContext {
+    return SSLContext.getInstance("TLS")
+}
+
+fun createALPNTLSContext(): SSLContext {
+    if (!ConscryptHelper.hasConscrypt)
+        return createTLSContext()
+    return createConscryptContext()!!
+}
+
+fun getDefaultSSLContext(): SSLContext {
+    return SSLContext.getDefault()
+}
+
+fun getDefaultALPNSSLContext(): SSLContext {
+    return ConscryptHelper.alpnDefaultContext ?: getDefaultSSLContext()
+}
+
+private fun createConscryptContext(): SSLContext? {
+    try {
+        Conscrypt.checkAvailability()
+        return SSLContext.getInstance("TLS", Conscrypt.newProvider())
+    }
+    catch (throwable: Throwable) {
+        return null
+    }
+}
+
+private fun createAndInitConscryptContext(): SSLContext? {
+    try {
+        Conscrypt.checkAvailability()
+        val provider = Conscrypt.newProvider()
+        val context = SSLContext.getInstance("TLS", provider)
+        val tmf = createDefaultTrustManagerFactory(provider)
+        tmf.init(null as KeyStore?)
+        context.init(null, tmf.trustManagers, SecureRandom())
+        return context
+    } catch (throwable: Throwable) {
+        return null
+    }
+}
+
+private class ConscryptHelper {
+    companion object {
+        val alpnDefaultContext = createAndInitConscryptContext()
+        val hasConscrypt = alpnDefaultContext != null
+    }
+}
+
+fun SSLEngine.setApplicationProtocols(vararg protocols: String) {
+    if (!ConscryptHelper.hasConscrypt)
+        return
+
+    // no need to throw here, because the other end may not support negotiation anyways.
+    if (!Conscrypt.isConscrypt(this))
+        return
+
+    Conscrypt.setApplicationProtocols(this, protocols)
+}
+
+fun SSLEngine.getApplicationProtocol(): String? {
+    if (!ConscryptHelper.hasConscrypt)
+        return null
+
+    if (!Conscrypt.isConscrypt(this))
+        return null
+
+    return Conscrypt.getApplicationProtocol(this)
+}
+
+internal fun createDefaultTrustManagerFactory(provider: Provider): TrustManagerFactory {
+    return try {
+        TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), provider)
+    }
+    catch (throwable: Throwable) {
+        TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).provider)
+    }
+}

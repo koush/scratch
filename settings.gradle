@@ -13,7 +13,6 @@ pluginManagement {
 }
 
 rootProject.name = 'scratch'
-enableFeaturePreview('GRADLE_METADATA')
 
 include ':scratch:base'
 project(":scratch:base").projectDir = new File("./base")

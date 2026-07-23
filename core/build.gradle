@@ -1,112 +1,49 @@
 plugins {
-    id "org.jetbrains.kotlin.multiplatform"
+    id "org.jetbrains.kotlin.jvm"
 }
 
 repositories {
     google()
-    jcenter()
     mavenCentral()
 }
 
 group scratchGroup
 version scratchVersion
 
-def conscryptVersion = '2.5.0'
+def conscryptVersion = '2.6.1'
 
 apply plugin: 'maven-publish'
 
-kotlin {
-    jvm()
-//    js {
-//        browser {
-//        }
-//        nodejs {
-//        }
-//    }
-
-    compileKotlinJvm {
-        kotlinOptions {
-            jvmTarget = "1.8"
-        }
-        kotlinOptions.freeCompilerArgs = [
-                "-Xallow-result-return-type",
-                "-Xallow-kotlin-package",
-                "-Xmulti-platform",
-                "-Xuse-experimental=kotlin.Experimental",
-                "-Xuse-experimental=kotlin.ExperimentalUnsignedTypes",
-                "-Xuse-experimental=kotlin.ExperimentalStdlibApi"
-        ]
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
     }
-
-    // For ARM, should be changed to iosArm32 or iosArm64
-    // For Linux, should be changed to e.g. linuxX64
-    // For MacOS, should be changed to e.g. macosX64
-    // For Windows, should be changed to e.g. mingwX64
-    macosX64("native") {
-        compilations.main.cinterops {
-            uv {
-                compilerOpts "-I./src/nativeInterop/cinterop/libuv/include"
-            }
-            crypto {
-                compilerOpts "-I./src/nativeInterop/cinterop/openssl/include"
-            }
-        }
-    }
-    sourceSets {
-        commonMain {
-            dependencies {
-                implementation kotlin('stdlib-common')
-                api project(':scratch:base')
-            }
-        }
-        commonTest {
-            dependencies {
-                implementation kotlin('test-common')
-                implementation kotlin('test-annotations-common')
-            }
-        }
-        jvmMain {
-            dependencies {
-                implementation kotlin('stdlib-jdk8')
-
-                compileOnly group: 'org.conscrypt', name: 'conscrypt-openjdk-uber', version: conscryptVersion
-
-                // this is only necessary to get compilation working for self signed certificates. dependency isn't added.
-                compileOnly group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
-                compileOnly group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
-            }
-        }
-        jvmTest {
-            dependencies {
-                implementation kotlin('test')
-                implementation kotlin('test-junit')
-
-                implementation group: 'org.conscrypt', name: 'conscrypt-openjdk-uber', version: conscryptVersion
-                implementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
-                implementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
-            }
-        }
-//        jsMain {
-//            dependencies {
-//                implementation kotlin('stdlib-js')
-//            }
-//            languageSettings {
-//                useExperimentalAnnotation('kotlin.Experimental') // annotation FQ-name
-//                useExperimentalAnnotation('kotlin.ExperimentalMultiplatform') // annotation FQ-name
-//                useExperimentalAnnotation('kotlin.ExperimentalUnsignedTypes') // annotation FQ-name
-//                useExperimentalAnnotation('kotlin.ExperimentalStdlibApi') // annotation FQ-name
-//            }
-//        }
-//        jsTest {
-//            dependencies {
-//                implementation kotlin('test-js')
-//            }
-//        }
-        nativeMain {
-        }
-        nativeTest {
-        }
-    }
+    kotlinOptions.freeCompilerArgs = [
+            "-Xallow-kotlin-package",
+            "-opt-in=kotlin.Experimental",
+            "-opt-in=kotlin.ExperimentalUnsignedTypes",
+            "-opt-in=kotlin.ExperimentalStdlibApi"
+    ]
 }
 
-apply from: "../maven-multiplatform.gradle"
+compileJava {
+    targetCompatibility = "1.8"
+    sourceCompatibility = "1.8"
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    api project(':scratch:base')
+
+    compileOnly group: 'org.conscrypt', name: 'conscrypt-openjdk-uber', version: conscryptVersion
+    compileOnly group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
+    compileOnly group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
+
+    testImplementation "org.jetbrains.kotlin:kotlin-test:$kotlin_version"
+    testImplementation "org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version"
+    testImplementation group: 'org.conscrypt', name: 'conscrypt-openjdk-uber', version: conscryptVersion
+    testImplementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.60'
+    testImplementation group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: '1.60'
+}
+
+apply from: "../maven.gradle"
