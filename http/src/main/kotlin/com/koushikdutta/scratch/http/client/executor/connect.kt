@@ -29,7 +29,7 @@ class AsyncHttpConnectSocketExecutor(override val affinity: AsyncAffinity = Asyn
         else {
             var found: AsyncHttpSocketExecutor? = null
             while (keepaliveSockets.isNotEmpty()) {
-                val check = keepaliveSockets.removeFirst()
+                val check = keepaliveSockets.removeAt(0)
                 if (check.isAlive) {
                     found = check
                     reusedSocketCount++
